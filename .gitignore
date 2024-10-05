@@ -1,0 +1,10 @@
+*~
+.DS_STORE
+.ipynb_checkpoints
+*#
+*.synctex.gz
+*.aux
+*.log
+*.toc
+BROKEN
+Icon?

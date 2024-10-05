@@ -1,0 +1,143 @@
+\documentclass[12pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[dvips,letterpaper,margin=0.75in,bottom=0.75in]{geometry}
+\usepackage{cancel}
+\usepackage{graphicx}
+\usepackage{braket}
+\usepackage{latexsym,amssymb,amsmath}
+\usepackage{pdfpages}
+\usepackage{xcolor}
+\usepackage{capt-of}
+\usepackage{amsmath}
+\usepackage{cite}
+\newcommand{\tcr}{\textcolor{red}}
+\newcommand{\tcb}{\textcolor{blue}}
+
+
+\usepackage[american,fulldiode]{circuitikz}
+\tikzset{component/.style={draw,thick,circle,fill=white,minimum size =0.75cm,inner sep=0pt}}
+
+\begin{document}
+\ctikzset{bipoles/thickness=1}
+\ctikzset{bipoles/length=.6cm}
+
+
+\title{Quality Control for the PACMAN Card}
+
+\maketitle
+
+\section{Overview}
+
+The PACMAN card quality control regimen relies on several different techniques:
+\begin{itemize}
+
+\item {\bf Loopback:} Loopback is generally the most effective method
+  of feature verification.  The loopback mindset first drives the
+  design toward adequate feedback and test input mechanisms, and then
+  tests both the feature and its corresponding feedback or test input
+  mechanism simultaneously.
+
+\item {\bf Accurate Blame Assessment:} Designing for blame assessment
+  forces a modular design that lends itself to effective QC.  For an
+  important example, loopback can be performed in the hardware, or in
+  firmware (just prior to leaving/ entering the device), or in the
+  CPU, so that the source of a failure can immediately be localized to
+  hardware, programmable logic, or software.
+
+\item {\bf Design Review:} The PACMAN design team includes a lead
+  engineer, and a consulting engineer, and a principile investigator.
+  All three understand the board down to the last net list.  The
+  PACMAN design is also periodically subjected to independent review.
+  
+\item {\bf Prototype Systems:} The most effective form of quality
+  control is operation in a working system, and the PACMAN card has
+  been used continuously in prototype systems since the first version
+  in 2020.
+
+\end{itemize}
+
+\section{Feature Verification Overview}
+
+Here we list design features of the PACMAN card
+that are tested by a loopback mechanism.  Specific details on
+performing the relevant tests are discussed in the hardware checkout
+section.
+\begin{itemize}
+\item The provision of tile voltages VDDD and VDDA is verified by
+  onboard current and voltage monitoring ADCs.
+
+\item The POSI and PISO (Digital I/O to Tiles) signals are tested via
+  loopback using both test patterns and pseudorandom numbers.
+
+\item The CLK, RESETN/SYNC, and TRIG signals (Digital I/O to Tiles)
+  are tested by loopback to a PISO input.
+
+\item The Analog Monitor signals and MUX are tested by connecting the
+  positive and negative signal at the ASIC end, then configuring the
+  MUX to connect one side to a DAC channel and the other side to the
+  onboard high-performance ADC.
+
+\item The onboard high-performance ADC is tested by connecting both
+  the positive and negative terminals to independently controlled DAC
+  outputs.
+
+\item The front-panel IO is tested via loopback by connecting board
+  outputs back in as input using cables plugged into the front-panel.
+
+\item The LEDs are tested with blink patterns.
+
+\end{itemize}
+
+The PACMAN card hosts a linux system, so a broad spectrum of test
+software is immediately available to us.  Here we list what we
+consider to the be the most important tests of the Linux host.
+Specific details on performing the relevant tests are discussed in the
+hardware checkout section.
+
+\begin{itemize}
+\item Successful system BOOT, visible via UART.
+\item Successful remote login via ethernet.
+\item Successful transfer of psuedo-random data via ethernet (scp) and the UART terminal (lrzsz).
+\item Repeated read and write of psuedo-random numbers to the SD card.
+\end{itemize}
+
+Some of the tests described in this section require configuring the
+PACMAN card in ways that are not appropriate for a card installed in
+the production system.  For this reason, the PACMAN card includes an
+expert mode enable two pin jumper.  When a PACMAN card is installed in
+the production system, this jumper is removed, and the software
+refuses to provide inappropriate test configurations.
+
+\section{Requirement Verification}
+
+In addition to feature operation, the PACMAN has several performance requirements which require quantitative verifications:
+
+\begin{itemize}
+ \item The provision of voltage and power across the required ranges
+   is tested by applying the appropriate load resistance VDDD and VDDA.
+ \item The common mode rejection feature of the DC voltage supply is
+   tested by injecting larger than expected common mode noise at the
+   input and measuring the provided DC voltage.
+ \item The bit error rate is measured during loopback testing of the digital I/O systems.  
+ \item The high-frequency noise rejection is tested by injecting a
+   high-frequency signal at the input and measuring the signals after
+   filtering. (Note: these are the most challenging tests proposed)
+\end{itemize}
+
+\section{Hardware Checkout}
+
+This is under development.
+
+Recorded currents for bare board:
+\begin{center}
+\begin{tabular}{|l|l|l|l|}
+\hline
+Voltage & Current    &  Current \\
+        & (No Jumper) & (Analog Power Enabled) \\
+48      & ...         & ... \\
+\end{tabular}
+\end{center}
+
+\end{document}
+
