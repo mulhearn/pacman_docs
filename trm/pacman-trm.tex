@@ -1,0 +1,566 @@
+\documentclass[12pt]{article}
+
+\usepackage[dvips,letterpaper,margin=0.75in,bottom=0.75in]{geometry}
+\usepackage{cite}
+\usepackage{slashed}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{capt-of}
+\usepackage{xcolor}
+
+\begin{document}
+
+\title{Technical Reference Manual for the Pixel Array Control Monitor
+  and Network (PACMAN) Card}
+\author{Michael Mulhearn}
+
+\maketitle
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\section{Overview}
+
+The Pixel Array Control Monitor and Network (PACMAN) card is the warm
+electronics (located outside of the cryostat) for the pixellated
+liquid argon (LAr) time projection chamber (TPC) based on the LArPix
+ASIC.  The PACMAN card provides power and digital I/O to arrays of
+LArPix ASICs hosted on pixel tile cards located within the cryostat.
+In the production system, each PACMAN card handles up to ten pixel
+tile cards.  The PACMAN card provides analog test and monitor signals
+as well as digital control signals for clock, exernal trigger, and
+reset, and sync.  The PACMAN card serves as a timing system end point,
+hosts a linux CPU, and is connected to the data acquisition system via
+ethernet.
+
+The PACMAN card plays a supporting role in the LArPix system.  It does
+not face technical challenges as severe as the cold electronics of the
+LArPix system and therefore a basic design constraint is that it in no
+way limits the performance of the supported system.
+
+\section{Hardware Implementation}
+\subsection{Package Pin to Schematic Netlist}
+\begin{tabular}{ll}
+Netlist & Package Pin \\
+ADC\_CLK & J15 \\
+ADC\_D[0] & F19 \\
+ADC\_D[10] & AA17 \\
+ADC\_D[11] & AB17 \\
+ADC\_D[1] & G19 \\
+ADC\_D[2] & H20 \\
+ADC\_D[3] & H19 \\
+ADC\_D[4] & R6 \\
+ADC\_D[5] & T6 \\
+ADC\_D[6] & U6 \\
+ADC\_D[7] & U5 \\
+ADC\_D[8] & Y18 \\
+ADC\_D[9] & AA18 \\
+ADC\_EN & AB16 \\
+ADC\_OF & AA16 \\
+ANALOG\_PWR\_EN & J16 \\
+CDR\_CLK\_N & W18 \\
+CDR\_CLK\_P & W17 \\
+CDR\_DATA\_N & Y16 \\
+CDR\_DATA\_P & W16 \\
+CDR\_LOL & V5 \\
+CDR\_LOS & V4 \\
+GLOBAL\_CLK & C19 \\
+ISO\_SIGNAL0 & L18 \\
+ISO\_SIGNAL1 & L19 \\
+LED-2 & R19 \\
+LED-3 & T19 \\
+PISO[0] & C20 \\
+PISO[10] & W11 \\
+PISO[11] & W10 \\
+PISO[12] & B22 \\
+PISO[13] & B21 \\
+PISO[14] & A22 \\
+PISO[15] & A21 \\
+PISO[16] & AB9 \\
+PISO[17] & AB10 \\
+PISO[18] & AA8 \\
+PISO[19] & AA9 \\
+PISO[1] & D20 \\
+PISO[20] & C18 \\
+PISO[21] & C17 \\
+PISO[22] & F22 \\
+PISO[23] & F21 \\
+PISO[24] & B15 \\
+PISO[25] & C15 \\
+PISO[26] & D17 \\
+PISO[27] & D16 \\
+PISO[28] & AA4 \\
+PISO[29] & Y4 \\
+PISO[2] & G16 \\
+PISO[30] & AB4 \\
+PISO[31] & AB5 \\
+PISO[32] & F17 \\
+PISO[33] & G17 \\
+PISO[34] & E16 \\
+PISO[35] & F16 \\
+PISO[36] & V7 \\
+PISO[37] & W7 \\
+PISO[38] & W6 \\
+PISO[39] & W5 \\
+PISO[3] & G15 \\
+PISO[4] & V10 \\
+PISO[5] & V9 \\
+PISO[6] & Y9 \\
+PISO[7] & Y8 \\
+PISO[8] & V12 \\
+PISO[9] & W12 \\
+POSI[0] & D21 \\
+POSI[10] & Y6 \\
+POSI[11] & Y5 \\
+POSI[12] & C22 \\
+POSI[13] & D22 \\
+POSI[14] & G22 \\
+POSI[15] & H22 \\
+POSI[16] & AB11 \\
+POSI[17] & AA11 \\
+POSI[18] & AB12 \\
+POSI[19] & AA12 \\
+POSI[1] & E21 \\
+POSI[20] & B17 \\
+POSI[21] & B16 \\
+POSI[22] & E20 \\
+POSI[23] & E19 \\
+POSI[24] & A19 \\
+POSI[25] & A18 \\
+POSI[26] & A17 \\
+POSI[27] & A16 \\
+POSI[28] & AB6 \\
+POSI[29] & AB7 \\
+POSI[2] & B20 \\
+POSI[30] & U4 \\
+POSI[31] & T4 \\
+POSI[32] & E18 \\
+POSI[33] & F18 \\
+POSI[34] & D15 \\
+POSI[35] & E15 \\
+POSI[36] & Y11 \\
+POSI[37] & Y10 \\
+POSI[38] & V8 \\
+POSI[39] & W8 \\
+POSI[3] & B19 \\
+POSI[4] & U12 \\
+POSI[5] & U11 \\
+POSI[6] & U10 \\
+POSI[7] & U9 \\
+POSI[8] & AA7 \\
+POSI[9] & AA6 \\
+SFP\_DISABLE & AA19 \\
+SFP\_FAULT & AA21 \\
+SFP\_LOS & AB21 \\
+SFP\_MOD & Y19 \\
+SFP\_TCLK\_N & AB22 \\
+SFP\_TCLK\_P & AA22 \\
+SFP\_TDATA\_N & W21 \\
+SFP\_TDATA\_P & W20 \\
+SYNC[0] & D18 \\
+SYNC[1] & J17 \\
+SYNC[2] & L17 \\
+SYNC[3] & M17 \\
+SYNC[4] & N17 \\
+SYNC[5] & N18 \\
+SYNC[6] & J21 \\
+SYNC[7] & J22 \\
+SYNC[8] & J20 \\
+SYNC[9] & K21 \\
+SYNC\_ISO & K18 \\
+TEST\_OUT[0] & AB2 \\
+TEST\_OUT[1] & AB1 \\
+TILE\_EN[0] & G21 \\
+TILE\_EN[1] & P18 \\
+TILE\_EN[2] & P17 \\
+TILE\_EN[3] & K15 \\
+TILE\_EN[4] & L21 \\
+TILE\_EN[5] & P21 \\
+TILE\_EN[6] & P20 \\
+TILE\_EN[7] & L22 \\
+TILE\_EN[8] & M19 \\
+TILE\_EN[9] & M20 \\
+TRIG[0] & G20 \\
+TRIG[1] & R21 \\
+TRIG[2] & R20 \\
+TRIG[3] & T17 \\
+TRIG[4] & R18 \\
+TRIG[5] & M22 \\
+TRIG[6] & M21 \\
+TRIG[7] & T18 \\
+TRIG[8] & N19 \\
+TRIG[9] & N20 \\
+TRIG\_ISO & J18 \\
+\end{tabular}
+\newpage
+
+\section{Hardware Demonstration Firmware}
+\subsection{Firmware Register Map}
+\newpage
+
+
+\section{PACMAN Server}
+\subsection{DAQ Interface}
+
+The PACMAN Server interface to the DAQ is a virtual address spaces.
+Virtual addresses refer to specific features, for example, powering
+VDDD of tile 1 to a specific voltage level.  The use of a virtual
+addresses allows for the most consistent support across hardware
+versions.  Direct (non-virtual) interface to the AXI LITE address
+space is provided at upper region of the address space, as well as
+direct access to the I2C bus.
+
+
+\newpage
+\section{Quality Control}
+
+The PACMAN card quality control regimen relies on several different
+techniques:
+\begin{itemize}
+
+\item {\bf Loopback:} Loopback is generally the most effective method
+  of feature verification.  The loopback mindset first drives the
+  design toward adequate feedback and test input mechanisms, and then
+  tests both the feature and its corresponding feedback or test input
+  mechanism simultaneously.  Loopback paths in hardware test
+  components and solder quality through the entire path.
+
+\item {\bf Fault Localization:} Designing for fault localization
+  forces a modular design that lends itself to effective QC.  For an
+  important example, loopback can be performed in the hardware, or in
+  firmware (just prior to leaving/ entering the device), or in the
+  CPU, so that the source of a failure can immediately be localized to
+  hardware, programmable logic, or software.
+
+\item {\bf Design Review:} The PACMAN design team includes a lead
+  engineer, and a consulting engineer, and a principile investigator.
+  All three understand the board down to the last net list.  The
+  PACMAN design is also periodically subjected to independent review.
+  
+\item {\bf Prototype Systems:} The most effective form of quality
+  control is operation in a working system, and the PACMAN card has
+  been used continuously in prototype systems since the first version
+  in 2020.
+
+\end{itemize}
+
+\subsection{Feature Verification Overview}
+
+Here we list design features of the PACMAN card
+that are tested by a loopback mechanism.  Specific details on
+performing the relevant tests are discussed in the hardware checkout
+section.
+\begin{itemize}
+\item The provision of tile voltages VDDD and VDDA is verified by
+  onboard current and voltage monitoring ADCs.
+
+\item The POSI and PISO (Digital I/O to Tiles) signals are tested via
+  loopback using both test patterns and pseudorandom numbers.
+
+\item The CLK, RESETN/SYNC, and TRIG signals (Digital I/O to Tiles)
+  are tested by loopback to a PISO input.
+
+\item The Analog Monitor signals and MUX are tested by connecting the
+  positive and negative signal at the ASIC end, then configuring the
+  MUX to connect one side to a DAC channel and the other side to the
+  onboard high-performance ADC.
+
+\item The onboard high-performance ADC is tested by connecting both
+  the positive and negative terminals to independently controlled DAC
+  outputs.
+
+\item The front-panel IO is tested via loopback by connecting board
+  outputs back in as input using cables plugged into the front-panel.
+
+\item The LEDs are tested with blink patterns.
+
+\end{itemize}
+
+The PACMAN card hosts a linux system, so a broad spectrum of test
+software is immediately available to us.  Here we list what we
+consider to the be the most important tests of the Linux host.
+Specific details on performing the relevant tests are discussed in the
+hardware checkout section.
+
+\begin{itemize}
+\item Successful system BOOT, visible via UART.
+\item Successful remote login via ethernet.
+\item Successful transfer of psuedo-random data via ethernet (scp) and the UART terminal (lrzsz).
+\item Repeated read and write of psuedo-random numbers to the SD card.
+\end{itemize}
+
+Some of the tests described in this section require configuring the
+PACMAN card in ways that are not appropriate for a card installed in
+the production system.  For this reason, the PACMAN card includes an
+expert mode enable two pin jumper.  When a PACMAN card is installed in
+the production system, this jumper is removed, and the software
+refuses to provide inappropriate test configurations.
+
+\subsection{Requirement Verification}
+
+In addition to feature operation, the PACMAN has several performance
+requirements which require quantitative verifications:
+
+\begin{itemize}
+ \item The provision of voltage and power across the required ranges
+   is tested by applying the appropriate load resistance to VDDD and VDDA.
+ \item The common mode rejection feature of the DC voltage supply is
+   tested by injecting larger than expected common mode noise at the
+   input and measuring the provided DC voltage (This test will be performed on a subset of the PACMAN cards, to validate the design.)
+ \item The bit error rate is measured during loopback testing of the digital I/O systems.  
+ \item The high-frequency noise rejection is tested by injecting a
+   high-frequency signal at the input and measuring the signals after
+   filtering. (This test will be performed on a subset of the PACMAN cards, to validate the design)
+\end{itemize}
+
+\section{Hardware Checkout Proceedure}
+
+Caveats: No allowed tolerances have been provided yet, because we have
+only tested a few boards.
+
+\subsection{Bare Board}
+
+\begin{center}
+\begin{tabular}{cc}
+\includegraphics[height=0.26\textwidth]{photos/bare_one_led.jpeg} &
+\includegraphics[height=0.26\textwidth]{photos/bare_two_led.jpeg} \\
+Board Power Only & Tile Power Enabled (jumper)
+
+\end{tabular}
+\end{center}
+
+The hardware checkout begins with a bare board (no TRENZ module
+installed).  The $3.3\rm V$ digital power (used by PACMAN) is on as
+soon as the board is powered at the DC supply input.  The board also
+includes a jumper ``TILE POWER ENABLE OVERRIDE JUMPER'' which allows
+the 3.3~\rm V tile power to be validated before installing any module.
+
+The current should be measured and compared to the nominal expected
+value for the applied voltage, in the range of positive $32~\rm V$ to
+positive $48~\rm V$):
+\begin{center}
+\begin{tabular}{|l|l|l|l|}
+\hline
+Voltage (V) & Current (mA)  &  Current (mA) \\
+            & (No Jumper)   & (Analog Power Enabled) \\
+48          & 66            & 100 \\
+40          & 77            & 113 \\
+36          & 91            & 131 \\
+\hline
+\end{tabular}
+\end{center}
+
+Using a DMM, verify the supply of 3.3 V (nominal) at TP3 (D3V3) relative to TP4 (GND).
+
+Using a DMM, verify the supply of 3.0 V (nominal) at TP13 (A3V0) relative to TP14 (GND).
+
+\subsection{TENZ Module and Linux System Checks}
+
+With a TRENZ module installed on the board, insert an SD card with the
+latest hardware checkout firmware, the ethernet cable connected to the
+network, and power the board.
+
+The local network may require customizations to the ROOT filesystem in
+order to bring up the ethernet connection.  Before attempting to bring
+up the network on a headless PACMAN card (no USB JTAG/UART header has
+been installed) consider debuging the network configuration on a
+PACMAN equipped with a USB JTA/UART header or a Trenz Module ...  Once
+the network is brought up reliably, you can boot a PACMAN with no
+terminal and connect over ethernet.
+
+Login to the pacman card via ethernet.
+
+Run the following Linux diagnostic tools (TBD).
+
+\subsection{Linux-based Hardware Checkout Application}
+
+
+\appendix
+
+\section{Specifications for the PACMAN Card}
+
+\subsection{Overview}
+
+Each PACMAN card provides power, digital I/O, and analog test and
+monitoring signals to up to ten pixel tile cards.  Each pixel tile
+card will consist of 160 ASICs (CONFIRM).
+
+\subsection{Power}
+
+The PACMAN card provides digital and analog power to up to ten pixel
+tile cards.  The digital voltage level (VDDD) and analog voltage level
+(VDDA) are digitally controlled independently for each pixel tile
+card, within the limits and at the stability specified below.
+
+The power requirements of the PACMAN are based on scaling the measured
+power consumption of the 100 ASIC pixel tile cards to 160 ASIC pixel
+tile cards of the production system, a scale factor of 1.6.  An
+additional (minimum) safety factor of $10\%$ is added to these
+extrapolated power requirements to derive the following
+specifications:
+\captionof{table}{Digital and Analog Power Requirements (per tile card)}
+\begin{center}
+\begin{tabular}{llllll}
+      & Stability & Min (V) & Max (V) & Max Current (A) & Max Power (W) \\
+VDDA  & $1\%$ & 0 & 1.8 & 0.3 & 0.7\\
+VDDD  & $1\%$ & 0 & 1.8 & 1.1 & 2.2\\
+\end{tabular}
+\end{center}
+
+Reaching a $1\%$ stability on VDDA and VDDD requires linear regulation
+and so the power requirements at the input of the PACMAN are derived
+from a higher voltage level of $3~\rm V$.  This implies that the
+initial switching voltage requirement must provide at least 42 W at
+$3~\rm V$.
+
+The PACMAN power is provided by a single nominal 48~V 2~A DC input.
+The power connection is the four position terminal connector (Phenoix
+Contact P/N 5444660).  The inner two pins provide power and the outer
+two are for sense: \captionof{table}{Input Power Connections}
+\begin{tabular}{ll}
+pin & function \\
+1 & V+ sense  \\
+2 & V+ \\
+3 & V- \\
+4 & V- sense \\ 
+\end{tabular}\\
+The connector is rated for 8 A and 300 V.  The PACMAN is fused at 2.5
+A and has over voltage protection at 60 V.  The sense pins are fused
+at 0.5 A.
+
+\subsection{Digital Signals}
+
+The LArPix-v2 ASIC uses a bit-serial protocol to transmit and receive
+data.  The PACMAN is the primary and the LARPix ASIC the secondary, so
+that the PACMAN transmits POSI and receives PISO signals.
+
+The PACMAN shall provide the following digital IO signals to each
+pixel tile card:
+\captionof{table}{Digital Signals (per pixel tile card)}
+\begin{center}
+\begin{tabular}{llllll}
+Signal & Quantity & Description \\
+  POSI & 4 & Bit serial transmission to pixel tile \\
+  PISO & 4 & Bit serial reception from pixel tile \\
+  CLK  & 1 & Clock \\
+  TRIG & 1 & Trigger \\
+  SYNC & 1 & Multiplexed Synchronization and Reset \\
+\end{tabular}
+\end{center}
+
+Each POSI signal is received by a single ASIC, but the clock, trigger,
+and sync signals are fanned out to every ASIC on the tile card.  The
+PACMAN must be capable of driving the resulting capacitive load.
+
+The nominal clock rate is $10~\rm MHz$ with a maximum of $40~\rm MHz$.
+The LArPix ASIC uses an LVDS signal with custom voltage level which
+the PACMAN is capable of transmitting and receiving.
+
+\subsection{Noise}
+
+The noise injected into the pixel tile from the controller is less than $1~\rm mV$.
+
+\subsection{Pixel Tile Interface}
+
+A single PACMAN card drive up to ten pixel tile cards through a single
+flange card.  The interface to the eight-tile flange card is through a
+6 row by 50 pin high-desnity SAMTEC connector {\tt
+  SEAF-50-01-L-06-1-RA-K-TR} on the PACMAN card.
+
+The PACMAN card shall provide a footprint for an optional 2x17
+connector to drive a pixel card directly without the use of flange
+card.
+
+\subsection{Front Panel Interface}
+
+The PACMAN card implements the front-panel interfaces listed below in
+the specified quantity with specified routing.  When routing to
+programmable logic (PL) is specified, the specified purpose is nominal
+and can be repurposed through firmware changes.
+
+\captionof{table}{Required Front Panel Interface}
+\begin{center}
+\begin{tabular}{lll}
+Interface   & Quantity & Routing \\
+SMA Jack    & 1 & Multiplexed to eight tile analog monitor \\
+SMA Jack    & 1 & Multiplexed to eight tile adc test \\
+Lemo Jack   & 2 & PL: Trigger and Sync \\
+Push Button & 1 & Reset \\
+LED         & 4 & PL: General Purpose
+\end{tabular}
+\end{center}
+
+
+\subsection{Timing System Endpoint}
+
+The PACMAN card implement a ProtoDUNE-SP timing system
+endpoint\footnote{DUNE-doc-1651-v3} of a single fiber-optic link.
+
+\subsection{Embedded Linux}
+
+The PACMAN is an embedded Linux system and supports several standard embedded Linux interfaces:\\
+\begin{tabular}{lll}
+Interface & P/N & Notes \\ 
+Ethernet & & Gigabit \\
+SD Card & & Bootable from SD card\\
+JTAG & & SoC Configuration\\
+UART & & Linux Terminal\\
+\end{tabular}\\  
+The JTAG and UART interface are multiplexed to provide a linux terminal and firmware configuration over a single USB port. 
+
+
+\newpage
+\section{PACMAN Version History}
+
+\captionof{table}{PACMAN Evolution}
+\vskip 0.5cm
+\begin{center}
+\begin{tabular}{llll}
+Card        & Designer      & Date & Notes \\
+\hline
+PACMAN v1r1 & Hillbrand     & Feb 2020 & Initial Prototype \\
+PACMAN v1r2 & Karcher       & July 2020 & Single-tile capable\\
+PACMAN v1r3 & Berns/Karcher & Jan 2021 & Eight-tile capable - Module 0\\
+PACMAN v2 & Berns/Karcher   & Feb 2022 & LArPix-v2b, Power, TX\\
+PACMAN v3 & Berns/Karcher   & TBD & Ten-tile capable \\
+\end{tabular}
+\end{center}
+
+
+
+\section{Prototype Results}
+
+Many of the specifications for the PACMAN are driven by measurements,
+using prototype devices, as described in this section.
+
+The Intrinsic RMS noise on the LArPix ASIC was
+benchtested\footnote{Reported 6 Mar 2020, Brooke} at $~\sim 3~\rm mV$.
+
+The PACMAN card provides digital (VDDD) and analog (VDDA) power for
+the LArPix ASICs.  The ASIC power draw during power up was
+measured\footnote{Reported 13 Feb 2020, Brooke} as follows:
+\captionof{table}{ASIC Current Draw at Power-up}
+\begin{center}
+\begin{tabular}{lllll}
+   & Voltage (V) & Current (mA) & Power (mW) & Power ($\rm \mu W / chan$)\\
+VDDA  & 1.8 & 1.4  & 2.5  & 39\\
+VDDD  & 1.8 & 6.92 & 12.5 & 195\\
+\end{tabular}
+\end{center}
+
+\newpage
+The 10x10 pixel-tile power draw was measured \footnote{Reported 14 Jan 2021, Brooke} as follows:
+\captionof{table}{10x10 Power Draw}
+\begin{center}
+\begin{tabular}{llll}
+   & Voltage (V) & Current (mA) & Power (W) \\
+VDDA  & 1.8 & 166  & 0.3  \\
+VDDD  & 1.8 & 611  & 1.1  \\
+\end{tabular}
+\end{center}
+
+
+\end{document}
