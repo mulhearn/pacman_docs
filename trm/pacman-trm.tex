@@ -251,33 +251,38 @@ techniques:
 
 \subsection{Feature Verification Overview}
 
-Here we list design features of the PACMAN card
-that are tested by a loopback mechanism.  Specific details on
-performing the relevant tests are discussed in the hardware checkout
-section.
+Here we list design features of the PACMAN card that are tested during
+hardware verification, in most cases by a loopback mechanism.
+Specific details on performing the relevant tests are discussed in the
+hardware checkout section.
 \begin{itemize}
+\item The LEDs are tested with blink patterns.
+
 \item The provision of tile voltages VDDD and VDDA is verified by
   onboard current and voltage monitoring ADCs.
 
 \item The POSI and PISO (Digital I/O to Tiles) signals are tested via
   loopback using both test patterns and pseudorandom numbers.
 
-\item The CLK, RESETN/SYNC, and TRIG signals (Digital I/O to Tiles)
-  are tested by loopback to a PISO input.
-
-\item The Analog Monitor signals and MUX are tested by connecting the
-  positive and negative signal at the ASIC end, then configuring the
-  MUX to connect one side to a DAC channel and the other side to the
-  onboard high-performance ADC.
-
 \item The onboard high-performance ADC is tested by connecting both
   the positive and negative terminals to independently controlled DAC
   outputs.
 
-\item The front-panel IO is tested via loopback by connecting board
-  outputs back in as input using cables plugged into the front-panel.
+\item The CLK, RESETN/SYNC/TRIG signals (Digital I/O to Tiles) are
+  tested by loopback to the onboard ADC (DONE) through the ASIC
+  Monitoring Channels.  In addition to these signals, this therefore
+  tests MUX and the Analog Monitoring Signals.
 
-\item The LEDs are tested with blink patterns.
+\item The CLK, RESETN/SYNC/TRIG signals (Digital I/O to Tiles) are
+  tested by loopback to PISO channels (Not yet implemented, test above
+  suffices).
+
+\item The Front-Panel SMA connectors and MUX are checked by leaving
+  them open or connecting a resistor in software and confirming the
+  resistance with a DMM (Not yet in Linux)
+
+\item The Front-Panel LEMO connectors are checked by driving them with
+  external TTL signals and checking counters in the software.
 
 \end{itemize}
 
