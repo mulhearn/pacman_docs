@@ -7,6 +7,8 @@
 \usepackage{amsmath}
 \usepackage{capt-of}
 \usepackage{xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily,columns=fullflexible}
 
 \begin{document}
 
@@ -314,6 +316,8 @@ requirements which require quantitative verifications:
  \item The high-frequency noise rejection is tested by injecting a
    high-frequency signal at the input and measuring the signals after
    filtering. (This test will be performed on a subset of the PACMAN cards, to validate the design)
+ \item Temperature dependence (TBD)
+ \item Limits of digital I/O (clock speed, long cables) (TBD)
 \end{itemize}
 
 \section{Hardware Checkout Proceedure}
@@ -375,8 +379,195 @@ Login to the pacman card via ethernet.
 
 Run the following Linux diagnostic tools (TBD).
 
+The Linux-based drivers depend the Linux GPIO interface in /sys/class.
+This should be initialized at boot via the gpio\_init script included
+with the hwutil package.  Confirm that this is working properly with:
+\begin{lstlisting}[language=sh,frame=leftline]
+root@Trenz:~# ls /sys/class/gpio/
+export	gpio906  gpio913  gpio918  gpio919  gpiochip906  unexport
+\end{lstlisting}
+
 \subsection{Linux-based Hardware Checkout Application}
 
+The PACMAN hardware demonstration firmware includes a menu interface to the Linux drivers:  pacman\_menu.  It is available from the command line as:
+\begin{lstlisting}[language=sh,frame=leftline]
+root@Trenz:~# pacman_menu 
+pacman_menu:  PACMAN Linux driver access via menu, for diagnostics and hardware checkout.
+INFO:  Opening /dev/mem.
+INFO:  Initializing PACMAN AXI-Lite interface.
+INFO:  Running pacman firmware version 3.2 (Build: 0x7fff0000  HW Code:  0x10500)
+INFO:  Opening /dev/mem.
+INFO:  Initializing PACMAN BRAM (AXI-LITE) interface.
+INFO:  Opening /dev/mem.
+INFO:  Initializing DMA contol interface (AXIL).
+INFO:  Initializing DMA TX_BUFFER.
+INFO:  Initializing DMA RX_BUFFER.
+MAIN MENU:  choose an option:
+(1) blink LEDs (2) global registers (3) toggle scratch registers
+(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu 
+\end{lstlisting}
+The user selects menu options by typing the number for the option
+followed by enter.  The numbers and arrangement of the menu's will
+vary with firmware version as we further develop the tools.  This
+documentation is based on hardware demonstration firmware version 3.2.
+In the future, we will support a turn-key hardware checkout routine as
+a menu option.  However, here we document each individual test
+one-by-one.
+
+\subsubsection{LED checkout}
+
+The pacman\_menu can be used to blink the LEDs as follows:
+\begin{lstlisting}[language=sh,frame=leftline]
+MAIN MENU:  choose an option:
+(1) blink LEDs (2) global registers (3) toggle scratch registers
+(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu 
+1
+INFO: selected 1
+INFO: starting LED blink test...
+Blinking RED LED on Trenz Module, via MIO...
+Blinking PACMAN LED-0, via MIO...
+Blinking PACMAN LED-1, via MIO...
+Blinking PACMAN LED-2, via AXIL register...
+Blinking PACMAN LED-3, via AXIL register...
+INFO: done with LED blink test.
+MAIN MENU:  choose an option:
+(1) blink LEDs (2) global registers (3) toggle scratch registers
+(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu 
+\end{lstlisting}
+The user should verify that:
+\begin{itemize}
+\item The red LED on the TRENZ module blinks
+\item The four green LEDs on the PACMAN card blink one-by-one.
+\end{itemize}
+This simple test also confirms that the MIO and AXI-Lite register interfaces are both working.
+
+\subsubsection{Board Power}
+Control and monitoring of electrical power provided by the PACMAN is accessible from the power menu:
+\begin{lstlisting}[language=sh,frame=leftline]
+MAIN MENU:  choose an option:
+(1) blink LEDs (2) global registers (3) toggle scratch registers
+(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu 
+4
+INFO: selected 4
+POWER MENU:  choose an option:
+(0) main menu (1) toggle enables (2) toggle power (3) monitor power
+(4) write IV curves to file
+\end{lstlisting}
+
+The ``toggle enables'' feature steps through various combinations of
+the Tile Power Enable\footnote{Also called ``Analog Power Enable'' but
+this is misleading as it provides both digital and analog power to the
+tile cards.} and the ten individual Tile enables.  The accessible settings include:\\[5pt]
+\begin{tabular}{ll}
+Setting & Explanation \\
+\hline  
+0x00000000 & Nothing Enabled \\
+0x00010000 & Tile Power enabled, no individual Tiles enabled\\
+0x00010001 & Tile Power enabled, only Tile 1 enabled\\
+0x000103FF & Tile Power enabled, all Tiles enabled\\
+\end{tabular}{ll}\\[5pt]
+The ``monitor power'' feature access the on-board voltage and current monitoring ADCs.  At the moment, we are only concerned with the Board Power monitoring:
+\begin{lstlisting}[language=sh,frame=leftline]
+BOARD POWER SUMMARY:
+Board 3V6:  voltage:   3526 mV  current:   1337 mA
+Board 3V3:  voltage:   3326 mV  current:    813 mA
+Board 3V0:  voltage:   2985 mV  current:      0 mA
+\end{lstlisting}
+The user should verify that:
+\begin{itemize}
+\item As you step through the enables, first the Tile Power Enabled LED lights, then the Tile 1 enable LED lights, then all the Tile enable LEDs light. 
+\item The Board 3V0 voltage is near either $3000~\rm mV$ or zero depending on whether the TILE Power is enabled or not.
+\item (The RTD Probe feature can be tested here as well by connecting a resistor at J17)
+\end{itemize}
+
+\subsubsection{VDDD and VDDDA}
+
+The ``write IV curves to file'' feature of the Power submenu steps
+through several different DAC settings and steps through the monitored
+values of the voltages VDDA and VDDD along with the corresponding
+currents IDDA and IDDD.  The collected data (saved as a text file) can
+be plotted to show the linearity of the provided voltage with DAC
+setting, and the IV curve for each supplied voltage.
+\begin{center}
+\begin{tabular}{cc}
+\includegraphics[height=0.36\textwidth]{plots/vdda_dac.pdf} &
+\includegraphics[height=0.36\textwidth]{plots/idda_vdda.pdf} \\
+\end{tabular}
+\end{center}
+Here the VDDA has been loaded with a resistor to ground at the
+loopback card.
+
+\subsubsection{POSI/PISO Loopback Testing with Random Numbers}
+
+One of the most important checks is the RX and TX capabilities for the
+POSI and PISO signals between the PACMAN and the LArPix ASICs.  We
+test these with loopback at twice the nominal ASIC clock rate.  We
+transmit known random values out of the PACMAN, physically loop them
+back in as inputs.  We check each received word against the random
+value that was sent.  This test is available through the RX/TX
+submenu, but requires a few steps:
+\begin{itemize}
+\item Set the global RX configuration to 0x00000001.  This disables heartbeat, sync, and trigger words which could confuse the test.  It also only includes a single cycle in each transmitted DMA buffer.
+\item Set RX configuration to 0x00001001. This sets the mode to 1 (normal operation) and full speed (clock divisor 1).
+\item Set TX configuration to 0x00001601. This sets the mode to 1 (normal operation), phase to 0x60, and full speed (clock divisor 1).  
+\item Stop pacman\_server (both the data server and command server) via:
+\begin{lstlisting}[language=sh,frame=leftline]
+root@Trenz:~# pacman_server stop
+Stopping command server...
+Stopping dataserver...
+\end{lstlisting}
+It is most convenient if you wait to do this until after the global RX configuration has been set to disables heartbeat, sync, and trigger words.  That way, the pacman\_cmdserver drains the FIFO.
+\item Stopping pacman\_cmdserver leaves a pending DMA read request, so either reset DMA, or sent a single RX.  When ready for the test, a single TX leaves the fifo size at 37 (40 + 1 128 bit words minus four words buffered by the vendor supplied DMA engine) which should be read by a single RX, leaving the fifo size at 0.  
+\end{itemize}  
+Once preparations are complete, the test is easily run:
+\begin{lstlisting}[language=sh,frame=leftline]
+RX/TX MENU:  choose an option:
+(0) main menu (1) zero counts (2) toggle TX config (3) toggle RX config (4) toggle RX global config
+(5) TX status  (6) TX look   (7) single TX  
+(8) RX status  (9) RX look   (10) single RX  
+(11) benchmark TX  (12) benchmark RX/TX loopback (13) random RX/TX loopback
+(14) DMA status (15) reset DMA 
+(16) set DMA TX to RUN 
+(17) set DMA RX to RUN (18) clear DMA RX (19) start DMA RX (20) resume RX
+13
+INFO: selected 13
+INFO:  Setting DMA TX To RUN.
+INFO:  DMA TX has left the HALTED state successfully. (timeout=100)
+INFO:  Setting DMA RX To RUN.
+INFO:  DMA RX has left the HALTED state successfully. (timeout=100)
+SUMMARY: Found 0 discrepancies in 40000 uart packets
+\end{lstlisting}
+
+The user should verify that:
+\begin{itemize}
+\item The test can be run several times with zero discrepancies detected.
+\end{itemize}
+Note that to help distinguish hardware failures from software
+failures, you can configure internal loopback mode (so that loopback
+occurs in software not hardware).
+
+\subsubsection{Clock and Reset/Sync/Trigger Signals}
+
+To test the Clock and Reset/Sync/Trigger signals, these are routed
+back to PACMAN via loopback into the analog monitoring signals.  These
+can be directed to the ADC, which acts as a digital oscilloscope to
+record the waveforms:
+\begin{center}
+\includegraphics[height=0.36\textwidth]{plots/clock.pdf}\\
+\end{center}
+
+\begin{center}
+\includegraphics[height=0.36\textwidth]{plots/timing.pdf}\\
+\end{center}
+
+
+\subsubsection{Front Panel Checkout}
+\begin{itemize}
+\item (the MUX can be adjusted to provide a 100 Ohm resistance, or open
+ circuit, between the two SMA connectors, which can be verified with a
+ DMM.)
+\item (the TTL pulses can be fed into the LEMO connectors, which are counted by the timing unit, with counts available from the timing sub-meno.)
+\end{itemize}
 
 \appendix
 
