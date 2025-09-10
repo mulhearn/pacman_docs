@@ -354,8 +354,7 @@ would be found at the 32-bit address:
 $$0{\rm xF}020.$$
 The scopes are allocated as shown in Table~\ref{tbl:scope}.
 \begin{table}
-\label{tbl:scope}
-\caption{The most significant byte of a four bits of the register address, referred to as the scope, is allocated as shown.}
+\caption{\label{tbl:scope} The most significant four bits of the register address, referred to as the scope, is allocated as shown.}
 \begin{center}
 \begin{tabular}{|lll|}
 \hline
@@ -382,73 +381,79 @@ PACMAN registers is left to the subsections for each unit.
 \label{tbl:global-reg}
 \caption{Registers managed by the global unit}
 \begin{center}
-\begin{tabular}{|llll|}
+\begin{tabular}{|lll|}
 \hline
-Register    & Address   & RO/RW & Description \\
+Register    & Address & RO/RW \\
 \hline
-STATUS      & 0xF000 & RO & PACMAN top-level status (currently a fixed pattern) \\
-ENABLES     & 0xF010 & RW & Tile power enable and individual tile enables \\
-LEDS        & 0xF014 & RW & LED configuration (see text)\\
-SCRA        & 0xF020 & RW & Scratch register A \\
-SCRB        & 0xF024 & RW & Scratch register B \\
-FW\_MAJOR   & 0xFF10 & RO & Firmware major version \\
-FW\_MINOR   & 0xFF14 & RO & Firmware minor version \\
-FW\_BUILD   & 0xFF18 & RO & (Reserved) \\
-HW\_MAJOR   & 0xFF20 & RO & Hardware major version\\
-HW\_MINOR   & 0xFF24 & RO & Hardware minor version\\
+STATUS      & 0xF000 & RO \\
+ENABLES     & 0xF010 & RW \\
+LEDS        & 0xF014 & RW \\
+SCRATCH\_A  & 0xF020 & RW \\
+SCRATCH\_B  & 0xF024 & RW \\
+FIRMWARE\_MAJOR   & 0xFF10 & RO \\
+FIRMWARE\_MINOR   & 0xFF14 & RO \\
+FIRMWARE\_LETTER  & 0xFF18 & RO \\
+HARDWARE\_MAJOR   & 0xFF20 & RO \\
+HARDWARE\_MINOR   & 0xFF24 & RO \\
+HARDWARE\_LETTER  & 0xFF28 & RO \\
+SYNTHESIS\_DATE   & 0xFF30 & RO \\
+GIT\_HASH\_UPPER   & 0xFF40 & RO \\
+GIT\_HASH\_LOWER   & 0xFF44 & RO \\
+VIVADO\_MAJOR     & 0xFF50 & RO \\
+VIVADO\_MINOR     & 0xFF54 & RO \\
 \hline
 \end{tabular}
 \end{center}
 \end{table}
 
 \begin{table}
-\label{tbl:global-bitfields}
-\caption{Bit fields:  discription }
+\caption{\label{tbl:global-bit-fields} Bit fields:  discription }
 \begin{center}
-\begin{tabular}{|lllll|}
+\begin{tabular}{|llll|}
 \hline
-Register & Field             & Bits & Mask       & Description \\
+Register & Field             & Bits & Mask       \\
 \hline
-ENABLES  & Tile Enables      & 0-9  & 0x000003FF & enable/disable each of the ten individual tiles \\
-         & Tile Power Enable &  16  & 0x00010000 & enable/disable power to the tile power sytem \\
+ENABLES  & TILE\_ENABLES       & 0-9  & 0x000003FF \\
+         & TILE\_POWER\_ENABLE &  16  & 0x00010000 \\
 \hline
-LEDS     & LED 3 On/Off      & 0    & 0x00000001 & turn LED 3 on or off \\
-         & LED 4 On/Off      & 1    & 0x00000002 & turn LED 4 on or off \\
+LEDS     & LED\_3              & 0    & 0x00000001 \\
+         & LED\_4              & 1    & 0x00000002 \\
 \hline
 \end{tabular}
 \end{center}
 \end{table}
 
 The global unit handles simple board-wide tasks, and manages the
-registers listed in Table~\ref{tbl:global-reg}.  The read-only
-firmware registers can be used to determine the firmware version
-installed, and the read-only hardware registers can be used to check
-the hardware version for which the firmware was built.  The read-write
-scratch registers have no impact beyond storing and retrieving the
-register value, and are useful for testing the operation of the
-AXI-Lite and REGBUS interfaces.
+registers listed in Table~\ref{tbl:global-reg}.  The bit field
+interpretations for some registers are shown in
+Table~\ref{tbl:global-bit-fields}.  The read-only firmware registers
+can be used to determine the firmware version installed, and the
+read-only hardware registers can be used to check the hardware version
+for which the firmware was built.  The FIRMWARE\_BUILD and HARDWARE\_BUILD registers are reserved.
+The read-write scratch registers SCRATCH\_A and SCRATCH\_B
+have no impact beyond storing and retrieving the register value, and
+are useful for testing the operation of the AXI-Lite and REGBUS
+interfaces.
 
 Providing power and data I/O to the TILES requires enabling power to
 the tile power subsystem (called ANALOG\_POWER\_ENABLE in hardware
 schematics) as well as enabling the individual tile.  These settings
-are available in the ENABLES register, using the bit fields described
-in~\ref{tbl:global-bitfields}.  While a tile is disabled, even with
+are available in the ENABLES register, using the bit fields
+TILE\_POWER\_ENABLE and TILE\_ENABLES.  While a tile is disabled, even with
 tile power enabled, the LVDS transmitters and receivers will be off,
 and both VDDD and VDDA are at zero.  Setting the values of VDDD and
 VDDDA, and monitoring currents and voltages on the board, is done over
 I2C, by the PS, and so is not part of the PL firmware design.
 
 The PACMAN has two LEDs controlled by the PL.  Their behavior is
-controlled by the LEDS register, according to the bit field
-description in ~\ref{tbl:global-bitfields}.  In the current iteration,
-each LED is simply turned on or off directly, but in the future, they
-could be driven by specific conditions.  Two additional LEDs are
-driven from the PS, and are not part of the PL firmware design.  Two
-LEDs on the Trenz module are also controllable from the PS.
-
-The global unit also provides a global status register.  In the
-current implementation, this register is implemented as a fixed
-pattern.
+controlled by the LEDS register.  In the current iteration, each LED
+is simply turned on or off directly, by the LED\_3 and LED\_4 bits,
+but in the future, they could be driven by specific conditions as
+well.  Two additional LEDs are driven from the PS, and are not part of
+the PL firmware design.  Two LEDs on the Trenz module are also
+controllable from the PS.  The global unit also provides a global
+status register (STATUS).  In the current implementation, this
+register is implemented as a fixed pattern.
 
 \subsection{TX Unit}
 
@@ -663,19 +668,19 @@ registers, is valid.
 \label{tbl:tx-reg}
 \caption{Registers managed by the TX unit}
 \begin{center}
-\begin{tabular}{|lllll|}
+\begin{tabular}{|llll|}
 \hline
-Register    & Address   & RWC & Per UART & Description \\
+Register    & Address   & RWC & Per UART    \\
 \hline
-USTATUS     & 0x00  & RO  & Per UART   & UART status \\
-UCONFIG     & 0x04  & RW  & Per UART   & UART configuration \\
-ULOOK\_C    & 0x18  & RO  & Per UART   & Least significant four bytes of most recent TX \\
-ULOOK\_D    & 0x1C  & RO  & Per UART   & Most significant four bytes of most recent TX \\
-USTARTS     & 0x20  & RO  & Per UART   & count of UART starts \\
-UBEATS      & 0x24  & RO  & Per UART   & count of UART beats \\
-UCHAN       & 0x50  & RO  & Per UART   & UART channel ID (loopback test) \\
-BSTATUS     & 0xA0  & RO  & In Common  & TX Buffer Status \\
-ZERO\_CNTS  & 0xA8  & CMD & In Common  & reset counts to zero \\
+UART\_STATUS     & 0x00  & RO  & Per UART   \\
+UART\_CONFIG     & 0x04  & RW  & Per UART   \\
+UART\_LOOK\_C    & 0x18  & RO  & Per UART   \\
+UART\_LOOK\_D    & 0x1C  & RO  & Per UART   \\
+UART\_STARTS     & 0x20  & RO  & Per UART   \\
+UART\_BEATS      & 0x24  & RO  & Per UART   \\
+UART\_CHAN       & 0x50  & RO  & Per UART   \\
+BUFFER\_STATUS     & 0xA0  & RO  & In Common  \\
+ZERO\_CNTS       & 0xA8  & CMD & In Common  \\
 \hline
 \end{tabular}
 \end{center}
@@ -685,19 +690,19 @@ ZERO\_CNTS  & 0xA8  & CMD & In Common  & reset counts to zero \\
 \label{tbl:tx-bit-fields}
 \caption{Bit field descriptions for TX register}
 \begin{center}
-\begin{tabular}{|lllll|}
+\begin{tabular}{|llll|}
 \hline
-Register & Field    & Bits & Mask       & Description \\
+Register & Field    & Bits & Mask       \\
 \hline
-USTATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF} & \\
+UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
 \hline
-UCONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF} & \\
-         & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00} & \\
-         & MODE       & 13-12 & {\tt 0}x{\tt 00003000} & \\
-         & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000} & \\
-         & DELAY      & 31-16 & {\tt 0}x{\tt FFFF0000} & \\
+UART\_CONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
+              & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
+              & MODE       & 13-12 & {\tt 0}x{\tt 00003000}  \\
+              & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000}  \\
+              & DELAY      & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
 \hline
-BSTATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF} & \\
+BUFFER\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
 \hline
 \end{tabular}
 \end{center}
@@ -706,27 +711,27 @@ BSTATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF} & \\
 The registers managed by the TX unit are presented in
 Table~\ref{tbl:tx-reg}, and bit field interpretations for some of the
 registers are provided in Table~\ref{tbl:tx-bit-fields}. The UART
-configuration (UCONFIG) includes fields for a phase offset (in 10 ns
+configuration (UART\_CONFIG) includes fields for a phase offset (in 10 ns
 ticks) and a clock divider (slow down factor) of the TX UART clock
 relative to the 100 ns clock sent directly to the ASICs.  Normal
 operation is mode=1.  For mode=0, the TX UART is off, and the channel
 holds ready high.  The upper 16 bits of the register is the
 configurable delay (in 10 ns ticks) inserted between TX cycles.  The
-UART status registers (USTATUS, one per UART) and TX buffer status
-(BSTATUS) interpretation is currently expert only, and not documented
+UART status registers (UART\_STATUS, one per UART) and TX buffer status
+(BUFFER\_STATUS) interpretation is currently expert only, and not documented
 here, but the counts (explained below).  More user friendly
 quantities (derived from the status registers) are available and
 described below.
 
-The look registers (ULOOK\_C and ULOOK\_D) are the least significant
+The look registers (UART\_LOOK\_C and UART\_LOOK\_D) are the least significant
 and most significant 32-bit words from the most recent transmission
 request sent to each UART channel.  These buffers are used to verify
 the operation of the DMA to UART channel transmission, and do not test
 the actual operation of the UART transmitter.  Operation of the UART
 itself can be verified by software loopback of the UART output to the
 RX UARTs (as described in the RX section) or by physical loopback.
-The number of beats encountered (UBEATS) and the number of
-transmission start bits sent (USTARTS) is available for each UART.
+The number of beats encountered (UART\_BEATS) and the number of
+transmission start bits sent (UART\_STARTS) is available for each UART.
 These counts are cleared upon reset and by writing the zero counts
 (ZERO\_CNTS) register.
 
@@ -916,28 +921,28 @@ in Table~\ref{tbl:rx-scope}.
 \begin{table}
 \caption{\label{tbl:rx-reg} Registers managed by the RX unit}
 \begin{center}
-\begin{tabular}{|lllll|}
+\begin{tabular}{|llll|}
 \hline
-Register    & Address   & RWC & Per UART & Description \\
+Register        & Address   & RWC & Per UART \\
 \hline
-USTATUS     & 0x00  & RO  & Per UART   & UART status \\
-UCONFIG     & 0x04  & RW  & Per UART   & UART configuration \\
-ULOOK\_A    & 0x10  & RO  & Per UART   & \\
-ULOOK\_B    & 0x14  & RO  & Per UART   & \\
-ULOOK\_C    & 0x18  & RO  & Per UART   & \\
-ULOOK\_D    & 0x1C  & RO  & Per UART   & \\
-USTARTS     & 0x20  & RO  & Per UART   & \\
-UBEATS      & 0x24  & RO  & Per UART   & \\
-UUPDATES    & 0x28  & RO  & Per UART   & \\
-ULOST       & 0x2C  & RO  & Per UART   & \\
-UCHAN       & 0x50  & RO  & Per UART   & \\
-BSTATUS     & 0xA0  & RO  & In Common  & \\
-BCONFIG     & 0xA4  & RW  & In Common  & \\
-ZERO\_CNTS  & 0xA8  & CMD & In Common  & \\
-FCNT        & 0xB0  & RO  & In Common  & \\
-FMAX        & 0xB4  & RO  & In Common  & \\
-HB\_CYC     & 0xC0  & RW  & In Common  & \\
-SYNC\_TS    & 0xC4  & RW  & In Common  & \\
+UART\_STATUS      & 0x00  & RO  & Per UART   \\
+UART\_CONFIG      & 0x04  & RW  & Per UART   \\
+UART\_LOOK\_A     & 0x10  & RO  & Per UART   \\
+UART\_LOOK\_B     & 0x14  & RO  & Per UART   \\
+UART\_LOOK\_C     & 0x18  & RO  & Per UART   \\
+UART\_LOOK\_D     & 0x1C  & RO  & Per UART   \\
+UART\_STARTS      & 0x20  & RO  & Per UART   \\
+UART\_BEATS       & 0x24  & RO  & Per UART   \\
+UART\_UPDATES     & 0x28  & RO  & Per UART   \\
+UART\_LOST        & 0x2C  & RO  & Per UART   \\
+UART\_CHAN        & 0x50  & RO  & Per UART   \\
+BUFFER\_STATUS    & 0xA0  & RO  & In Common  \\
+BUFFER\_CONFIG    & 0xA4  & RW  & In Common  \\
+ZERO\_CNTS        & 0xA8  & CMD & In Common  \\
+FIFO\_CNT         & 0xB0  & RO  & In Common  \\
+FIFO\_MAX         & 0xB4  & RO  & In Common  \\
+HEARTBEAT\_CONFIG & 0xC0  & RW  & In Common  \\
+ROLLOVER\_CONFIG  & 0xC4  & RW  & In Common  \\
 \hline
 \end{tabular}
 \end{center}
@@ -947,23 +952,23 @@ SYNC\_TS    & 0xC4  & RW  & In Common  & \\
 \begin{table}
 \caption{\label{tbl:rx-bit-fields} Bit field descriptions for RX register}
 \begin{center}
-\begin{tabular}{|lllll|}
+\begin{tabular}{|llll|}
 \hline
-Register & Field      & Bits & Mask       & Description \\
+Register & Field      & Bits & Mask       \\
 \hline
-USTATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF} & \\
+UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
 \hline
-UCONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF} & \\
-         & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00} & \\
-         & MODE       & 13-12 & {\tt 0}x{\tt 00003000} & \\
-         & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000} & \\
-         & INPUT      & 17-16 & {\tt 0}x{\tt 00030000} & \\
-         & (Reserved) & 31-18 & {\tt 0}x{\tt FFFC0000} & \\
+UART\_CONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
+              & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
+              & MODE       & 13-12 & {\tt 0}x{\tt 00003000}  \\
+              & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000}  \\
+              & INPUT      & 17-16 & {\tt 0}x{\tt 00030000}  \\
+              & (Reserved) & 31-18 & {\tt 0}x{\tt FFFC0000}  \\
 \hline
-BSTATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF} & \\
+BUFFER\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
 \hline
-BCONFIG  & TCYCLES    & 15-0  & {\tt 0}x{\tt 0000FFFF} & \\
-         & (Reserved) & 31-16 & {\tt 0}x{\tt FFFF0000} & \\
+BUFFER\_CONFIG  & TCYCLES    & 15-0  & {\tt 0}x{\tt 0000FFFF}  \\
+              & (Reserved) & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
 \hline
 \end{tabular}
 \end{center}
@@ -972,7 +977,7 @@ BCONFIG  & TCYCLES    & 15-0  & {\tt 0}x{\tt 0000FFFF} & \\
 The registers managed by the RX unit are presented in
 Table~\ref{tbl:rx-reg}, and bit field interpretations for some of the
 registers are provided in Table~\ref{tbl:rx-bit-fields}. The UART
-configuration (UCONFIG) includes fields for a phase offset (in 10 ns
+configuration (UART\_CONFIG) includes fields for a phase offset (in 10 ns
 ticks) and a clock divider (slow down factor) of the RX UART clock
 relative to the 100 ns clock sent directly to the ASICs.  Normal
 operation is MODE=1.  For MODE=0, the RX unit is squelched: updates
@@ -984,24 +989,25 @@ selects the output of the RX unit for the corresponding channel,
 poviding a software loopback option.  Setting INPUT=2 fixes the input
 to 0, and INPUT=3 fixes the input to 1.
 
-The RX buffer configuration register (BCONFIG) includes the TCYCLES
-field, which specifies the number of turn cycles included in each DMA
-packet, as described above.  The sync word behavior is configured by
-the number of clock cycles between heartbeats (HB\_CYC) and the
-timestamp at which a rollover is recorded (SYNC\_TS).  The UART status
-registers (USTATUS, one per UART) and RX buffer status (BSTATUS)
-interpretation is currently expert only, and not documented here.
+The RX buffer configuration register (BUFFER\_CONFIG) includes the
+TCYCLES field, which specifies the number of turn cycles included in
+each DMA packet, as described above.  The sync word behavior is
+configured by the number of clock cycles between heartbeats
+(HEARTBEAT\_CONFIG) and the timestamp at which a rollover is recorded
+(ROLLOVER\_CONFIG).  The UART status registers (USTATUS, one per UART)
+and RX buffer status (BSTATUS) interpretation is currently expert
+only, and not documented here.
 
-The look registers (ULOOK\_A through and ULOOK\_D) contain the least
+The look registers (UART\_LOOK\_A through and UART\_LOOK\_D) contain the least
 significant to most significant 32-bit words (128 bits total) of the
 most recent packet received by each packet.  Several counts are
-maintained for each UART: the number of start bits received (USTARTS),
-beats observed (UBEATS), and successful receptions (UUPDATES).  The
-number of lost packets (ULOST), as indicated by the lost bit being
+maintained for each UART: the number of start bits received (UART\_STARTS),
+beats observed (UART\_BEATS), and successful receptions (UART\_UPDATES).  The
+number of lost packets (UART\_LOST), as indicated by the lost bit being
 asserted, are likewise counted.  The counts are cleared upon reset and
 by writing the zero counts (ZERO\_CNTS) register.  The current number
-of words (FCNT) in the RX FIFO is available, as is the maximum number
-of words (FMAX) since the last reset of zero counts command.
+of words (FIFO\_CNT) in the RX FIFO is available, as is the maximum number
+of words (FIFO\_MAX) since the last reset of zero counts command.
 
 \newpage
 \subsection{Timing Unit}
@@ -1037,10 +1043,10 @@ direct access to the I2C bus.
 
 
 \newpage
-\section{Quality Control}
+\section{Quality Assurance and Quality Control}
 
-The PACMAN card quality control regimen relies on several different
-techniques:
+The PACMAN card quality assurance and quality control (QA/QC) regimen
+relies on several complementary techniques:
 \begin{itemize}
 
 \item {\bf Loopback:} Loopback is generally the most effective method
