@@ -1041,6 +1041,237 @@ versions.  Direct (non-virtual) interface to the AXI LITE address
 space is provided at upper region of the address space, as well as
 direct access to the I2C bus.
 
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|ll|lllll|}
+\hline
+Word Type & Char & Field & Symbol & Bytes & Bits & Notes \\
+\hline
+PING  & `P' & PACMAN ID      & P & 1 & 8  & Optional for request\\
+\hline
+READ  & `R' & PACMAN ID      & P & 1 & 8  & Optional for request\\
+~     &     & Address        & A & 4 & 32 & \\
+~     &     & Read Value     & R & 4 & 32 & 0 for request\\
+\hline
+WRITE & `W' & PACMAN ID      & P & 1 & 8  & Optional for request\\
+~     &     & Address        & A & 4 & 32 & \\
+~     &     & Write Value    & W & 4 & 32 & \\
+\hline
+DATA  & `D' & PACMAN ID      & P & 1 & 8  & Optional for TX \\
+~     &     & Channel        & C & 2 & 16 & \\
+~     &     & Timestamp      & T & 8 & 64 & Optional for TX \\
+~     &     & Data Payload   & D & 8 & 64 & \\
+\hline
+CFG   & `C' & PACMAN ID      & P & 1 & 8  & Optional for TX \\
+~     &     & Channel        & C & 2 & 16 & \\
+~     &     & Timestamp      & T & 8 & 64 & Optional for TX \\
+~     &     & Data Payload   & D & 8 & 64 & \\
+\hline
+SYNC  & `S' & PACMAN ID      & P & 1 & 8  & \\
+~     &     & Sync Type      & S & 1 & 8  & \\
+~     &     & Clock Sourc    & L & 1 & 8  & \\
+~     &     & Timestamp      & T & 8 & 64 & \\
+~     &     & Status         & U & 4 & 32 & \\
+%\hline
+\hline
+TRIG  & `T' & PACMAN ID      & P & 1 & 8  & \\
+~     &     & Trigger Type   & G & 1 & 8  & \\
+~     &     & Trigger Source & I & 1 & 8  & \\
+~     &     & Timestamp      & T & 8 & 64 & \\
+\hline
+ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
+~     &     & Timestamp      & T & 8 & 64 & \\
+~     &     & Error Code     & O & 4 & 32 & \\
+\hline
+\end{tabular}
+\caption{Constitutient fields of PACMAN words by word type (with
+  associated character).  Each word is 24 bytes (192 bits) but padding
+  is not listed here.  The size in bytes (and bits) and the single
+  letter symbol used for each active field is listed.}
+\label{tbl:pacman_word_fields}
+\end{table}
+
+\newcommand{\pacmanWordRect}[1]{%
+  % #1 = y-coordinate of the bottom of the rectangle
+  \def\wh{1}   % height of the rectangle
+  \def\ww{16}   % width of the rectangle
+  \def\bw{\ww/24} % width per byte
+
+  % Draw main rectangle
+  \draw[line width = 2pt] (0,#1) rectangle (\ww, {#1+\wh});
+
+  % Draw dashed lines for each byte, all relative to #1
+  \foreach \i in {1,...,23} {
+    \draw[dashed] ({\i*\bw}, #1) -- ({\i*\bw}, {#1+\wh});
+  }
+}
+
+\newcommand{\pacmanFieldLow}[2]{%
+  % #1 = y-coordinate of the bottom of the rectangle
+  % #2 = byte index (0..23)
+  \def\wh{1}      % height of rectangle
+  \def\ww{16}     % width of rectangle
+  \def\bw{\ww/24} % width per byte
+
+  % Draw solid line at top of byte #2, relative to bottom y-coordinate #1
+  \draw[line width = 2pt] ({#2*\bw}, {#1}) -- ({#2*\bw}, {#1+\wh});
+}
+
+\newcommand{\pacmanByteText}[3]{%
+  % #1 = y-coordinate of bottom of rectangle
+  % #2 = byte index (0–23)
+  % #3 = text to place
+  \def\wh{1}   % height of rectangle (same as pacmanWordRect)
+  \def\ww{16}  % width of rectangle
+  \def\bw{\ww/24} % width per byte
+
+  % Compute center of the byte
+  \pgfmathsetmacro{\xcenter}{#2*\bw + 0.5*\bw}
+  \pgfmathsetmacro{\ycenter}{#1 + 0.5*\wh}
+
+  % Place text centered
+  \node at (\xcenter,\ycenter) {#3};
+}
+
+
+
+\begin{figure}[htbp]
+  \centering
+
+  \begin{tikzpicture}
+    \def\yERR{0.0}
+    \def\yTRIG{2.0}
+    \def\ySYNC{4.0}
+    \def\yCFG{6.0}
+    \def\yDATA{8.0}
+    \def\yWRITE{10.0}
+    \def\yREAD{12.0}
+    \def\yPING{14.0}
+
+
+    \node at (8,\yPING  - 0.4) {\large Ping};
+    \node at (8,\yREAD  - 0.4) {\large Read};
+    \node at (8,\yWRITE - 0.4) {\large Write};
+    \node at (8,\yDATA  - 0.4) {\large Data};
+    \node at (8,\yCFG   - 0.4) {\large Config};
+    \node at (8,\ySYNC  - 0.4) {\large Sync};
+    \node at (8,\yTRIG  - 0.4) {\large Trigger};
+    \node at (8,\yERR   - 0.4) {\large Error};
+    
+    \pacmanWordRect{\yPING}
+    \pacmanByteText{\yPING}{0}{`P'}
+    \pacmanFieldLow{\yPING}{1}
+    \pacmanByteText{\yPING}{1}{P}
+    \pacmanFieldLow{\yPING}{2}
+
+    % READ word
+    \pacmanWordRect{\yREAD}
+    \pacmanByteText{\yREAD}{0}{`R'}   % word_type
+    \pacmanByteText{\yREAD}{1}{P}   % pacman ID
+    \pacmanByteText{\yREAD}{8}{A}   % addr
+    \pacmanByteText{\yREAD}{12}{V}  % value
+    \pacmanFieldLow{\yREAD}{0}    % word_type bottom
+    \pacmanFieldLow{\yREAD}{1}    % pacman ID bottom
+    \pacmanFieldLow{\yREAD}{2}    % pad(6) bottom
+    \pacmanFieldLow{\yREAD}{8}    % addr bottom
+    \pacmanFieldLow{\yREAD}{12}   % value bottom
+    \pacmanFieldLow{\yREAD}{16}   % pad2(8) bottom
+
+    % WRITE word
+    \pacmanWordRect{\yWRITE}
+    \pacmanByteText{\yWRITE}{0}{`W'}   % word_type
+    \pacmanByteText{\yWRITE}{1}{P}   % pacman ID
+    \pacmanByteText{\yWRITE}{8}{A}   % addr
+    \pacmanByteText{\yWRITE}{12}{V}  % value
+    \pacmanFieldLow{\yWRITE}{0}
+    \pacmanFieldLow{\yWRITE}{1}
+    \pacmanFieldLow{\yWRITE}{2}    % pad(6)
+    \pacmanFieldLow{\yWRITE}{8}
+    \pacmanFieldLow{\yWRITE}{12}
+    \pacmanFieldLow{\yWRITE}{16}   % pad2(8)
+
+    % DATA word
+    \pacmanWordRect{\yDATA}
+    \pacmanByteText{\yDATA}{0}{`D'}   % word_type
+    \pacmanByteText{\yDATA}{1}{P}   % pacman ID
+    \pacmanByteText{\yDATA}{2}{C}   % chan
+    \pacmanByteText{\yDATA}{8}{T}   % timestamp
+    \pacmanByteText{\yDATA}{16}{D}  % payload
+    \pacmanFieldLow{\yDATA}{0}
+    \pacmanFieldLow{\yDATA}{1}
+    \pacmanFieldLow{\yDATA}{2}
+    \pacmanFieldLow{\yDATA}{4}    
+    \pacmanFieldLow{\yDATA}{8}
+    \pacmanFieldLow{\yDATA}{16}
+
+    % CFG word
+    \pacmanWordRect{\yCFG}
+    \pacmanByteText{\yCFG}{0}{`C'}   % word_type
+    \pacmanByteText{\yCFG}{1}{P}   % pacman ID
+    \pacmanByteText{\yCFG}{2}{C}   % chan
+    \pacmanByteText{\yCFG}{8}{T}   % timestamp
+    \pacmanByteText{\yCFG}{16}{D}  % payload
+    \pacmanFieldLow{\yCFG}{0}
+    \pacmanFieldLow{\yCFG}{1}
+    \pacmanFieldLow{\yCFG}{2}
+    \pacmanFieldLow{\yCFG}{4}    
+    \pacmanFieldLow{\yCFG}{8}
+    \pacmanFieldLow{\yCFG}{16}
+
+    % SYNC word
+    \pacmanWordRect{\ySYNC}
+    \pacmanByteText{\ySYNC}{0}{`S'}  % word_type
+    \pacmanByteText{\ySYNC}{1}{P}  % pacman
+    \pacmanByteText{\ySYNC}{2}{S}  % sync_type
+    \pacmanByteText{\ySYNC}{3}{C}  % clock_source
+    \pacmanByteText{\ySYNC}{8}{T}  % timestamp
+    \pacmanByteText{\ySYNC}{16}{S} % status
+    \pacmanFieldLow{\ySYNC}{1}   
+    \pacmanFieldLow{\ySYNC}{2}   
+    \pacmanFieldLow{\ySYNC}{3}   
+    \pacmanFieldLow{\ySYNC}{4}   
+    \pacmanFieldLow{\ySYNC}{8}   
+    \pacmanFieldLow{\ySYNC}{16}  
+    \pacmanFieldLow{\ySYNC}{20}  
+
+    % TRIG word
+    \pacmanWordRect{\yTRIG}
+    \pacmanByteText{\yTRIG}{0}{`T'}  % word type
+    \pacmanByteText{\yTRIG}{1}{P}  % pacman
+    \pacmanByteText{\yTRIG}{2}{G}  % trigger type 
+    \pacmanByteText{\yTRIG}{3}{I}  % trigger source 
+    \pacmanByteText{\yTRIG}{8}{T}  % timestamp    
+    \pacmanFieldLow{\yTRIG}{1}   
+    \pacmanFieldLow{\yTRIG}{2}   
+    \pacmanFieldLow{\yTRIG}{3}   
+    \pacmanFieldLow{\yTRIG}{4}   
+    \pacmanFieldLow{\yTRIG}{8}   
+    \pacmanFieldLow{\yTRIG}{16}  
+
+    % ERR word
+    \pacmanWordRect{\yERR}
+    \pacmanByteText{\yERR}{0}{`E'}  % word type
+    \pacmanByteText{\yERR}{1}{P}    % pacman
+    \pacmanByteText{\yERR}{8}{T}    % timestamp
+    \pacmanByteText{\yERR}{16}{O}   % error code    
+    \pacmanFieldLow{\yERR}{1}   
+    \pacmanFieldLow{\yERR}{2}   
+    \pacmanFieldLow{\yERR}{8}   
+    \pacmanFieldLow{\yERR}{16}  
+    \pacmanFieldLow{\yERR}{20}  
+  \end{tikzpicture}
+
+  \caption{Layout of PACMAN message words by word type, showing field
+    locations and sizes, labeled by the single character symbol from
+    Table~ \ref{tbl:pacman_word_fields}.  The space between each pair
+    of lines represents one byte, and each word is 24 bytes wide
+    (192-bits).  The least significant bit is to the left, the the
+    least significant byte is a character field used to indicate the
+    word type.}
+\label{fig:pacman_word_layouts}
+\end{figure}
+
+
 
 \newpage
 \section{Quality Assurance and Quality Control}
