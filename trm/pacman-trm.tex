@@ -1271,7 +1271,40 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
 \label{fig:pacman_word_layouts}
 \end{figure}
 
-
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Command} & \textbf{Description} \\
+\hline
+\texttt{ping}                              & Reply pong \\
+\texttt{report\_version\_info}             & Report firmware version and related info \\
+\texttt{report\_power}                     & Report voltage and current info  \\
+\texttt{read\_pacman\_id}                  & Reply with current PACMAN ID \\
+\hline
+\texttt{set\_pacman\_id id=<id>}           & Set PACMAN ID to \texttt{<id>} \\
+\texttt{set\_vddd tile=<tile> mv=<mv>}     & Set tile \texttt{<tile>} VDDD to \texttt{<mv>}~mV \\
+\texttt{set\_vdda tile=<tile> mv=<mv>}     & Set tile \texttt{<tile>} VDDA to \texttt{<mv>}~mV \\
+\texttt{enable\_tile\_power}               & Enable main analog power rails for all tiles \\
+\texttt{disable\_tile\_power}              & Disable main analog power rails for all tiles \\
+\texttt{enable\_tile tile=<tile>}          & Enable local power and logic for tile \texttt{<tile>} \\
+\texttt{disable\_tile tile=<tile>}         & Disable local power and logic for tile \texttt{<tile>} \\
+\texttt{read\_vddd tile=<tile>}            & Reply with measured VDDD for tile \texttt{<tile>} \\
+\texttt{read\_vdda tile=<tile>}            & Reply with measured VDDA for tile \texttt{<tile>} \\
+\texttt{read\_enables}                     & Reply with global and per-tile enable status \\
+\hline
+\texttt{send\_full\_reset mask=<mask>}     & Send full reset to tiles enabled in \texttt{<mask>} \\
+\texttt{send\_internal\_reset mask=<mask>} & Send internal reset to tiles enabled in \texttt{<mask>} \\
+\texttt{send\_sync\_timestamp mask=<mask>} & Send sync timestamp to tiles enabled in \texttt{<mask>} \\
+\hline
+\end{tabular}
+\caption{High-level DAQ interface commands for the PACMAN card.
+All commands use \texttt{key=value} syntax.
+Parameters shown in angle brackets (e.g.\ \texttt{<tile>}) indicate user-specified values.
+Tile enable operates in two stages: \texttt{enable\_tile\_power} applies global power rails,
+and \texttt{enable\_tile} activates individual tiles.}
+\label{tbl:high-level}
+\end{table}
 
 \newpage
 \section{Quality Assurance and Quality Control}
