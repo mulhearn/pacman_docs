@@ -467,10 +467,10 @@ register is implemented as a fixed pattern.
 \def\boxtall{7.0cm}
 
 \node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (mm2s) at (1,3) {DMA\\(MM2S)};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (tx)     at (7,3) {TX Buffer};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (tx)   at (7,3) {TX Buffer};
 
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (a)     at (13,5) {TX \\ Channel \\ 0};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (b)     at (13,1) {TX \\ Channel \\ 39};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (a)   at (13,5) {TX \\ Channel \\ 0};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (b)   at (13,1) {TX \\ Channel \\ 39};
 
 \node at (13,3) {\large\textellipsis};
 
@@ -493,15 +493,11 @@ register is implemented as a fixed pattern.
 \draw[->, thick]
   ($(mm2s.east)+(0,1.5)$)
   -- node[above, font=\small] {tdata}
-     node[below, font=\small] {128-bits, 21 beats}
+     node[below, font=\small] {64-bits, 41 beats}
   ($(tx.west)+(0,1.5)$);
 \draw[->, thick] ($(mm2s.east)+(0,0.0)$) -- node[above, font=\small] {tvalid} ($(tx.west)+(0,0.0)$);
 \draw[->, thick] ($(mm2s.east)-(0,1.0)$) -- node[above, font=\small] {tlast} ($(tx.west)-(0,1.0)$);
 \draw[<-, thick] ($(mm2s.east)-(0,2.0)$) -- node[above, font=\small] {tready} ($(tx.west)-(0,2.0)$);
-
-%\draw[->, thick] ($(tx.east)+(0,0.0)$) -- node[above, font=\small] {b} -- ++(1,0);
-%\draw[<-, thick] ($(tx.east)-(0,1.5)$) -- node[below, font=\small] {c} -- ++(1,0);
-
 
 % POSI Output
 \draw[->, thick] (a.east) -- ++(1.0,0) node[anchor=west, font=\small] {POSI(0)};
@@ -748,48 +744,62 @@ speed without any bit errors.
 \begin{tikzpicture}[x=1cm, y=1cm]
 
 % Uniform box size
-\def\boxwidth{2.0cm}
-\def\boxshort{3.0cm}
+
+\def\boxwidth{1.8cm}
+\def\boxshort{3cm}
+\def\boxmed{3.5cm}
 \def\boxtall{7.0cm}
 
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (a)     at (1,5) {RX \\ Channel \\ 0};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (b)     at (1,1) {RX \\ Channel \\ 39};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (rx)     at (7,3) {RX Buffer};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (fifo) at (13,3) {FIFO\\(AXIS)};
-\node at (1,3) {\large\textellipsis};  % or just {...}
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center]
+(a)    at (0,5)  {RX \\ Channel \\ 0};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center]
+(b)    at (0,1)  {RX \\ Channel \\ 39};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort,  text width=\boxwidth, align=center]
+(mux)  at (4.25,3)  {MUX};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall,  text width=\boxwidth, align=center]
+(buf)  at (8.5,3)  {RX \\ Buffer};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall,  text width=\boxwidth, align=center]
+(fifo) at (12.75,3) {FIFO\\(AXIS)};
 
+\node at (0,3) {\large\textellipsis};
+
+\node at (2,3) {\large\textellipsis};  
 
 \coordinate (aa) at ($(a.east)+(0,0.75)$);
 \coordinate (ab) at ($(a.east)+(0,0.00)$);
-\coordinate (ac) at ($(a.east)-(0,0.75)$);
-\draw[<-, thick] (tx.west |- aa) -- node[above, font=\small] {udata(0)} (aa);
-\draw[<-, thick] (tx.west |- ab) -- node[above, font=\small] {uvalid(0)} (ab);
-\draw[->, thick] (tx.west |- ac) -- node[above, font=\small] {uready(0)} (ac);
+\coordinate (ac) at ($(a.east)-(0,1.00)$);
+\draw[->, thick] (buf.west |- aa) -- node[above, font=\small] {uready(0)} (aa);
+\draw[<-, thick] (buf.west |- ab) -- node[above, font=\small] {uvalid(0)} (ab);
+\draw[<-, thick] (mux.west |- ac) -- node[above, font=\small] {udata(0)} (ac);
 
-\coordinate (ba) at ($(b.east)+(0,0.75)$);
+\coordinate (ba) at ($(b.east)+(0,1.00)$);
 \coordinate (bb) at ($(b.east)+(0,0.00)$);
 \coordinate (bc) at ($(b.east)-(0,0.75)$);
-\draw[<-, thick] (tx.west |- ba) -- node[above, font=\small] {udata(39)} (ba);
-\draw[<-, thick] (tx.west |- bb) -- node[above, font=\small] {uvalid(39)} (bb);
-\draw[->, thick] (tx.west |- bc) -- node[above, font=\small] {uready(39)} (bc);
+\draw[<-, thick] (mux.west |- ba) -- node[above, font=\small] {udata(39)} (ba);
+\draw[<-, thick] (buf.west |- bb) -- node[below, font=\small] {uvalid(39)} (bb);
+\draw[->, thick] (buf.west |- bc) -- node[below, font=\small] {uready(39)} (bc);
+
+\draw[<-, thick] ($(mux.east)+(0,0.5)$) -- node[above, font=\small] {select} ($(buf.west)+(0,0.5)$);
+\draw[->, thick] ($(mux.east)-(0,0.5)$) -- node[above, font=\small] {udata}  ($(buf.west)-(0,0.5)$);
 
 % Stream Interface Arrows
 \draw[->, thick]
-  ($(tx.east)+(0,1.5)$)
+  ($(buf.east)+(0,1.5)$)
   -- node[above, font=\small] {tdata}
-     node[below, font=\small] {128-bits per beat}
+     node[below, font=\small] {(64-bits)}
   ($(fifo.west)+(0,1.5)$);
-\draw[->, thick] ($(tx.east)+(0,0.0)$) -- node[above, font=\small] {tvalid} ($(fifo.west)+(0,0.0)$);
-\draw[->, thick] ($(tx.east)-(0,1.0)$) -- node[above, font=\small] {tlast} ($(fifo.west)-(0,1.0)$);
-\draw[<-, thick] ($(tx.east)-(0,2.0)$) -- node[above, font=\small] {tready} ($(fifo.west)-(0,2.0)$);
+\draw[->, thick] ($(buf.east)+(0,0.0)$) -- node[above, font=\small] {tvalid} ($(fifo.west)+(0,0.0)$);
+\draw[->, thick] ($(buf.east)-(0,1.0)$) -- node[above, font=\small] {tlast} ($(fifo.west)-(0,1.0)$);
+\draw[<-, thick] ($(buf.east)-(0,2.0)$) -- node[above, font=\small] {tready} ($(fifo.west)-(0,2.0)$);
 
 % POSI Output
-\draw[<-, thick] (a.west) -- ++(-1.0,0) node[anchor=east, font=\small] {PISO(0)};
-\draw[<-, thick] (b.west) -- ++(-1.0,0) node[anchor=east, font=\small] {PISO(39)};
-
+\draw[<-, thick] (a.west) -- ++(-0.25,0) node[anchor=east, font=\small] {PISO (0)};
+\draw[<-, thick] (b.west) -- ++(-0.25,0) node[anchor=east, font=\small] {PISO (39)};
 
 \end{tikzpicture}
-\caption{Data path in the RX Unit}
+\caption{Data path in the RX Unit.  Timestamps from each channels are
+  MUXed in a similar fashion for inclusion in the stream.  A secondary
+  output of the MUX is used to provide a look register.}
 \label{fig:rx-unit}
 \end{figure}
 
