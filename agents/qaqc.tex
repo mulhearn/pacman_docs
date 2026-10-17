@@ -1,0 +1,334 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{array}
+\usepackage{needspace}
+\usepackage[american]{circuitikz}
+\usetikzlibrary{positioning,fit,arrows.meta}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
+\newcommand{\opt}[1]{\texttt{-{}-#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{PACMAN Quality Assurance and Quality Control\\[2pt]
+  \large Hardware checkout: tools, coverage, and shifter's guide}
+\author{Draft maintained by the PACMAN agents (augie); reference for the TRM}
+\date{2026-10-17}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+\begin{itemize}
+\item Define a repeatable checkout of every new PACMAN card before it goes into a production system or onto an
+  ASIC test stand.
+\item Two utilities, both run on the PACMAN's own Linux system:
+  \begin{itemize}
+  \item \texttt{pacman\_lnxcheck}: the standard embedded-Linux checkout of the Trenz module (CPU, memory,
+    on-chip supplies, Ethernet, flash and SD storage).
+  \item \texttt{pacman\_hwcheck}: the PACMAN-specific checkout (power, tile I/O, timing inputs, front panel),
+    partly guided by an operator.
+  \end{itemize}
+\item Scope: the features needed for normal operation.  Features that normal operation does not use are listed
+  (Section~\ref{sec:status}) but not tested.
+\item Method: wherever possible a feature is tested by loopback, so that the feature and its feedback path are
+  verified together, and a failure points at hardware, firmware or software.
+\end{itemize}
+
+\section{Production setting}
+
+\begin{itemize}
+\item PACMAN 1v5 with a Trenz TE0720 module (Zynq-7000).  The card boots from its microSD card (boot image and
+  Linux root file system) and is reached over Ethernet only (\texttt{ssh}).  Production cards have no USB/JTAG
+  header installed.
+\item \textbf{ASIC protection jumper (J5).}  Installed whenever the card is in the production system or connected
+  to ASICs.  The checkout runs with J5 \emph{removed}; with J5 installed, \texttt{pacman\_hwcheck} refuses
+  everything except its read-only report.
+\item The PACMAN data and command servers are stopped during the checkout (they share the data path with the
+  loopback test) and restarted afterwards.
+\end{itemize}
+
+
+\section{Test setup}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{circuitikz}[
+  box/.style={draw,thick,rounded corners=2pt,align=center,font=\small},
+  jack/.style={draw,thick,circle,minimum size=5mm,inner sep=0pt,fill=white},
+  port/.style={draw,thick,minimum width=7mm,minimum height=5mm,inner sep=0pt,fill=white},
+  sig/.style={font=\scriptsize,anchor=west},
+  ublnk/.style={-{Latex[length=2mm]},thick,rounded corners=4pt},
+  tbc/.style={font=\scriptsize\itshape,text=gray}]
+  \ctikzset{bipoles/length=0.9cm}
+  % ---- PACMAN outline and panels
+  \draw[very thick] (0,0) rectangle (8,8);
+  \node[font=\bfseries,anchor=south] at (4,8.05) {PACMAN 1v5 (top view)};
+  \fill[gray!25] (0,0) rectangle (0.35,8);
+  \node[font=\scriptsize,rotate=90] at (0.18,3.2) {front panel};
+  \fill[gray!25] (7.65,0) rectangle (8,8);
+  \node[font=\scriptsize,rotate=90] at (7.83,4) {back panel};
+  % front panel connectors, top to bottom
+  \node[jack] (sma1) at (0.18,7.3) {};  \node[sig] at (0.5,7.3) {SMA J1001 (P)};
+  \node[jack] (sma2) at (0.18,6.6) {};  \node[sig] at (0.5,6.6) {SMA J14 (N)};
+  \node[jack] (trig) at (0.18,5.4) {};  \node[sig] at (0.5,5.4) {LEMO TRIG};
+  \node[jack] (pps)  at (0.18,4.7) {};  \node[sig] at (0.5,4.7) {LEMO PPS};
+  \node[port] (eth)  at (0.18,1.8) {};  \node[sig] at (0.55,1.8) {Ethernet};
+  \node[port] (pwr)  at (0.18,0.8) {};  \node[sig] at (0.55,0.8) {power};
+  % inside
+  \node[box,minimum width=12mm] (j5) at (4.2,7.1) {J5};
+  \node[font=\scriptsize,align=center,below=1mm of j5] {ASIC protection jumper\\(removed for checkout)};
+  \node[box,minimum width=28mm,minimum height=16mm] (trenz) at (4.2,4.2) {Trenz TE0720\\Linux + firmware};
+  \node[box,dashed,minimum width=16mm] (sd) at (4.2,2.0) {microSD};
+  \node[tbc,below=1pt of sd] {placement to confirm};
+  \draw[thick,fill=white] (7.3,0.3) rectangle (7.65,7.7);
+  \node[font=\scriptsize,rotate=90] at (7.05,4) {tile connector (10 tiles)};
+  % ---- loopback card
+  \draw[very thick,fill=gray!5] (8,0) rectangle (14.4,8);
+  \node[font=\bfseries,anchor=south] at (11.2,8.05) {loopback card (Tile 1 shown; $\times$10 tiles)};
+  % data loopback
+  \draw[ublnk] (8,7.45) -- (12.6,7.45) -- (12.6,6.95) -- (8,6.95);
+  \node[sig,anchor=south west] at (8.1,7.45) {TILE1\_POSI\_0..3 (TX)};
+  \node[sig,anchor=north west] at (8.1,6.95) {TILE1\_PISO\_0..3 (RX)};
+  % timing loopback
+  \draw[ublnk,dashed] (8,5.75) -- (12.6,5.75) -- (12.6,5.25) -- (8,5.25);
+  \node[sig,anchor=south west] at (8.1,5.75) {TILE1\_CLK, \_RST\_SYNC, \_EXT\_TRIG};
+  \node[sig,anchor=north west] at (8.1,5.25) {to an RX input (to be defined)};
+  % analog monitor resistor
+  \draw[thick] (8,4.15) -- (12.6,4.15) to[R,l=$R_\mathrm{mon}$] (12.6,3.25) -- (8,3.25);
+  \node[sig,anchor=south west] at (8.1,4.15) {TILE1\_TESTP};
+  \node[sig,anchor=north west] at (8.1,3.25) {TILE1\_TESTN (analog monitor)};
+  % loads
+  \draw[thick] (8,2.45) -- (12.6,2.45) to[R,l=$R_\mathrm{A}$] (12.6,1.55) node[ground]{};
+  \node[sig,anchor=south west] at (8.1,2.45) {TILE1\_VDDA};
+  \draw[thick] (8,1.45) -- (10.8,1.45) to[R,l=$R_\mathrm{D}$] (10.8,0.55) node[ground]{};
+  \node[sig,anchor=south west] at (8.1,1.45) {TILE1\_VDDD};
+  % ---- external instruments
+  \node[box,minimum width=26mm,minimum height=12mm] (dmm) at (-4.0,6.95) {DMM\\(across the SMAs)};
+  \draw[thick,red!70!black] ([yshift=2mm]dmm.east) -- ++(1.4,0) |- (sma1.west);
+  \draw[thick]              ([yshift=-2mm]dmm.east) -- ++(1.9,0) |- (sma2.west);
+  \node[box,minimum width=26mm,minimum height=12mm] (fg) at (-4.0,5.05) {function\\generator};
+  \coordinate (tee) at (-1.2,5.05);
+  \draw[thick] (fg.east) -- (tee);
+  \fill (tee) circle (2pt); \node[font=\scriptsize,anchor=east] at ([xshift=-1mm,yshift=2.5mm]tee) {tee};
+  \draw[thick] (tee) |- (trig.west);
+  \draw[thick] (tee) |- (pps.west);
+  \node[box,minimum width=26mm,minimum height=12mm] (pc) at (-4.0,1.8) {operator PC\\(ssh)};
+  \draw[thick,{Latex[length=2mm]}-{Latex[length=2mm]}] (pc.east) -- (eth.west);
+  \node[box,minimum width=26mm,minimum height=8mm] (ps) at (-4.0,0.8) {power supply};
+  \draw[thick] (ps.east) -- (pwr.west);
+\end{circuitikz}}
+\caption{Checkout setup (physical view; connector placement to be confirmed).  All loopbacks are on the
+  loopback card; Tile 1's connections are shown with their signal names, and the card repeats them for all ten
+  tiles.  Dashed: routing still to be defined.}
+\end{figure}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+Item & Role \\
+\midrule
+Loopback card & On the back-panel tile connector, for all ten tiles: each tile's data outputs (POSI) loop back to
+  its data inputs (PISO); its clock, sync and trigger outputs loop back to an RX input; a resistor closes its
+  analog monitor pair (TESTP/TESTN); load resistors on VDDA and VDDD let the tile supplies be swept under
+  load. \\
+DMM & Front-panel SMA readings, entered by the operator when prompted. \\
+Function generator & One output, split with a tee: the same square wave on the TRIG and PPS LEMO inputs. \\
+Operator PC & \texttt{ssh} session to the PACMAN; keeps the result files. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{itemize}
+\item Two versions of the loopback card are needed for different tests, so the checkout is split into one run
+  per card, with the PACMAN powered down while the cards are swapped.  Which tests go on which card:
+  \tbd{lab day}.
+\end{itemize}
+
+\section{The utilities}
+
+\subsection{Common conventions}
+\begin{itemize}
+\item One line per result: \texttt{<VERDICT> <name>---- <value>}, then a final \texttt{VERDICT} line.
+\item Result verdicts: \texttt{PASS}, \texttt{FAIL}, \texttt{SKIP} (not done, with the reason),
+  \texttt{INFO} (recorded, not judged).  \texttt{pacman\_hwcheck} also prints \texttt{DATA} lines (sweeps).
+\item Run verdict and exit code:
+  \begin{center}
+  \begin{tabular}{@{}lll@{}}
+  \toprule
+  Run verdict & Meaning & Exit code \\
+  \midrule
+  \texttt{PASS} & every check passed, nothing skipped & 0 \\
+  \texttt{FAIL} & at least one check failed & 1 \\
+  \texttt{INCOMPLETE} & no failure, but something was skipped & 2 \\
+  (refused / usage) & bad options, or J5 installed & 3 \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+\item Only a \texttt{PASS} run qualifies a card.
+\end{itemize}
+
+\subsection{\texttt{pacman\_lnxcheck}: embedded Linux}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+Section & Checks \\
+\midrule
+System & CPU count, memory size, kernel version. \\
+On-chip monitors & Die temperature; six Zynq supplies against nominal. \\
+Ethernet & Link speed and duplex (1000/full), MAC address, IP address; ping with small and full-size packets, no
+  loss; TFTP transfer of a file twice, compared; interface error counters unchanged. \\
+QSPI flash & Each partition read three times; the last two reads must agree.  A difference on the first read
+  after boot is reported (INFO), not failed. \\
+eMMC & First 64 MB read twice, compared; read rate reported. \\
+microSD & Card present, partitions, boot image checksum.  Optional \opt{sd\_write}: a 16 MB test file written,
+  read back and removed. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+Read-only unless \opt{sd\_write} is given.  Options: \opt{server} (TFTP server; default the default gateway),
+\opt{tftp\_file}, \opt{no\_tftp}, \opt{sd\_write}.
+
+\subsection{\texttt{pacman\_hwcheck}: PACMAN hardware}
+
+Run sets execute in this fixed order; \opt{full\_checkout} runs all of them and stops at the first failing
+section (\opt{continue} keeps going).
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lL>{\raggedright\arraybackslash}p{2.1cm}@{}}
+\toprule
+Run set & Checks & Operator \\
+\midrule
+\opt{read\_only} & Firmware and hardware versions, build information, J5 state, board and tile monitors, data
+  path status.  Allowed with J5 installed. & -- \\
+\opt{blink} & Trenz and PACMAN LEDs blink in turn. & watches, confirms \\
+\opt{power} & Board rails against nominal; tile power off, then on.  Each tile in turn: VDDA and VDDD swept over
+  the DAC range into the card's loads (floor, gain, swing, monotonic, load), other tiles stay off.  Board-rail
+  test points surveyed with the DMM. & DMM readings \\
+\opt{loopback} & Each tile in turn, only that tile enabled: random data on its four UARTs through the loopback
+  card, words received, bit errors, receiver error counters; no stray data on other UARTs. & -- \\
+\opt{timing\_inputs} & Rates on the TRIG and PPS inputs, counted by the firmware over 1 s. & -- \\
+\opt{analog\_io} & Front-panel analog MUX stepped through tiles 1--10, test DAC, off; a DMM reading at the SMA
+  jacks for each. & DMM readings \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{itemize}
+\item Operator steps start with a prompt saying what comes next (\texttt{Ready? [y = go, s = skip]}).  At any
+  prompt, \texttt{s} skips the step; it is recorded as SKIP, never as a value.
+\item Modifiers: \opt{tile\_mask} (tiles present on the fixture), \opt{skip\_interactive} (no operator
+  steps), \opt{continue}; development: \opt{internal\_loopback}, \opt{no\_i2c}, \opt{sim\_i2c},
+  \opt{ber\_bits}, \opt{analog\_io\_mode}.
+\end{itemize}
+
+\needspace{12\baselineskip}
+\section{Coverage and acceptance limits}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.44\linewidth}>{\raggedright\arraybackslash}p{0.25\linewidth}@{}}
+\toprule
+Feature & Acceptance & Status \\
+\midrule
+\endhead
+Board rails 3V6, 3V3, 3V0 & monitor within 5\% of nominal; DMM within 5\% of monitor; 3V0 $\le$ 50 mV when off &
+  limits set; DMM test points \tbd{} \\
+Tile supplies VDDA, VDDD & floor and gain (157 mV per 0x1000 DAC codes, $\pm$5\%), swing $\ge$ 1 V, monotonic,
+  current under load, other tiles $\le$ 50 mV & provisional (one board) \\
+Tile UARTs (40) & every word received, zero bit errors, no stray words & set \\
+TRIG, PPS inputs & rate matches the generator & rates recorded; limits \tbd{} \\
+Front-panel analog MUX & expected SMA readings & readings recorded; values \tbd{} \\
+LEDs & operator confirms & set \\
+Linux, Ethernet, storage & as in the \texttt{pacman\_lnxcheck} table & set \\
+\bottomrule
+\end{longtable}
+
+\section{Status and untested features}\label{sec:status}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+Needed for normal operation, not yet tested & Plan \\
+\midrule
+Tile CLK, TRIG, SYNC outputs & Loopback to an RX input on a separate connector (fixture \tbd{}). \\
+Analog monitor & Known resistor across the input, measured through the front panel. \\
+TRIG / PPS acceptance & Function generator at the lab; then rate limits. \\
+Full ten-tile run & Loopback card covering all ten tiles. \\
+microSD checks & First run on an SD-booted card. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Not needed for normal operation (not tested): onboard ADC, RTD temperature probe, QSPI flash contents, SFP/CDR
+timing path.
+
+\section{Shifter's guide: hardware checkout}
+
+For an operator who runs the checkout the standard way.  Items marked \tbd{\ldots} are still to be filled in.
+
+\subsection*{You need}
+\begin{itemize}
+\item The PACMAN card with its microSD card (production image), and its serial number \tbd{where printed}.
+\item Loopback / load card, DMM, function generator with two outputs, Ethernet cable, PACMAN power supply.
+\item A PC on the same network, with \texttt{ssh}.
+\end{itemize}
+
+\subsection*{Prepare}
+\begin{enumerate}
+\item Power off.  Remove J5 (ASIC protection jumper).  Make sure no ASICs are connected.
+\item Install the loopback / load card on the tile connectors.
+\item Connect the function generator to the TRIG and PPS LEMO inputs: square wave, \tbd{amplitude},
+  \tbd{frequency}.
+\item Connect Ethernet; power on.  Wait about \tbd{N} s for Linux to boot.
+\item Log in: \texttt{ssh \tbd{user}@\tbd{PACMAN address}}.
+\item Stop the PACMAN servers:  \texttt{/etc/init.d/pacman\_server stop}
+\end{enumerate}
+
+\subsection*{Run}
+\begin{enumerate}
+\item Linux checkout (a minute or less):\\
+  \texttt{pacman\_lnxcheck -{}-server \tbd{TFTP server} | tee lnxcheck-<serial>.txt}
+\item Hardware checkout (guided; about \tbd{N} minutes):\\
+  \texttt{pacman\_hwcheck -{}-full\_checkout | tee hwcheck-<serial>.txt}
+\item Answer the prompts:
+  \begin{itemize}
+  \item \texttt{Next: \ldots{} Ready?}: get ready for what it describes (watch the LEDs, put the DMM probes on
+    the named points), then answer \texttt{y}.
+  \item Yes/no questions: answer what you saw.
+  \item Readings: type the DMM value in mV.
+  \item Can't do a step?  Answer \texttt{s}.  It is recorded as skipped; never type a made-up value.
+  \end{itemize}
+\end{enumerate}
+
+\subsection*{Read the result}
+\begin{itemize}
+\item The last line of each run is the verdict.
+\item \texttt{PASS} from both: the card passes.
+\item \texttt{FAIL}: the lines marked \texttt{FAIL} say what failed.  The hardware checkout stops at the first
+  failing section.  Do not repeat blindly: record, and report to \tbd{contact}.
+\item \texttt{INCOMPLETE}: something was skipped (lines marked \texttt{SKIP} give the reason).  Fix the setup
+  and run again.
+\item \texttt{REFUSED} with J5 mentioned: J5 is installed; power off, remove it, start again.
+\end{itemize}
+
+\subsection*{Finish}
+\begin{enumerate}
+\item Copy both result files to \tbd{results location}, named by serial number.
+\item Restart the servers (\texttt{/etc/init.d/pacman\_server start}) or reboot.
+\item Power off; remove the fixtures.  Install J5 before the card goes to a production system or ASICs.
+\item Record the card's status in \tbd{tracking sheet}.
+\end{enumerate}
+
+\end{document}
