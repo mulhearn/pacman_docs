@@ -37,7 +37,7 @@ This note describes the four main units of the PACMAN programmable logic (PL) fi
 \item {\bf TX}: transmission to the tiles over 40 UART channels (POSI), from DMA.
 \item {\bf RX}: reception from the tiles over 40 UART channels (PISO), to DMA.
 \item {\bf Timing} (ATC, ASIC timing and control, in the firmware sources): the ASIC clock, the bit timing
-  of the UARTs, the timestamp, and the SYNC and TRIG signals sent to the tiles.
+  of the UARTs, the timestamp, and the control signals G and H sent to the tiles.
 \end{itemize}
 The ADC unit is not covered.  The register addresses are those of {\tt register\_map.vhd}, which is the
 source of truth; the behavior described is that of the VHDL in {\tt ghdl/} of the {\tt pacman-firmware}
@@ -709,10 +709,10 @@ debugging.
 \draw[->, thick] ($(mux.east)+(0,1.1)$) -- (gb.west);
 \draw[->, thick] ($(mux.east)-(0,0.5)$) -- (hb.west);
 \draw[->, thick] ($(mux.north)+(0.5,0)$) -- ++(0,0.9) -| ($(ts.south)+(0.5,0)$);
-\node[font=\small, anchor=east] at ($(mux.north)+(0.4,0.3)$) {marker 0 (SYNC)};
+\node[font=\small, anchor=east] at ($(mux.north)+(0.4,0.3)$) {marker 0 (timestamp restart)};
 \draw[->, thick] ($(mux.east)-(0,1.6)$) -- ++(1.8,0) node[anchor=west, font=\small] {markers (to RX)};
-\draw[->, thick] (gb.east) -- ++(0.8,0) node[anchor=west, font=\small] {SYNC(9--0)};
-\draw[->, thick] (hb.east) -- ++(0.8,0) node[anchor=west, font=\small] {TRIG(9--0)};
+\draw[->, thick] (gb.east) -- ++(0.8,0) node[anchor=west, font=\small] {G(9--0)};
+\draw[->, thick] (hb.east) -- ++(0.8,0) node[anchor=west, font=\small] {H(9--0)};
 \draw[->, thick] (mux.south) -- (cnt.north);
 \draw[->, thick, dashed] (tim.south) -- ++(0,-0.5) -| ($(gb.north)$);
 \draw[->, thick, dashed] ($(gb.south)+(0.6,0)$) -- ($(hb.north)+(0.6,0)$);
@@ -720,12 +720,30 @@ debugging.
 \caption{\label{fig:atc-unit} The Timing unit.  The timers set the ASIC clock (UCLK), the UART strobe and the
   BAUD strobe.  The routing sends each stimulus (LEMO inputs, register pokes) to the G and H outputs of
   selected tiles, and to the markers; the G and H buffers align the outputs to the ASIC clock (dashed).  G
-  drives the SYNC lines of the tiles and H the TRIG lines.}
+  and H are abstract control signals: their meaning on each board is in Table~\ref{tab:atc-gh}.}
 \end{figure}
 
 The Timing unit (ATC, for ASIC timing and control, in the firmware sources) produces everything that sets
-the time of the system: the ASIC clock, the bit timing of the UARTs, the timestamp, and the SYNC and TRIG
-signals to the ASICs on each tile.  Its structure is shown in Fig.~\ref{fig:atc-unit}.
+the time of the system: the ASIC clock, the bit timing of the UARTs, the timestamp, and two control
+signals to the ASICs on each tile, G and H.  Its structure is shown in Fig.~\ref{fig:atc-unit}.
+
+G and H are abstract on purpose: the firmware does not name them after a function, because the PACMAN
+schematics and the ASIC disagree on what the lines do.  On hw1v5 the line the schematics call SYNC/RST is the
+v3 ASIC's reset, and the schematics' TRIG line is the ASIC's SYNC (its trigger function is hardly used).  The
+meaning of G and H is set by the board's block design (Table~\ref{tab:atc-gh}).
+
+\begin{table}[H]
+\centering
+\caption{\label{tab:atc-gh} G and H on each board.}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.38\linewidth}>{\raggedright\arraybackslash}p{0.38\linewidth}@{}}
+\toprule
+Board & G & H \\
+\midrule
+hw1v5 & port SYNC\_O\_0; schematic SYNC/RST; v3 ASIC RST & port TRIG\_O\_0; schematic TRIG; v3 ASIC SYNC (and TRIG) \\
+hw1v4 & legacy\_1v4 block, input SYNCN\_I & legacy\_1v4 block, input TRIG\_I \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Clocks and timestamp}
 
@@ -745,9 +763,9 @@ sets the bit period of all TX and RX channels.  The two are independent, though 
 
 The timestamp is a 64-bit count of UART strobes, that is, of periods of the ASIC clock
 (Fig.~\ref{fig:atc-timer}).  It is attached by the RX unit to every word received, and its least significant
-32 bits can be read in the TIMESTAMP register.  Marker 0 is the SYNC marker: it restarts the timestamp
-(Fig.~\ref{fig:atc-poke}).  Since one stimulus can be routed both to marker 0 and to the SYNC outputs, the
-timestamp can be restarted together with the ASICs.
+32 bits can be read in the TIMESTAMP register.  Marker 0 restarts the timestamp
+(Fig.~\ref{fig:atc-poke}).  Since one stimulus can be routed both to marker 0 and to G or H, the timestamp can
+be restarted together with the ASICs (on hw1v5 with the v3 ASIC:  marker 0 and H).
 
 \subsection{Stimuli, routing and outputs}
 
@@ -776,8 +794,8 @@ stimulus with a destination of zero goes nowhere, which is the default.
 \toprule
 Field    & Bits    & Description \\
 \midrule
-G        & 0       & send to the G outputs (SYNC) \\
-H        & 1       & send to the H outputs (TRIG) \\
+G        & 0       & send to the G outputs \\
+H        & 1       & send to the H outputs \\
 MARKERS  & 5--2    & send to markers 0--3 (one clock cycle) \\
 TILES    & 15--6   & tile mask for G and H: bit 6 for tile 0, \ldots, bit 15 for tile 9 \\
 DURATION & 31--16  & length of the G and H pulse, in clock cycles \\
@@ -793,7 +811,7 @@ own pulse; pulses of different stimuli on the same output are combined.
 
 The G and H signals of each tile pass an output buffer before they leave the PL.  The buffer samples
 its input once per UART period, at a point set by PHASE (CONFIG\_G and CONFIG\_H bits 7--0, in clock cycles
-after the UART strobe), and holds its output until the next sample, so that SYNC and TRIG change at a fixed
+after the UART strobe), and holds its output until the next sample, so that G and H change at a fixed
 point of the ASIC clock and last a whole number of ASIC clock periods.  A pulse shorter than one UART period
 may fall between two samples and be missed: the DURATION of a destination with G or H should be at least the
 UART period (10 clock cycles by default).  The buffer can also invert the signal of each tile (bits 17--8, one
@@ -814,7 +832,7 @@ during the next few clock cycles.  A pulse must therefore be seen high on two cl
 10\,ns is always ignored, and one shorter than 20\,ns may be (Fig.~\ref{fig:atc-lemo}).
 CONFIG\_INPUT bits 0 and 1 invert LEMO A and B, so that a falling edge is detected instead.
 
-The markers connect the Timing unit to the data.  Marker 0 restarts the timestamp (SYNC).  Markers 2 and 3
+The markers connect the Timing unit to the data.  Marker 0 restarts the timestamp.  Markers 2 and 3
 are channels 42 and 43 of the RX buffer: when enabled there, each marker pulse adds a word with its
 timestamp to the stream.  A LEMO trigger input routed to marker 2, for example, records the time of every
 external trigger along with the data.  Marker 1 is only counted.
