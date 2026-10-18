@@ -20,9 +20,9 @@
 \newcolumntype{L}{>{\raggedright\arraybackslash}X}
 
 \title{PACMAN Quality Assurance and Quality Control\\[2pt]
-  \large Hardware checkout: tools, coverage, and shifter's guide}
+  \large Firmware validation; hardware checkout: tools, coverage, and shifter's guide}
 \author{Draft maintained by the PACMAN agents (augie); reference for the TRM}
-\date{2026-10-17}
+\date{2026-10-18}
 
 \begin{document}
 \maketitle
@@ -40,6 +40,8 @@
   \item \texttt{pacman\_hwcheck}: the PACMAN-specific checkout (power, tile I/O, timing inputs, front panel),
     partly guided by an operator.
   \end{itemize}
+\item Firmware validation (Section~\ref{sec:firmware}), separately: once per firmware release, against stated
+  requirements, in simulation and on a bench Trenz module.  It qualifies the firmware package, not a card.
 \item Scope: the features needed for normal operation.  Features that normal operation does not use are listed
   (Section~\ref{sec:status}) but not tested.
 \item Method: wherever possible a feature is tested by loopback, so that the feature and its feedback path are
@@ -159,7 +161,7 @@ Operator PC & \texttt{ssh} session to the PACMAN; keeps the result files. \\
 
 \section{The utilities}
 
-\subsection{Common conventions}
+\subsection{Common conventions}\label{sec:conventions}
 \begin{itemize}
 \item One line per result: \texttt{<VERDICT> <name>---- <value>}, then a final \texttt{VERDICT} line.
 \item Result verdicts: \texttt{PASS}, \texttt{FAIL}, \texttt{SKIP} (not done, with the reason),
@@ -274,6 +276,121 @@ microSD checks & First run on an SD-booted card. \\
 \noindent Not needed for normal operation (not tested): onboard ADC, RTD temperature probe, QSPI flash contents, SFP/CDR
 timing path.
 
+\section{Firmware validation}\label{sec:firmware}
+
+\begin{itemize}
+\item Once per firmware release (official or candidate), before it is installed on production cards.
+\item Two stages, against one list of requirements:
+  \begin{itemize}
+  \item \textbf{Simulation} (\texttt{make check}, GHDL): every requirement.
+  \item \textbf{Hardware} (\texttt{pacman\_fwcheck}, on a bench Trenz module running the release): the
+    requirements that can be checked on the board with no tiles and no external signals.
+  \end{itemize}
+\item Both are written by the PACMAN agents and kept in \texttt{agents/} directories, pending human review:
+  \texttt{pacman-firmware/ghdl/agents} (requirements, checks) and \texttt{pacman-software/agents/fwcheck}.
+\end{itemize}
+
+\subsection{Requirements}
+
+\begin{itemize}
+\item Source: \texttt{pacman-firmware/ghdl/agents/requirements.txt}; listed in Appendix~\ref{app:requirements}.
+\item Three levels:
+  \begin{itemize}
+  \item Level 1 (\texttt{RX-1}): what a unit promises, for a human to read.
+  \item Level 2 (\texttt{RX-1.1}): a testable statement, backed by checks.
+  \item Level 3: the individual checks of the GHDL check benches (\texttt{check/*\_check.vhd}), each counted under
+    the level-2 requirement in force, set in the bench with \texttt{req("RX-1.1")}.
+  \end{itemize}
+\item Each level-2 requirement is marked \texttt{sim} (simulation only: internal timing, reset, pins, external
+  inputs) or \texttt{sim+hw} (also checked on the board by \texttt{pacman\_fwcheck}).
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+Unit & & Level 1 & Level 2 \texttt{sim} & Level 2 \texttt{sim+hw} \\
+\midrule
+\texttt{REG} & Register access (all units) & 4 & 4 & 6 \\
+\texttt{GLB} & Global unit & 2 & 3 & 2 \\
+\texttt{TX} & TX unit & 3 & 3 & 6 \\
+\texttt{RX} & RX unit & 6 & 7 & 12 \\
+\texttt{ATC} & Timing unit & 5 & 6 & 4 \\
+\midrule
+ & Total & 20 & 23 & 30 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Simulation: \texttt{make check}}
+
+\begin{itemize}
+\item Run in \texttt{pacman-firmware/ghdl/agents}: \texttt{make check} (GHDL; about 20~s).  Five check benches
+  (Global, TX, RX, Timing, and the register bus across all units), 3300 checks.
+\item Output: one line per bench, then one line per requirement, under its level-1 heading:
+\begin{verbatim}
+PASS rx_unit_check (671 checks)
+...
+  REG-2    Registers hold what is written, independently.
+    PASS REG-2.1    161  sim+hw  Every read/write register reads back every value
+                                 written to it, all bits.
+...
+---- 53 requirements, 53 with checks, 3300 checks in all, 0 to look at
+\end{verbatim}
+\item Per requirement: \texttt{PASS}, \texttt{FAIL} (a check failed), or \texttt{NONE} (no check backs it).  Also
+  flagged: requirement IDs not in \texttt{requirements.txt}, and checks made before any \texttt{req()}.
+\item Pass: every bench \texttt{PASS}, every requirement \texttt{PASS}, \texttt{0 to look at} (exit code 0).
+\end{itemize}
+
+\subsection{Hardware: \texttt{pacman\_fwcheck}}
+
+\begin{itemize}
+\item Checks the 30 \texttt{sim+hw} requirements in the installed firmware.  One source, two builds: Linux (a
+  static binary, independent of the root file system) and bare metal (JTAG).
+\item Method: the firmware's own loopback.  DMA packets go out through the TX unit, back in through RX input 2
+  (internal loopback) and out through DMA; masks, all 40 channels, every bit, 1000 random packets, frame length,
+  headers, packet size and timeout.  Also: register read-back and crosstalk, broadcast writes, timeouts, the
+  timestamp rate, the test pattern, heartbeat and marker words, SYNC, and the timing unit's counters (pokes routed
+  to the markers only).
+\item Safety: only the read-only checks run with J5 installed, with tile power or any tile enabled, with
+  \opt{read\_only}, or (Linux) while a PACMAN server runs.  Every register written is saved and restored, also on
+  Ctrl-C or kill.  Not restored: the counters, the timestamp (SYNC restarts it) and the DMA rings (the servers set
+  them up when started).  Nothing leaves the PL.
+\item Output: failed checks as they happen (all checks with \texttt{-v}), then one line per requirement
+  (\texttt{PASS}, \texttt{FAIL}, \texttt{NONE}: not checked) and a \texttt{VERDICT} line; verdicts and exit codes
+  as the other utilities (Section~\ref{sec:conventions}).  A read-only run is \texttt{INCOMPLETE}.
+\begin{verbatim}
+PASS REG-2.1    54  every read/write register reads back every value written
+...
+VERDICT PASS  (30 requirements:  0 failed, 0 not checked;  0 failed checks)
+\end{verbatim}
+\item Run on Linux (about 0.2~s):\\
+  \texttt{/etc/init.d/pacman\_server stop; ./pacman\_fwcheck; /etc/init.d/pacman\_server start}
+\item Build and bare-metal run: \texttt{pacman-software/agents/fwcheck/README.txt}.
+\end{itemize}
+
+\subsection{Release procedure}
+
+A firmware release is validated when, for that release:
+\begin{enumerate}
+\item \texttt{make check} passes (all 53 requirements);
+\item \texttt{pacman\_fwcheck} gives \texttt{VERDICT PASS} on a bench Trenz module running the release's
+  bitstream, under Linux and on bare metal.
+\end{enumerate}
+The three outputs are kept with the release.  First result (3.6.0 candidate, git 13dc480, 2026-10-17): all
+pass.
+
+\subsection{Coverage}
+
+\begin{itemize}
+\item The 23 \texttt{sim} requirements are checked in simulation only: they concern internal timing (register bus
+  timing, UART phase and delay), reset, the board pins (tile enables, LEDs, G and H outputs), the LEMO inputs and
+  the receiver's tolerance of real lines (glitches, frame errors, stalls).  On each card, \texttt{pacman\_hwcheck}
+  covers the tile enables, LEDs and LEMO inputs; the G and H (tile TRIG and SYNC) outputs are not yet tested
+  (Section~\ref{sec:status}).
+\item The simulation is of the firmware sources, the hardware check of the built bitstream: together they cover
+  the build as well as the design.
+\end{itemize}
+
 \section{Shifter's guide: hardware checkout}
 
 For an operator who runs the checkout the standard way.  Items marked \tbd{\ldots} are still to be filled in.
@@ -330,5 +447,13 @@ For an operator who runs the checkout the standard way.  Items marked \tbd{\ldot
 \item Power off; remove the fixtures.  Install J5 before the card goes to a production system or ASICs.
 \item Record the card's status in \tbd{tracking sheet}.
 \end{enumerate}
+
+\appendix
+\section{Firmware requirements}\label{app:requirements}
+
+Generated from \texttt{pacman-firmware/ghdl/agents/requirements.txt} (\texttt{requirements\_tex.py}).  Level-1
+requirements in italics; \texttt{sim+hw}: also checked by \texttt{pacman\_fwcheck}.
+
+\input{qaqc_requirements.tex}
 
 \end{document}
