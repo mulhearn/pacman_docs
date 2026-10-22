@@ -286,14 +286,15 @@ timing path.
   \item \textbf{Hardware} (\texttt{pacman\_fwcheck}, on a bench Trenz module running the release): the
     requirements that can be checked on the board with no tiles and no external signals.
   \end{itemize}
-\item Both are written by the PACMAN agents and kept in \texttt{agents/} directories, pending human review:
-  \texttt{pacman-firmware/ghdl/agents} (requirements, checks) and \texttt{pacman-software/agents/fwcheck}.
+\item The requirements (\texttt{pacman-firmware/docs/requirements.txt}) and \texttt{pacman\_fwcheck}
+  (\texttt{pacman-software}, with the pacman-apps) are reviewed by hand;  the GHDL checks are written and kept by
+  the PACMAN agents (\texttt{pacman-firmware/ghdl/agents}).
 \end{itemize}
 
 \subsection{Requirements}
 
 \begin{itemize}
-\item Source: \texttt{pacman-firmware/ghdl/agents/requirements.txt}; listed in Appendix~\ref{app:requirements}.
+\item Source: \texttt{pacman-firmware/docs/requirements.txt}; listed in Appendix~\ref{app:requirements}.
 \item Three levels:
   \begin{itemize}
   \item Level 1 (\texttt{RX-1}): what a unit promises, for a human to read.
@@ -344,16 +345,16 @@ PASS rx_unit_check (671 checks)
 \subsection{Hardware: \texttt{pacman\_fwcheck}}
 
 \begin{itemize}
-\item Checks the 30 \texttt{sim+hw} requirements in the installed firmware.  One source, two builds: Linux (a
-  static binary, independent of the root file system) and bare metal (JTAG).
+\item Checks the 30 \texttt{sim+hw} requirements in the installed firmware.  One source, two builds: Linux (one of
+  the pacman-apps, in the image) and bare metal (JTAG).
 \item Method: the firmware's own loopback.  DMA packets go out through the TX unit, back in through RX input 2
   (internal loopback) and out through DMA; masks, all 40 channels, every bit, 1000 random packets, frame length,
   headers, packet size and timeout.  Also: register read-back and crosstalk, broadcast writes, timeouts, the
-  timestamp rate, the test pattern, heartbeat and marker words, SYNC, and the timing unit's counters (pokes routed
+  timestamp rate, the test pattern, heartbeat and marker words, the timestamp restart (marker~0), and the timing unit's counters (pokes routed
   to the markers only).
 \item Safety: only the read-only checks run with J5 installed, with tile power or any tile enabled, with
   \opt{read\_only}, or (Linux) while a PACMAN server runs.  Every register written is saved and restored, also on
-  Ctrl-C or kill.  Not restored: the counters, the timestamp (SYNC restarts it) and the DMA rings (the servers set
+  Ctrl-C or kill.  Not restored: the counters, the timestamp (marker~0 restarts it) and the DMA rings (the servers set
   them up when started).  Nothing leaves the PL.
 \item Output: failed checks as they happen (all checks with \texttt{-v}), then one line per requirement
   (\texttt{PASS}, \texttt{FAIL}, \texttt{NONE}: not checked) and a \texttt{VERDICT} line; verdicts and exit codes
@@ -364,8 +365,9 @@ PASS REG-2.1    54  every read/write register reads back every value written
 VERDICT PASS  (30 requirements:  0 failed, 0 not checked;  0 failed checks)
 \end{verbatim}
 \item Run on Linux (about 0.2~s):\\
-  \texttt{/etc/init.d/pacman\_server stop; ./pacman\_fwcheck; /etc/init.d/pacman\_server start}
-\item Build and bare-metal run: \texttt{pacman-software/agents/fwcheck/README.txt}.
+  \texttt{/etc/init.d/pacman\_server stop; pacman\_fwcheck; /etc/init.d/pacman\_server start}
+\item Bare metal (from the top of \texttt{pacman-software}): \texttt{xsct apps/fwcheck/install.tcl}, then
+  \texttt{xsct run.tcl} in \texttt{fwcheck/} (resets the board; output on the console).
 \end{itemize}
 
 \subsection{Release procedure}
@@ -451,7 +453,7 @@ For an operator who runs the checkout the standard way.  Items marked \tbd{\ldot
 \appendix
 \section{Firmware requirements}\label{app:requirements}
 
-Generated from \texttt{pacman-firmware/ghdl/agents/requirements.txt} (\texttt{requirements\_tex.py}).  Level-1
+Generated from \texttt{pacman-firmware/docs/requirements.txt} (\texttt{requirements\_tex.py}).  Level-1
 requirements in italics; \texttt{sim+hw}: also checked by \texttt{pacman\_fwcheck}.
 
 \input{qaqc_requirements.tex}
