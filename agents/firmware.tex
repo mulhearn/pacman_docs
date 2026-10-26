@@ -120,7 +120,7 @@ common) is at \hex{3FB0}.
 Two conventions recur in the TX and RX units.  The {\em counters} are 16 bits wide and saturate at
 \hex{FFFF}; they are cleared at reset and by a write (of any value) to the unit's ZERO\_CNTS register.  The
 {\em look} registers show the 64-bit word of one UART, chosen by writing its number to LOOK\_SELECT: the
-least significant 32 bits are read at LOOK\_UA and the most significant at LOOK\_UB.
+least significant 32 bits are read at LOOK\_LOWER and the most significant at LOOK\_UPPER.
 
 %======================================================================
 \section{Global unit}
@@ -329,9 +329,9 @@ UART\_STATUS    & \hex{00} & UART & RO  & channel status (Table~\ref{tbl:tx-bits
 UART\_CONFIG    & \hex{04} & UART & RW & PHASE and DELAY (Table~\ref{tbl:tx-bits}); default \hex{00000006} \\
 UART\_STARTS    & \hex{20} & UART & RO  & counter: frames started (start bits sent) \\
 UART\_BEATS     & \hex{24} & UART & RO  & counter: words taken from the TX buffer (uvalid and uready) \\
-LOOK\_SELECT    & \hex{A0} & common   & RW  & the UART shown by LOOK\_UA and LOOK\_UB \\
-LOOK\_UA        & \hex{A4} & common   & RO  & that UART's word in the output buffer, bits 31--0 \\
-LOOK\_UB        & \hex{A8} & common   & RO  & that UART's word in the output buffer, bits 63--32 \\
+LOOK\_SELECT    & \hex{A0} & common   & RW  & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
+LOOK\_LOWER     & \hex{A4} & common   & RO  & that UART's word in the output buffer, bits 31--0 \\
+LOOK\_UPPER     & \hex{A8} & common   & RO  & that UART's word in the output buffer, bits 63--32 \\
 BUFFER\_STATUS  & \hex{B0} & common   & RO  & TX buffer status (Table~\ref{tbl:tx-bits}) \\
 ZERO\_CNTS      & \hex{F8} & common   & WO  & clear all TX counters (command: any value) \\
 \bottomrule
@@ -556,7 +556,8 @@ words in the packet (not counting the trailer), and its third fragment zero.
 
 The RX buffer is a state machine with four states: IDLE (no data), STREAM, WAIT (all waiting words sent,
 packet still open) and TRAILER.  When any channel has a word waiting, the buffer leaves IDLE and enters
-STREAM, starting at turn 0.  Each turn lasts three clock cycles, one per fragment, and visits one channel, in
+STREAM, starting at turn 0 (or, after a packet closed by the maximum, at the turn it cut short; see
+below).  Each turn lasts three clock cycles, one per fragment, and visits one channel, in
 the order of Table~\ref{tbl:rx-chan}.  In the first clock cycle of a turn the buffer selects the channel; the
 multiplexers present that channel's header, timestamp and data; in the third clock cycle, if the channel has
 a word waiting, the buffer copies the three fragments and asserts that channel's ready for one clock cycle,
@@ -567,13 +568,17 @@ sweep at turn 0 as soon as a word is waiting.  Each sweep therefore starts at UA
 of a packet in UART order when the tiles send synchronously.
 
 The stream is closed into DMA packets by the trailer.  BUFFER\_CONFIG sets two conditions, each disabled by
-the value zero: a maximum number of words (bits 31--16) and a timeout (bits 15--0, in units of 512 clock
-cycles, 5.12\,$\mu$s).  When the packet holds the maximum number of words, the buffer sends the trailer at
-the end of the current turn (Fig.~\ref{fig:rx-stream}).  The timeout runs from the first word of the packet,
+the value zero: a maximum number of words (bits 31--16) and a timeout (bits 15--0, in units of 256 clock
+cycles, 2.56\,$\mu$s).  When the packet holds the maximum number of words, the buffer sends the trailer at
+the end of the current turn (Fig.~\ref{fig:rx-stream}), and the next packet resumes the sweep at the channel
+of that turn, which was not served; so channels that are busy all the time cannot starve the ones after them.
+When the buffer has no word waiting (IDLE), the resume point returns to turn 0.  The timeout runs from the first word of the packet,
 and is checked only in WAIT, between sweeps: once it has expired, the trailer follows the current sweep.  The
-default, \hex{00000001} (no maximum, timeout 512 clock cycles), therefore closes the packet at the end of the
-first sweep that ends 512 clock cycles or more after its first word: all the words of one sweep travel in one
-packet, and a steady flow of data is cut into packets of about 512 clock cycles.  The trailer's last fragment carries TLAST; the buffer then returns to IDLE.
+default, \hex{00000001} (no maximum, timeout 256 clock cycles), therefore closes the packet at the end of the
+first sweep that ends 256 clock cycles or more after its first word, at most 256 + 136 = 392 clock cycles
+after it (a sweep and the WAIT clock cycle): all the words of one sweep travel in one packet, a steady flow of data is cut into packets of about
+256 clock cycles, and since a UART word takes 66 bit periods (396 clock cycles at BAUD 6), no channel has two
+words in one packet at BAUD 6 or slower.  The trailer's last fragment carries TLAST; the buffer then returns to IDLE.
 
 The buffer never drops data itself.  If the FIFO is full, the stream stalls (tready low), the buffer holds
 its current fragments, and the channels keep their words; only a channel that receives a further word before
@@ -584,7 +589,7 @@ its maximum since the last clear as FIFO\_MAX.
 
 The RX unit contains a test pattern generator, which produces a UART stream that any RX channel can receive
 in place of its PISO input (INPUT = 4).  When on (PATTERN\_CONFIG bits 11--8 = 1), it repeatedly sends the
-64-bit word PATTERN\_B:PATTERN\_A as a UART frame (start bit, 64 bits least significant first, stop bit),
+64-bit word PATTERN\_UPPER:PATTERN\_LOWER as a UART frame (start bit, 64 bits least significant first, stop bit),
 followed by PATTERN\_DELAY bit periods of idle line.  It uses the BAUD strobe for its bit timing, with the
 PHASE in PATTERN\_CONFIG bits 7--0, like a TX channel.  All channels set to INPUT = 4 receive the same frames
 at the same time, which exercises the whole RX unit, buffer and DMA, at full rate and without any tile.  The
@@ -622,16 +627,16 @@ UART\_NOISE       & \hex{34} & RO & counter: sample points with dissenting sampl
 \toprule
 Register          & $R$      & Access & Contents \\
 \midrule
-PATTERN\_A        & \hex{80} & RW & test pattern word, bits 31--0 \\
-PATTERN\_B        & \hex{84} & RW & test pattern word, bits 63--32 \\
+PATTERN\_LOWER    & \hex{80} & RW & test pattern word, bits 31--0 \\
+PATTERN\_UPPER    & \hex{84} & RW & test pattern word, bits 63--32 \\
 PATTERN\_DELAY    & \hex{88} & RW & idle bit periods between test frames \\
 PATTERN\_CONFIG   & \hex{8C} & RW & bits 7--0 PHASE, bits 11--8 MODE (1: on) \\
 PATTERN\_STATUS   & \hex{90} & RO & bit 0 start, bit 1 stop, bit 8 the pattern line \\
 PATTERN\_STARTS   & \hex{94} & RO & counter: test frames started \\
 PATTERN\_STOPS    & \hex{98} & RO & counter: test frames completed \\
-LOOK\_SELECT      & \hex{A0} & RW & the UART shown by LOOK\_UA and LOOK\_UB \\
-LOOK\_UA          & \hex{A4} & RO & that UART's last word, bits 31--0 \\
-LOOK\_UB          & \hex{A8} & RO & that UART's last word, bits 63--32 \\
+LOOK\_SELECT      & \hex{A0} & RW & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
+LOOK\_LOWER       & \hex{A4} & RO & that UART's last word, bits 31--0 \\
+LOOK\_UPPER       & \hex{A8} & RO & that UART's last word, bits 63--32 \\
 BUFFER\_STATUS    & \hex{B0} & RO & RX buffer status (Table~\ref{tbl:rx-bits}) \\
 BUFFER\_CONFIG    & \hex{B4} & RW & bits 31--16 maximum words, bits 15--0 timeout; default \hex{00000001} \\
 BUFFER\_ENABLES   & \hex{B8} & RW & extra channels: bit 0 heartbeat, 1 rollover, 2 marker 2, 3 marker 3 \\
