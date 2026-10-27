@@ -22,7 +22,7 @@
 \title{PACMAN Quality Assurance and Quality Control\\[2pt]
   \large Firmware validation; hardware checkout: tools, coverage, and shifter's guide}
 \author{Draft maintained by the PACMAN agents (augie); reference for the TRM}
-\date{2026-10-18}
+\date{2026-10-27}
 
 \begin{document}
 \maketitle
@@ -105,9 +105,9 @@
   \node[sig,anchor=south west] at (8.1,7.45) {TILE1\_POSI\_0..3 (TX)};
   \node[sig,anchor=north west] at (8.1,6.95) {TILE1\_PISO\_0..3 (RX)};
   % timing loopback
-  \draw[ublnk,dashed] (8,5.75) -- (12.6,5.75) -- (12.6,5.25) -- (8,5.25);
+  \draw[ublnk] (8,5.75) -- (12.6,5.75) -- (12.6,5.25) -- (8,5.25);
   \node[sig,anchor=south west] at (8.1,5.75) {TILE1\_CLK, \_RST\_SYNC, \_EXT\_TRIG};
-  \node[sig,anchor=north west] at (8.1,5.25) {to an RX input (to be defined)};
+  \node[sig,anchor=north west] at (8.1,5.25) {to TILE1\_PISO I0, I1, I2};
   % analog monitor resistor
   \draw[thick] (8,4.15) -- (12.6,4.15) to[R,l=$R_\mathrm{mon}$] (12.6,3.25) -- (8,3.25);
   \node[sig,anchor=south west] at (8.1,4.15) {TILE1\_TESTP};
@@ -134,7 +134,7 @@
 \end{circuitikz}}
 \caption{Checkout setup (physical view; connector placement to be confirmed).  All loopbacks are on the
   loopback card; Tile 1's connections are shown with their signal names, and the card repeats them for all ten
-  tiles.  Dashed: routing still to be defined.}
+  tiles.  Dashed: placement still to be confirmed.}
 \end{figure}
 
 \begin{center}
@@ -143,7 +143,7 @@
 Item & Role \\
 \midrule
 Loopback card & On the back-panel tile connector, for all ten tiles: each tile's data outputs (POSI) loop back to
-  its data inputs (PISO); its clock, sync and trigger outputs loop back to an RX input; a resistor closes its
+  its data inputs (PISO); its sync, trigger and clock outputs loop back to its PISO inputs I0, I1, I2; a resistor closes its
   analog monitor pair (TESTP/TESTN); load resistors on VDDA and VDDD let the tile supplies be swept under
   load. \\
 DMM & Front-panel SMA readings, entered by the operator when prompted. \\
@@ -223,8 +223,11 @@ Run set & Checks & Operator \\
 \opt{loopback} & Each tile in turn, only that tile enabled: random data on its four UARTs through the loopback
   card, words received, bit errors, receiver error counters; no stray data on other UARTs. & -- \\
 \opt{timing\_inputs} & Rates on the TRIG and PPS inputs, counted by the firmware over 1 s. & -- \\
-\opt{analog\_io} & Front-panel analog MUX stepped through tiles 1--10, test DAC, off; a DMM reading at the SMA
-  jacks for each. & DMM readings \\
+\opt{timing\_outputs} & Each tile in turn: 100 pulses on its G (SYNC) and H (TRIG) outputs, counted as words on its
+  PISO inputs I0 and I1 through the loopback card (none with the tile masked); CLK on I2, decoded as a bit
+  pattern. & -- \\
+\opt{analog\_io} & Front-panel analog MUX (safe MUX layer, below) stepped through tiles 1--10, test DAC, off; a DMM
+  reading at the SMA jacks for each. & DMM readings \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -234,7 +237,26 @@ Run set & Checks & Operator \\
   prompt, \texttt{s} skips the step; it is recorded as SKIP, never as a value.
 \item Modifiers: \opt{tile\_mask} (tiles present on the fixture), \opt{skip\_interactive} (no operator
   steps), \opt{continue}; development: \opt{internal\_loopback}, \opt{no\_i2c}, \opt{sim\_i2c},
-  \opt{ber\_bits}, \opt{analog\_io\_mode}.
+  \opt{ber\_bits}.
+\item Not part of \opt{full\_checkout} (development, for now):
+  \begin{itemize}
+  \item \opt{adc}: ADC registers; the emulator ramp captured, with the comparator as the trigger; the test DAC
+    through the MUX into the ADC (front panel open) in six steps, each capture's mean against LOOK.
+  \item \opt{logic\_analyzer}: ATC CLK and BAUD captured every clock (spacing, buffer, trigger timestamp); an ATC
+    marker as the trigger; cross triggers with the ADC capture (equal timestamps); one UART word on tile 1, POSI
+    and PISO decoded against RX.
+  \item \opt{adc\_timing}: the tile outputs the loopback card wires to ANA\_TEST (tile 5 CLK, tile 6 TRIG, tile 7
+    SYNC) captured by the ADC through the MUX with its 100\,$\Omega$ termination: CLK levels and period, pulse
+    width and latency, the comparator as the trigger, masks.
+  \item \opt{analog\_io\_mode} \texttt{M}: sets the MUX and leaves it set: \texttt{none}, \texttt{dac},
+    \texttt{tile2}, \texttt{tile2\_100} (tile 2, the ADC terminated).
+  \end{itemize}
+\item Safe MUX layer: every MUX setting goes through \texttt{iic\_set\_mux\_to\_front\_panel},
+  \texttt{iic\_set\_mux\_to\_adc} and \texttt{iic\_set\_mux\_open}.  Each common (front panel, ADC) is set on its
+  own, with at most one source and never the short loop; the state is read back from both MUX chips, and any
+  problem opens every switch.  A 100\,$\Omega$ termination is refused on a source already terminated on the other
+  common (the source would see 50\,$\Omega$).  The test DAC reaches the tiles only through the MUX, so it is used
+  only with the MUX set this way.
 \end{itemize}
 
 \needspace{12\baselineskip}
@@ -251,7 +273,15 @@ Tile supplies VDDA, VDDD & floor and gain (157 mV per 0x1000 DAC codes, $\pm$5\%
   current under load, other tiles $\le$ 50 mV & provisional (one board) \\
 Tile UARTs (40) & every word received, zero bit errors, no stray words & set \\
 TRIG, PPS inputs & rate matches the generator & rates recorded; limits \tbd{} \\
-Front-panel analog MUX & expected SMA readings & readings recorded; values \tbd{} \\
+Tile G, H, CLK outputs & every pulse counted, none with the tile masked; CLK decodes as the expected pattern & set
+  (the bench card wires tile 3) \\
+Front-panel analog MUX & every state confirmed by read-back; expected SMA readings & read-back set; readings
+  recorded, values \tbd{} \\
+Onboard ADC & emulator ramp without bad steps; DAC-step captures within 8 codes of LOOK & readings recorded;
+  limits \tbd{} \\
+ADC timing (tiles 5--7) & CLK period; pulse width 50 $\pm$ 10 clocks; swing $\ge$ 100 codes; masks & provisional
+  (one board) \\
+Logic analyzer & CLK and BAUD spacing, trigger timestamp, cross triggers, decoded UART word & set \\
 LEDs & operator confirms & set \\
 Linux, Ethernet, storage & as in the \texttt{pacman\_lnxcheck} table & set \\
 \bottomrule
@@ -264,17 +294,15 @@ Linux, Ethernet, storage & as in the \texttt{pacman\_lnxcheck} table & set \\
 \toprule
 Needed for normal operation, not yet tested & Plan \\
 \midrule
-Tile CLK, TRIG, SYNC outputs & Loopback to an RX input on a separate connector (fixture \tbd{}). \\
 Analog monitor & Known resistor across the input, measured through the front panel. \\
 TRIG / PPS acceptance & Function generator at the lab; then rate limits. \\
-Full ten-tile run & Loopback card covering all ten tiles. \\
+Full ten-tile run & Loopback card covering all ten tiles (UARTs and the G, H, CLK outputs). \\
 microSD checks & First run on an SD-booted card. \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-\noindent Not needed for normal operation (not tested): onboard ADC, RTD temperature probe, QSPI flash contents, SFP/CDR
-timing path.
+\noindent Not needed for normal operation (not tested): RTD temperature probe, QSPI flash contents, SFP/CDR timing path.
 
 \section{Firmware validation}\label{sec:firmware}
 
@@ -387,8 +415,7 @@ pass.
 \item The 23 \texttt{sim} requirements are checked in simulation only: they concern internal timing (register bus
   timing, UART phase and delay), reset, the board pins (tile enables, LEDs, G and H outputs), the LEMO inputs and
   the receiver's tolerance of real lines (glitches, frame errors, stalls).  On each card, \texttt{pacman\_hwcheck}
-  covers the tile enables, LEDs and LEMO inputs; the G and H tile outputs are not yet tested
-  (Section~\ref{sec:status}).
+  covers the tile enables, LEDs and LEMO inputs, and (\opt{timing\_outputs}) the G and H tile outputs and CLK.
 \item The simulation is of the firmware sources, the hardware check of the built bitstream: together they cover
   the build as well as the design.
 \end{itemize}
