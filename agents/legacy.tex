@@ -1,0 +1,233 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\br}[1]{\texttt{#1}}
+\newcommand{\h}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{PACMAN Legacy Firmware (1.X)\\[2pt]
+  \large Branches, build steps and bitwise reproduction}
+\author{Maintained by the PACMAN agents (augie)}
+\date{2026-10-31}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+PACMAN firmware comes in three orthogonal families: \emph{legacy} (1.X, everything before consistent versioning),
+\emph{hijinks} (2.X, the 2024 firmware for the 1v5 test stands, described in a companion note) and \emph{zipline}
+(3.X, the current firmware in the \h{pacman-firmware} and \h{pacman-software} repositories).  This note describes
+how the legacy firmware is kept in the repository \h{mulhearn/pacman}: one branch per hardware line, each holding
+as much of that line's firmware as possible, every state that was released or deployed reproducible from the
+repository alone, and the proof of each reproduction.
+
+A bitstream is \emph{reproduced bitwise} when the SHA-256 of its configuration body (the bitstream without its
+header, which carries the build date and paths) equals that of the reference bitstream.  The bodies are quoted here
+by their first eight hex digits.
+
+\section{Layout}
+
+\begin{itemize}
+\item One branch per hardware line (\br{hw1v3}, \br{hw1v4}, \br{hw1v5}), firmware only, as linear as the history
+  allows.
+\item Historic commits keep their original hashes.  New commits go only at a branch's tip:
+  \begin{itemize}
+  \item \emph{snapshots}: firmware that was built outside the repository, restored from its Vivado project archive;
+  \item \emph{build steps}: what makes a state build from the repository alone (fixes without behavior change,
+    staging scripts); they stay on the branch;
+  \item \emph{build options}: variants of a build (rot8).
+  \end{itemize}
+\item Superseded side lines, which change nothing on the main lines, are recorded on two \emph{excursions}
+  branches, firmware and software.
+\item Branches under review are named \br{working-on-}\emph{name} until they are frozen (renamed without the
+  prefix and tagged); they may be rewritten only until then.
+\item A checker (\h{check-legacy-hw1vN.sh}, run on fresh clones) enforces the layout: each spine ends at its
+  historic tip with the original hashes and is followed by exactly the listed new commits, the build steps change
+  only build scripts, the excursions never change the tree, and commit messages cite only commits on the spines.
+\end{itemize}
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}lllL@{}}
+\toprule
+Branch & Tip & Historic tip & New at the tip \\
+\midrule
+\br{working-on-legacy-firmware-hw1v3} & 9fbc1dc & 501180f & 893 snapshot, build step, 883 snapshot \\
+\br{working-on-legacy-firmware-hw1v4} & d08d199 & 21019ee & 894 (two commits), build step \\
+\br{working-on-legacy-firmware-hw1v5} & 7062e17 & 2425e67 & SYNC FIX build step, build option rot8 \\
+\br{working-on-legacy-firmware-excursions} & d5fd1c7 & (2425e67) & three record merges \\
+\br{working-on-legacy-software-excursions} & 4a27ae1 & (2425e67) & three record merges \\
+\bottomrule
+\end{tabularx}
+\caption{The legacy branches (2026-10-31).}
+\end{table}
+
+The first commit of all of them is 0b9bee4 (2019-11-16, the Trenz TE0720 skeleton).  Zipline shares only that
+commit with legacy; \h{pacman-firmware} and \h{pacman-software} share no history with this repository.
+
+\section{The hw1v3 line}
+
+\paragraph{Spine.}  The trunk (v1.2, v1.2b, three 2020 merges), then the v1.3 releases:  v1.3-0.0 (a10a44a,
+2020-12-23, the first v1.3 board), v1.3-0.1 (e26918e, external sync and trigger inputs), v1.3-0.2 (1dfc351, no
+firmware change), v1.3-0.3 (2099d0d, POSI/PISO invertible), and v1.3-1.0 (501180f, 2022-05-16, Peter Madigan's
+adjustable MCLK).  Every tag builds as committed with Vivado 2018.3 (the first run fails at IP generation, the
+rerun builds).
+
+\paragraph{New commits.}
+\begin{itemize}
+\item \textbf{893} (a5f8e91): Armin Karcher's V3 firmware (2024-02), the version that runs on the 1v3 boards
+  (version register \h{0x37D}), from its project archive \h{pacman-fw893.xpr.zip}: the archive's project Tcl as
+  \h{tcl/pacman-fw15.tcl} (Vivado 2021.1) and the sources it needs that differ from 501180f
+  (\h{clk\_ddr\_en.vhd}, \h{uart\_en.vhd} new; \h{larpix\_mclk\_sel.vhd}, \h{larpix\_reset\_gen.vhd} changed; the
+  FIFO \h{.xci} as upgraded to 2021.1).
+\item \textbf{Build step} (1f66dcd): \h{tcl/build\_fw15.sh} and \h{tcl/build\_fw15.tcl}.
+\item \textbf{883} (9fbc1dc): 893 with edge-sensitive SYNC/TRIG inputs (Armin, 2024-05, for the 2x2 trigger
+  module): \h{larpix\_reset\_gen.vhd} and that archive's project Tcl.
+\end{itemize}
+
+\paragraph{Build.}  From the top of a checkout, with the Vivado 2021.1 settings sourced:
+\begin{verbatim}
+bash tcl/build_fw15.sh        # -> products/zsys_wrapper.bit
+\end{verbatim}
+The project Tcl is Armin's export, unchanged: it names its files in the layout of his Vivado project and has no
+top-level wrapper.  The script stages the files it requires (its own \h{checkRequiredFiles} list) from
+\h{srcs/}, \h{constraints/} and \h{srcs/ip} into that layout under \h{build/fw15}, runs the export, adds the
+wrapper as \h{tcl/build\_xpr.tcl} does, and builds through \h{write\_bitstream}.
+
+\section{The hw1v4 line}
+
+\paragraph{Spine.}  From v1.3-0.3: the rev4 commits (new constraints with one GLOBAL\_SYNC, I2C virtual
+registers, eMMC), v1.4-0.0 (4532a23, 2022-04-12), the merge of v1.3-1.0 (b37e07f), v1.4-0.2 (0681491,
+2022-10-04, the last larpix release), and Armin's module2 upload (af8c85b, 21019ee, 2023-03-01: the resethack 1.8
+project Tcl \h{tcl/pacman\_resethack1.8.tcl} and \h{pacman\_r4.xdc}).
+
+\paragraph{New commits.}
+\begin{itemize}
+\item \textbf{894}, resethack 1.8 (a693c5e, c98f6b0): the sources the module2 Tcl needs that were never
+  committed (\h{uart\_en.vhd}, \h{tristate\_out.vhd}, \h{clk\_ddr\_en.vhd}, \h{larpix\_reset\_gen.vhd} with the
+  per-tile reset mask, \h{zsys\_wrapper.vhd}), from the project archive \h{pacman\_resethack1.85.xpr.zip}, and the
+  FIFO \h{.xci} as upgraded to 2021.1.
+\item \textbf{Build step} (d08d199): \h{tcl/build\_resethack1.8.sh}, \h{tcl/recreate\_resethack1.8.tcl},
+  \h{tcl/build\_resethack1.8.tcl}.
+\end{itemize}
+
+\paragraph{Build.}  With the Vivado 2021.1 settings sourced:
+\begin{verbatim}
+bash tcl/build_resethack1.8.sh     # -> products/zsys_wrapper.bit
+\end{verbatim}
+The recreate script stages every file Armin's Tcl requires under \h{build/resethack1.8}, links the Windows path
+by which it imports the block design (relative on Linux) to the staged tree, and sources a copy with one edit:
+Vivado 2021.1 places \h{pacman\_r4.xdc} in \h{constrs\_1/imports/constraints/}, so the target constraints path is
+changed to match.  The build launches the implementation a second time when the first launch stops at the 2021.1
+IP generation.
+
+\section{The hw1v5 line}
+
+\paragraph{Spine.}  From v1.4-0.0: the 2024 work (c2872b5, new constraints, IP upgrade, Vivado 2020.2; 36e32af,
+SYNC FIX: RESETN replaced by a per-tile SYNC; 5588b58, constraints cleanup; d8790e0, rot8 constraints as a
+separate file), ending at 2425e67 (2024-08-11).  2425e67 does not build as committed.
+
+\paragraph{New commits.}
+\begin{itemize}
+\item \textbf{Build step} (3155d4a, ``restore build from repo''): four fixes without behavior change:
+  \h{build\_xpr} writes the hardware description with \h{write\_hwdef} (Vivado 2020.2 writes no \h{.sysdef});
+  the data\_tx subset converter's options are set after \h{validate\_bd\_design} (AR 58038);
+  \h{larpix\_mclk\_sel} has integer generics, so the block design regenerates; \h{larpix\_clk}'s
+  \h{C\_RW\_REG3\_DEFAULT} is \h{0x00000000}, the value always built (the source's \h{0X00000004} was parsed as 0).
+  The hijinks firmware starts here.
+\item \textbf{Build option rot8} (7062e17): \h{pacman-rot8.xdc} copied onto \h{pacman.xdc} (tiles 1--8 on tiles
+  2--10), as the 2024 rot8 builds were made.
+\end{itemize}
+
+\paragraph{Build.}  With the Vivado 2020.2 settings sourced: \h{tcl/recreate\_xpr.tcl}, then
+\h{tcl/build\_xpr.tcl}.
+
+\section{Excursions}
+
+Each excursion is recorded by one \h{git merge -s ours} on 2425e67: the excursion's tip becomes the merge's second
+parent, so all its commits keep their original hashes, while the tree never changes (nothing is combined).  The
+first-parent log is the index; a single-branch clone holds every excursion.
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}lllllL@{}}
+\toprule
+Branch & Excursion & Owner & Base & Tip & What \\
+\midrule
+firmware & pacman-v1.2b-1MHz & Peter Madigan & v1.2b-0.0 & ba2ef0a & 1 MHz MCLK for the 1v2b board \\
+firmware & pacman-v1.3-1MHz & Peter Madigan & v1.3-0.2 & 38af5a7 & fixed 1 MHz MCLK \\
+firmware & pacman-v1.3-5MHz & Peter Madigan & v1.3-0.2 & 8a7e990 & fixed 5 MHz MCLK \\
+software & pacman-v1.2b (v1.2b-0.1) & Peter Madigan & v1.2b-0.0 & 6d70ed2 & maintenance release (packaging) \\
+software & pacman-1v4-petalinux20.2 & Armin Karcher & v1.4-0.2 & 5e67360 & PetaLinux 2020.2 port, eMMC boot \\
+software & legacy-pacman-1v4-pe & Michael Mulhearn & (the port) & 469c948 & + I2C fix for the MUX: the best 1v4
+server \\
+\bottomrule
+\end{tabularx}
+\caption{The excursions.  The fixed-MCLK lines are superseded by v1.3-1.0's adjustable MCLK.}
+\end{table}
+
+\section{Bitstreams and their reproduction}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.19\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}>{\raggedright\arraybackslash}p{0.17\textwidth}>{\raggedright\arraybackslash}p{0.08\textwidth}>{\raggedright\arraybackslash}p{0.35\textwidth}@{}}
+\toprule
+Bitstream & Body & Commit & Vivado & Reproduction \\
+\midrule
+\endhead
+v1.4-0.2 release & 1362d6b3 & 0681491 (tag) & 2018.3 & bitwise, the tag as committed (2026-10-13) \\
+893 (1v3 boards) & 3194812d & a5f8e91 + build step & 2021.1 & bitwise from a fresh clone with the in-repo build
+step (2026-10-31); reference read from a running 1v3 board \\
+883 & 0ff4bf66 & 9fbc1dc & 2021.1 & bitwise with the same staging (2026-10-31); in-repo confirmation pending \\
+894 (resethack 1.8) & ec9ecc71 & c98f6b0 + build step & 2021.1 & bitwise with the same staging (2026-10-30);
+reference: the ``84''/r8hack boot images; in-repo confirmation pending \\
+SYNC FIX & 4fdfb7d2 & 3155d4a & 2020.2 & bitwise from fresh clones (2026-10-11); reference: LBNL
+1v5\_20240731A\_ucd\_syncfix \\
+SYNC FIX rot8 & 5fdf3d45 & 7062e17 & 2020.2 & bitwise (2026-10-14); reference: LBNL 1v5\_20240810A\_ucd\_rot8 \\
+``74'' (2x2 image) & f0b74071 & --- & --- & not reproduced: built outside the repository, no project archive \\
+\bottomrule
+\end{longtable}
+
+Pending: every bitstream above built once more from a fresh clone of the repository with its own scripts (883,
+894, SYNC FIX, rot8, v1.4-0.2); the tags without an artifact (v1.3-0.0 to 0.3, v1.3-1.0, v1.4-0.0) built once and
+their bodies recorded; v1.3-1.0 and v1.3-0.3 compared with 60209db9, the bitstream of a 2022-10-31 BOOT.BIN found
+deleted on the 2x2 run-1 SD card, which would give the 1v3 line its release reference.
+
+\section{Conventions}
+
+\begin{itemize}
+\item Historic commits keep their author, dates and hash.  The snapshots, build steps, build option and excursion
+  merges are authored by augie; the hijinks 2.X restores by Michael Mulhearn.
+\item Work brought in from elsewhere enters as a new commit, described by content: no cherry-pick lines, no
+  repository-qualified branch names.  Bitstream hashes and bundle names are data and may appear.
+\item A snapshot changes only the files its archive changes; a build step changes only build scripts and fixes
+  without behavior change; each records its bitwise result in its message.
+\end{itemize}
+
+\section{Old branches}
+
+Deleted on 2026-10-31, after a check that every commit they held is reachable from a kept branch or tag, or has its
+tree there: \br{legacy-firmware-historic}, \br{working-on-legacy-firmware-buildable} (the earlier design with
+build loops), the old excursions record, \br{hijinks-hw1v5-2020.2}, \br{legacy-pacman-1v4-pe},
+\br{pacman-server-hijinks-2018.3}, and the tags \h{sync-fix} and \h{hijinks-2v8}.  The only commit let go
+with a tree of its own is the first 2.8 restore (61e2fa4): the kept 2.8 plus the files its successor removes,
+which equal 2425e67's.  Six further branches (the 2020.2 GPIO-only hwcheck, the 2024 v1.5 reorganization, the
+2020.2 and 2023.2 hardware demos, a 3v4 driver fixup) are under discussion.
+
+\section{Still open}
+
+Freezing (the branches renamed without \br{working-on-}), and annotated tags on every state of interest, each
+carrying its build result (toolchain, how it builds, configuration body and build-product hashes), under a prefix
+of our own; a single \br{legacy} branch merging the line branches is under discussion.
+
+\end{document}

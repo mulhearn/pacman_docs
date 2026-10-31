@@ -1,0 +1,142 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\br}[1]{\texttt{#1}}
+\newcommand{\h}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{PACMAN Hijinks Firmware and Software (2.X)\\[2pt]
+  \large Branches, releases and bitwise reproduction}
+\author{Maintained by the PACMAN agents (augie)}
+\date{2026-10-31}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+Hijinks (2.X) is the firmware and server written in 2024 for the 10-tile PACMAN 1v5 test stands at LBNL and UC
+Davis, between the legacy firmware (1.X, companion note) and zipline (3.X).  No 2.X firmware was committed in 2024:
+it lived only in Vivado projects.  The record is therefore the project archives, the released bundles, and two
+branches of \h{mulhearn/pacman} rebuilt from them.  This note describes the branches, the releases, and how each
+released artifact is reproduced from the repository.  Bitstreams are compared by the SHA-256 of their configuration
+body (first eight hex digits quoted).
+
+\section{Branches}
+
+\begin{itemize}
+\item \br{working-on-hijinks-firmware} (da3f75c): firmware only, linear, on the SYNC FIX build step of the hw1v5
+  legacy line (3155d4a), so every commit builds by construction.  Each 2.X version is one commit restored from its
+  project archive, with the SYNC FIX build fixes applied to the archive's exported block design the same way.
+\item \br{working-on-hijinks-software} (af73a4b): the 2024 pacman-server history as committed (server 2.1 to 2.7,
+  2024-10-02 to 11-08), unchanged, linear.
+\end{itemize}
+Both will be superseded by a single hijinks branch of release bundles (under discussion) and then deleted.
+
+\subsection{Firmware versions}
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}llllL@{}}
+\toprule
+Version & Commit & Date & Body & Content \\
+\midrule
+--- & 402413b & & & firmware only: removes the PetaLinux project and server (now on the software branch),
+\h{setup.sh}, and the bare-metal apps needing an AXI GPIO the design lacks \\
+2.1 & b163935 & 2024-10-05 & f87eb690 & 10 tiles, renamed I/O ports, version registers \h{0x0}--\h{0xC}, 10-bit
+masks \\
+2.2 & d70db3c & 2024-10-07 & 1431d8cb & hijinks constraints, 32 UARTs across 10 tiles \\
+2.7 & 96d41a0 & 2024-10-16 & 6ba3a82a & UART TX inter-word pause, RX mask (2.3--2.6 were unreleased test
+increments) \\
+2.8 & 4b463da & 2024-10-26 & c4a85eb2 & sync/reset on the trigger line too, 32-bit RX mask, 160\,\textmu s TX gap \\
+2.9 & e250cfd & 2024-10-29 & 0be6948d & sync reset pulse 15 cycles (\h{C\_SYNC\_RST\_CYCLES} 10 $\to$ 15) \\
+2.10 & da3f75c & 2026-10-21 & ede22a64 & adjustable MCLK (v1.3-1.0's) on 2.8, for CERN \\
+\bottomrule
+\end{tabularx}
+\caption{The firmware commits.  2.1--2.9 were rebuilt from the repository (Vivado 2020.2, \h{recreate\_xpr.tcl}
+then \h{build\_xpr.tcl}, about 90 minutes each) and are bitwise identical to their references (2026-10-13); the
+commits have since been replayed with the same trees.  2.10 was built from this tree when released.}
+\end{table}
+
+References: 2.1 the UC Davis bundle 20241005C; 2.2 the bundles 20241007B and 20241010A (two independent bundles,
+the same bitstream); 2.7 its project archive's own build (no bundle); 2.8 the LBNL bundle 20241026A; 2.9 the LBNL
+bundle 20241029A; 2.10 its release 20261020A.  The project archives are \h{pacman-fw-2v1.xpr.zip} to
+\h{pacman-fw-2v9.xpr.zip} (2v1, 2v2, 2v7, 2v8, 2v9).
+
+\section{Releases}
+
+{\small
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.36\textwidth}>{\raggedright\arraybackslash}p{0.11\textwidth}>{\raggedright\arraybackslash}p{0.07\textwidth}>{\raggedright\arraybackslash}p{0.07\textwidth}>{\raggedright\arraybackslash}p{0.25\textwidth}@{}}
+\toprule
+Bundle & Kind & FW & Server & Notes \\
+\midrule
+\endhead
+UCD 1v5\_20241005A\_ucd\_syncfix & legacy & SYNC FIX & I2C 5.2 & the branching-off point for hijinks \\
+UCD 1v5\_20241005B\_ucd\_devhiijinks & development & SYNC FIX & 2.1 & server only \\
+UCD 1v5\_20241005C\_ucd\_devhiijinks & development & 2.1 & 2.1 & \\
+UCD 1v5\_20241007A\_ucd\_devhijinks & development & 2.1 & 2.2 & server only \\
+UCD 1v5\_20241007B\_ucd\_hiijinks & released & 2.2 & 2.2 & first hijinks bundle (not successfully deployed) \\
+LBNL 1v5\_20241010A\_hijinks & released & 2.2 & 2.4 & first deployed \\
+LBNL 1v5\_20241026A\_hiijinks & released & 2.8 & 2.4 & \\
+LBNL 1v5\_20241029A\_hijinks & unreleased & 2.9 & --- & experimental; BOOT.BIN and xsa only \\
+server 2v5, 2v7 & software only & (2.8) & 2.5, 2.7 & tarballs; 2.7 is the CERN deployment \\
+LBNL 1v5\_20261020A\_hijinks & released & 2.10 & 2.7 & released privately for CERN \\
+\bottomrule
+\end{longtable}}
+
+The released directory names keep their ``hiijinks'' spelling.  Every bundle's \h{image.ub} is the same
+(b64633c2).  The rootfs images were checked by the server binaries they carry (\h{pacman\_cmdserver},
+\h{pacman\_dataserver}): each is exactly a released server tarball's.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Server & \h{pacman\_cmdserver} & \h{pacman\_dataserver} & Shipped in \\
+\midrule
+2.1 & 27f457d0 & 19b33c8c & tarball 2v1 (= 05B's); rootfs of 05C \\
+2.2 & af9df9ab & f0c56599 & tarball 2v2; rootfs of 07A, 07B \\
+2.4 & 629674af & 230cd1df & tarball 2v4; rootfs of 10A, 26A \\
+2.5 & 8e9c70b8 & 665e4383 & tarball 2v5 \\
+2.7 & 61f8cb40 & 13fcbb44 & tarball 2v7 \\
+\bottomrule
+\end{tabular}
+\caption{The released server binaries (SHA-256, first eight hex digits).}
+\end{table}
+
+\section{Reproducing the server}
+
+The server is a PetaLinux 2018.3 application (\h{petalinux/pkg/pacman-server}, recipe \h{pacman-server.bb}),
+built by \h{petalinux-build -c pacman-server} (\h{petalinux/scripts/build\_pacman\_server.sh}, as the branch's
+README describes) and shipped as the files of the resulting RPM.  The binaries are stripped and carry no build
+dates.  A build of af73a4b on felix (2026-10-11) gives binaries of exactly the released 2.7 sizes, with the same
+sections and the same strings, but in a different order: the Makefile collects its sources with
+\h{\$(wildcard src/*.cc)}, whose order is the directory order of the build machine's file system, so the objects
+are linked in a different order.  A pilot rebuilds 2.7 with the objects kept, finds the release's link
+order from its code, and tests whether linking in that order reproduces the release bitwise; the other servers
+follow the pilot's method.
+
+\section{Still open}
+
+\begin{itemize}
+\item The 2.7 server pilot, then 2.1, 2.2, 2.4 and 2.5 (2.2 and 2.5 span several commits: the release commit is to
+  be found).
+\item Every firmware version built once more from a fresh clone of the repository.
+\item One hijinks branch of release bundles: one commit per release, each a real merge of the firmware and
+  software it brings in, confirmed by a tree check against the proven trees; annotated tags carrying each build
+  result.
+\item Validation of 2.10 with the hardware loopback card at 5 and 10 MHz.
+\end{itemize}
+
+\end{document}
