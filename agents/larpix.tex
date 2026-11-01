@@ -1,0 +1,97 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\h}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{LArPix ASICs on PACMAN\\[2pt]
+  \large Bench setup, configuration, replies and status}
+\author{Maintained by the PACMAN agents (augie)}
+\date{2026-11-01}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+This note records the LArPix ASIC work on PACMAN with the zipline firmware and software (\h{zipline.tex}): which
+ASICs are on the bench, how they are configured, what they reply, and what is open.  Register numbers are those of
+the LArPix v3 register map in \h{larpix-lib} (\h{config/asics/larpix\_v3.yaml}), which agrees with the LBNL datasheet
+(rev 2.4, not public).  The datasheet has known errors: its bit layouts and defaults are not trusted until they are
+read back from a chip.
+
+\section{Bench setup}
+
+\begin{itemize}
+\item One LArPix v3 on a single-tile board, on tile 1.  On the 1v4 it is reached through the J1302 cable, with all
+  four PISO/POSI pairs routed to the tile-1 UARTs 0--3.
+\item Chip ID 0x0B (11).  The hello request is a configuration read of register 122 (the chip ID); the expected reply
+  is \h{0x42254139 1C2DE82F} (``read, chip 0x0B, register 122, value 0x0B'').
+\item Tile power by \h{pacman\_menu} (VDDA about 2.32\,V, VDDD about 1.20--1.30\,V, a few mA each).  The 1v4 needs I2C
+  at 100\,kHz with this cable (now the default).
+\item Unplug any signal source from the LEMO inputs before connecting ASICs.
+\end{itemize}
+
+\section{Configuration root}
+
+The configuration root (\h{pacman\_menu}, \h{asic\_config\_root} in \h{asic\_menu.c}) brings a chip up as the root of
+a chain:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+Register & Value & Meaning \\
+\midrule
+125 & 0x1 & downstream PISO enables: PISO 0 \\
+124 & 0x2 & upstream PISO enables: PISO 1 \\
+239, 240 & 0xFF & PISO drive: every TX slice enabled \\
+241, 242 & 0x00 & PISO drive current (\h{i\_tx\_diff}, active low): full \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent The drive settings were added on 2026-10-31 (pacman-software 6d2ad8e) after the 1v4 results below.
+
+\section{Results}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+Date & Board & Result \\
+\midrule
+2026-10-30 & 1v5 & Hello on UART 0 at the power-on drive: the expected reply, exactly.  POSI request and PISO reply also
+  decoded bit-exact from oscilloscope captures at the tile connector. \\
+2026-10-30 & 1v4 & At the power-on drive, the same wrong word on all four lanes (\h{0xFE000000 70387FC0}): the reply framed
+  7 bits late, with bit errors.  All TX slices (239, 240 = 0xFF): exact on UARTs 0 and 1.  Plus full current (241,
+  242 = 0x00): exact on all four. \\
+2026-10-31 & 1v4 & With 124 = 0x2 and full drive: exact on UART 0, and the built-in logic analyzer shows the request on
+  POSI 0 and the exact reply on PISO 0, 8.2\,\textmu s later.  PISO 2 and 3 (enabled neither up- nor downstream)
+  stream junk into the receivers at full drive. \\
+2026-10-31 & 1v4 & Latest build (firmware 928fcf0, software 3c9b2d0), configuration root as built: the reply exact,
+  twice. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Open}
+
+\begin{itemize}
+\item Systematic adjustment of the PISO drive (registers 239--242, and \h{v\_cm\_lvds\_tx} 254--255) and of the PISO
+  enables (124, 125): why the 1v4 needs more drive than the 1v5, why UARTs 2 and 3 need more than 0 and 1, and
+  whether disabled PISOs at full drive are undriven or biased without data.
+\item The real bit layouts and defaults: a read-all of the registers on the 1v5.
+\item ASIC stress tests on the 1v5 (later).
+\item LArPix v2b on the hw1v4: v2 clocks its UART at MCLK/2 (v3 at MCLK).
+\end{itemize}
+
+\end{document}
