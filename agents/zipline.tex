@@ -90,8 +90,7 @@ Recent changes (pacman-software):
 \item 2026-11-01 (290979d, which replaces 671a3dd with the changes below added): one RX/TX loopback core, which uses the configuration and ring as it finds them; in the
   RX/TX menu the ring size (16 to 512 BDs, default 512, set up by \h{m}), the loopback length, the RXTX UART mask
   (including tiles 2+3) and a BER check; \h{pacman\_hwcheck -{}-loopback} per tile, then all the masked tiles at
-  once; the RX config and RX buffer config words built by functions.  Built for Linux and bare metal; not yet run on a
-  board.
+  once; the RX config and RX buffer config words built by functions.  On the 1v4 since 2026-11-01.
 \end{itemize}
 
 \noindent The PetaLinux projects (\h{petalinux/ramdisk}, \h{petalinux/full}) are built in place, incrementally,
@@ -107,6 +106,8 @@ f516bc7 & 2026-10-30 & ramdisk & 41851385 & 7d452b37 \\
 3c9b2d0 & 2026-10-31 & full & 4c1d3a0e & 8094cb12 \\
 671a3dd & 2026-11-01 & ramdisk & cec3182c & c4bd61b8 \\
 671a3dd & 2026-11-01 & full & 96d3faca & 8094cb12 \\
+290979d & 2026-11-01 & ramdisk & 5bf59506 & 73368917 \\
+290979d & 2026-11-01 & full & 348baf8a & 8094cb12 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -121,9 +122,12 @@ Board & Firmware & Image & Results \\
 1v5 (PACMAN 51 UCD) & 650dea6 & f516bc7 (SD p1) & 2026-10-30: \h{pacman\_hwcheck}, every test PASS on the tiles
   carrying the test cards, except \h{-{}-ana\_mon} on tile 4 (a weak TESTP leg, set aside); LArPix v3 on tile 1
   replies (\h{larpix.tex}) \\
-1v4 & 928fcf0 & 671a3dd (TFTP) & 2026-11-01: the new menus work (letters and Enter, a clean end at the end of
+1v4 & 928fcf0 & 290979d (TFTP) & 2026-11-01: the new menus work (letters and Enter, a clean end at the end of
   input, the hwcheck submenu: read only as expected, I2C stress PASS); the LArPix v3 on tile 1 does not reply
-  (UART 0 streams junk; it replied exactly on 2026-10-31 with 3c9b2d0) \\
+  (UART 0 streams junk; it replied exactly on 2026-10-31 with 3c9b2d0): the configuration sent right after the full
+  reset is lost, and a 0.2\,s pause fixes it.  2026-11-01, 290979d: a 16-BD ring set up from the menu, the ASIC hello
+  exact twice, and the BER loopback on tiles 2+3 (internal loopback): 80000 of 80000 words, 0 bit errors in
+  5.12\,Mbit \\
 \bottomrule
 \end{tabularx}
 \end{center}

@@ -84,6 +84,8 @@ Date & Board & Result \\
 2026-11-01 & 1v4 & Software 671a3dd, the same sequence as a piped script: no reply (UART 0 streams junk).  Cause: the
   configuration root sent right after the full reset is lost; the full reset returns at once, and the new menu input
   no longer sleeps between commands.  With a 0.2\,s pause after the full reset: the reply exact, twice. \\
+2026-11-01 & 1v4 & Software 290979d, a 16-BD DMA ring set up from the menu, with the 0.2\,s pause: the reply exact,
+  twice. \\
 \bottomrule
 \end{tabularx}
 \end{center}
