@@ -22,7 +22,7 @@
 \title{PACMAN Quality Assurance and Quality Control\\[2pt]
   \large Firmware validation; hardware checkout: tools, coverage, and shifter's guide}
 \author{Draft maintained by the PACMAN agents (augie); reference for the TRM}
-\date{2026-10-27}
+\date{2026-11-01}
 
 \begin{document}
 \maketitle
@@ -38,7 +38,7 @@
   \item \texttt{pacman\_lnxcheck}: the standard embedded-Linux checkout of the Trenz module (CPU, memory,
     on-chip supplies, Ethernet, flash and SD storage).
   \item \texttt{pacman\_hwcheck}: the PACMAN-specific test suite (power, tile I/O, timing, analog paths, front
-    panel):  one run per test card, plus operator and design-validation runs.
+    panel):  tests chosen on the command line, one run per test card.
   \end{itemize}
 \item Firmware validation (Section~\ref{sec:firmware}), separately: once per firmware release, against stated
   requirements, in simulation and on a bench Trenz module.  It qualifies the firmware package, not a card.
@@ -119,7 +119,7 @@
   \node[box,minimum width=26mm,minimum height=12mm] (dmm) at (-4.0,6.95) {DMM\\(across the SMAs)};
   \draw[thick,red!70!black] ([yshift=2mm]dmm.east) -- ++(1.4,0) |- (sma1.west);
   \draw[thick]              ([yshift=-2mm]dmm.east) -- ++(1.9,0) |- (sma2.west);
-  \node[box,minimum width=26mm,minimum height=12mm] (fg) at (-4.0,5.05) {1 kHz TTL\\(operator run)};
+  \node[box,minimum width=26mm,minimum height=12mm] (fg) at (-4.0,5.05) {1 kHz TTL\\(tee)};
   \coordinate (tee) at (-1.2,5.05);
   \draw[thick] (fg.east) -- (tee);
   \fill (tee) circle (2pt); \node[font=\scriptsize,anchor=east] at ([xshift=-1mm,yshift=2.5mm]tee) {tee};
@@ -144,8 +144,8 @@ Loopback test card & Each tile's data outputs (POSI) loop back to its data input
   and VDDD let the tile supplies be swept under load. \\
 ATC test card & Each tile's sync (G) and trigger (H) outputs loop back to its PISO inputs 0 and 1; its clock drives
   its analog monitor pair (TESTP/TESTN). \\
-DMM & Operator run: the test DAC at the front-panel SMAs.  Design validation: board rails and tile supplies. \\
-1 kHz TTL & Operator run: one source, split with a tee, on the TRIG and PPS LEMO inputs. \\
+DMM & \opt{sma}: R28 across the front-panel SMAs. \\
+1 kHz TTL & \opt{lemo\_inputs}: one source, split with a tee, on the TRIG and PPS LEMO inputs. \\
 Operator PC & \texttt{ssh} session to the PACMAN; keeps the result files. \\
 \bottomrule
 \end{tabularx}
@@ -155,6 +155,7 @@ Operator PC & \texttt{ssh} session to the PACMAN; keeps the result files. \\
 \item One run per test card, with the PACMAN powered down while the cards are swapped, and \opt{tile\_mask} set to
   the tiles carrying the card.  The bench 1v5 mixes them on one card: the loopback test card on tiles 1 and 2, the
   ATC test card on tiles 4 and 5.
+\item Unplug the TTL source from the LEMO inputs before connecting ASICs.
 \end{itemize}
 
 \section{The utilities}
@@ -204,78 +205,61 @@ Read-only unless \opt{sd\_write} is given.  Options: \opt{server} (TFTP server; 
 
 \subsection{\texttt{pacman\_hwcheck}: PACMAN hardware}
 
-A test suite, not one checkout:  a mode per test card or setup, each a fixed set of run sets (run sets can also
-be given one by one, and run in a fixed order).
+A test suite, not one checkout:  the tests are chosen on the command line, can be combined, and always run in the
+order below.  Each test card gets its own run, with \opt{tile\_mask} set to the tiles that carry it; tiles outside
+the mask are skipped.  Every test leaves the board as it found it (tile enables restored, DACs at 0, MUX open).
 
 \begin{center}
-\begin{tabularx}{\linewidth}{@{}lL@{}}
+\begin{tabularx}{\linewidth}{@{}lL>{\raggedright\arraybackslash}p{2.6cm}@{}}
 \toprule
-Mode & Run sets \\
-\midrule
-\opt{loopback\_card} & \opt{read\_only}, \opt{power}, \opt{loopback} \\
-\opt{atc\_card} & \opt{read\_only}, \opt{timing\_outputs}, \opt{ana\_mon} \\
-\opt{manual} & \opt{blink}, \opt{analog\_io}, \opt{j5}, \opt{lemo\_identity} (operator) \\
-\opt{design\_validation} & DMM at the board rails and each tile's VDDA and VDDD (DAC 0x8000) against the monitors,
-  $\pm$5\% (once per design, not per card) \\
-\bottomrule
-\end{tabularx}
-\end{center}
-
-\begin{center}
-\begin{tabularx}{\linewidth}{@{}lL>{\raggedright\arraybackslash}p{2.1cm}@{}}
-\toprule
-Run set & Checks & Operator \\
+Test & Checks & Needs \\
 \midrule
 \opt{read\_only} & Firmware and hardware versions, build information, J5 state, board and tile monitors, data
-  path status.  Allowed with J5 installed. & -- \\
-\opt{blink} & Trenz and PACMAN LEDs blink in turn. & watches, confirms \\
-\opt{j5} & J5 installed: reads installed, \texttt{pacman\_hwcheck} and \texttt{pacman\_fwcheck} refuse; removed:
-  reads not installed. & installs, removes \\
-\opt{lemo\_identity} & The 1 kHz TTL on LEMO A only, B only, both: only the connected inputs count. & unplugs \\
-\opt{power} & Board rails against nominal; tile power off, then on.  Each tile in turn: VDDA and VDDD swept over
-  the DAC range into the card's loads (floor, gain, swing, monotonic, load), other tiles stay off. & -- \\
+  path status.  The only test allowed with J5 installed. & -- \\
+\opt{power} & Board rails against nominal; 3V0 off, then on.  Each tile in the mask in turn: VDDA and VDDD
+  swept over the DAC range into the card's loads (floor, gain, swing, monotonic, load), the other tiles checked off. &
+  loopback test card (loads) \\
 \opt{loopback} & Each tile in turn, only that tile enabled: random data on its four UARTs through the card, words
-  received, bit errors, receiver error counters; no stray data on other UARTs. & -- \\
-\opt{timing\_inputs} & Rates on the TRIG and PPS inputs, counted by the firmware over 1 s: 1 kHz $\pm$20\% each
-  (link alive). & -- \\
-\opt{timing\_outputs} & Each tile in turn: 100 pulses on its G (SYNC) and H (TRIG) outputs, counted as words on its
-  PISO inputs 0 and 1 (none with the tile masked). & -- \\
+  received, bit errors, receiver error counters; no stray data on other UARTs. & loopback test card \\
+\opt{atc\_outputs} & Each tile in turn: pulses on its G (SYNC) and H (TRIG) outputs, counted as words on its PISO
+  inputs 0 and 1 (none with the tile masked). & ATC test card \\
+\opt{lemo\_inputs} & Rates on the TRIG (LEMO A) and PPS (LEMO B) inputs, counted by the firmware over 1 s: 1 kHz
+  $\pm$20\% each (link alive). & 1 kHz TTL on both (tee) \\
 \opt{ana\_mon} & Each tile in turn: its clock on the analog monitor, into the ADC (100\,$\Omega$), then from the
-  front panel through the MUX loop resistors (series, swapped, divider P, divider N); the test DAC directly and
-  through both series loops. & -- \\
-\opt{analog\_io} & Front-panel analog MUX stepped through tiles 1--10, test DAC, off; a DMM reading at the SMA jacks
-  for each. & DMM readings \\
+  front panel through the MUX loop resistors (series, swapped, divider P, divider N). & ATC test card \\
+\opt{adc} & ADC registers; the test DAC into the ADC through the MUX, directly and through both series loops. &
+  -- \\
+\opt{blink} & The Trenz red LED, then PACMAN LED-0 to LED-3, in turn; the operator watches. & operator \\
+\opt{sma} & The MUX puts R28 across the SMA jacks J1001 (P) and J14 (N): 100\,$\Omega$ $\pm$20\% on a DMM (the
+  reading includes the MUX switches); the MUX is opened after. & operator, DMM \\
+\opt{i2c\_stress} & Sweeps of safe transactions over every I2C device (both MUX chips, both DACs), stopping at the
+  first error; the I2C clock rate is reported. & -- \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
 \begin{itemize}
-\item Operator steps start with a prompt saying what comes next (\texttt{Ready? [y = go, s = skip]}).  At any
-  prompt, \texttt{s} skips the step; it is recorded as SKIP, never as a value.
-\item Modifiers: \opt{tile\_mask} (tiles carrying the card), \opt{skip\_interactive} (no operator steps);
-  development: \opt{internal\_loopback}, \opt{no\_i2c}, \opt{sim\_i2c}, \opt{ber\_bits}.
-\item Development run sets (no mode):
-  \begin{itemize}
-  \item \opt{adc}: ADC registers; the emulator ramp captured, with the comparator as the trigger; the test DAC
-    through the MUX into the ADC (front panel open) in six steps, each capture's mean against LOOK.
-  \item \opt{logic\_analyzer}: ATC CLK and BAUD captured every clock (spacing, buffer, trigger timestamp); an ATC
-    marker as the trigger; cross triggers with the ADC capture (equal timestamps); one UART word on tile 1, POSI
-    and PISO decoded against RX.
-  \item \opt{analog\_io\_mode} \texttt{M}: sets the MUX and leaves it set: \texttt{none}, \texttt{dac},
-    \texttt{tile2}, \texttt{tile2\_100} (tile 2, the ADC terminated).
-  \end{itemize}
+\item Modifiers: \opt{tile\_mask} \texttt{M} (bit $t$ = tile $t+1$; default \texttt{0x3ff}), \opt{no\_pause}
+  (\opt{blink} blinks for a fixed time, \opt{sma} sets the MUX and then opens it); development: \opt{ber\_bits}
+  (loopback length), \opt{sweeps} (\opt{i2c\_stress}), \opt{no\_i2c} (everything on I2C skipped).
+\item \opt{blink} and \opt{sma} pause for the operator but take no answer: the run's verdict counts only the
+  checks the program makes, and the operator records what was seen.
+\item \opt{lemo\_inputs} starts at once: the source must already be on both inputs.  Each input is identified by
+  unplugging the other (one input at 0\,Hz).
+\item The I2C bus runs at 100\,kHz by default (needed on at least one hw1v4 card with its cable).
 \item Safe MUX layer: every MUX setting goes through \texttt{iic\_set\_mux\_to\_front\_panel},
   \texttt{iic\_set\_mux\_to\_adc}, \texttt{iic\_set\_mux\_loop} and \texttt{iic\_set\_mux\_open}.  Each common
-  (front panel, ADC) is set on its own, with at most one source; the state is read back from both MUX chips, and any
-  problem opens every switch.  A 100\,$\Omega$ termination is refused on a source already terminated on the other
-  common (the source would see 50\,$\Omega$).  The test DAC reaches the tiles only through the MUX, so it is used
-  only with the MUX set this way.
-\item MUX loops (\texttt{iic\_set\_mux\_loop}, four fixed patterns only):  the two 100\,$\Omega$ resistors join switch
+  (front panel, ADC) is set on its own, with at most one source; the state is read back from both MUX chips.  A
+  setting the layer refuses (for example a 100\,$\Omega$ termination on a source already terminated on the other
+  common, which would then see 50\,$\Omega$) changes nothing and is returned to the program, which decides what to
+  do; the drivers do not open the MUX on their own.  The test DAC reaches the tiles only through the MUX, so it is used only with the
+  MUX set this way.
+\item MUX loops (\texttt{iic\_set\_mux\_loop}, five fixed patterns only):  the two 100\,$\Omega$ resistors join switch
   14 (and 15) of the P chip to the same switch of the N chip, and each end can go to either common; switch 16 is
   ground.  Series: the source on the front panel, each resistor from one front-panel side to the other ADC side (the
   ADC sees the pair inverted).  Divider P (N): one side of the source through one resistor, the other resistor to
-  ground, the ADC across it.  Every front-panel switch is so checked without an operator.  The tied switch 11 is
-  never used.
+  ground, the ADC across it.  Every front-panel switch is so checked without an operator.  The fifth pattern puts
+  R28 alone across the front-panel jacks (\opt{sma}).  The tied switch 11 is never used.
 \end{itemize}
 
 \needspace{12\baselineskip}
@@ -286,23 +270,23 @@ Run set & Checks & Operator \\
 Feature & Acceptance & Status \\
 \midrule
 \endhead
-Board rails 3V6, 3V3, 3V0 & monitor within 5\% of nominal; 3V0 $\le$ 50 mV when off; DMM within 5\% of
-  monitor (design validation) & set; DMM test points \tbd{} \\
+Board rails 3V6, 3V3, 3V0 & monitor within 5\% of nominal; 3V0 $\le$ 50 mV when off & set \\
 Tile supplies VDDA, VDDD & floor and gain (157 mV per 0x1000 DAC codes, $\pm$5\%), swing $\ge$ 1 V, monotonic,
   current under load, other tiles $\le$ 50 mV & provisional (one board) \\
 Tile UARTs (40) & every word received, zero bit errors, no stray words & set \\
-TRIG, PPS inputs & 1 kHz $\pm$20\% each; each input alone with the other unplugged (\opt{lemo\_identity}) & set;
-  first run with the source at the operator run \\
+TRIG, PPS inputs & 1 kHz $\pm$20\% each; each input alone with the other unplugged & set \\
 Tile G, H outputs & every pulse counted on PISO 0 (G) and 1 (H), none with the tile masked & set \\
 Tile CLK and analog monitor & CLK into the ADC: swing $\ge$ 100 codes, every edge within a clock of the period & set \\
 Front-panel MUX switches & series and divider loops: a clock of the right period (mean and edge count within
   5\%); DAC through the series loops $-0.62\times$ the direct step $\pm$10\% (the ADC input, about
   320\,$\Omega$, against the loop's 200\,$\Omega$) & provisional (one board; divider P marginal on the bench) \\
-Front-panel SMAs & DMM reading of the test DAC & readings recorded; value \tbd{} \\
+Front-panel SMAs & R28 through the MUX on a DMM: 100\,$\Omega$ $\pm$20\% (113\,$\Omega$ on the bench, MUX
+  switches included) & set; operator reading \\
 Onboard ADC & emulator ramp without bad steps; DAC-step captures within 8 codes of LOOK & readings recorded;
   limits \tbd{} \\
-Logic analyzer & CLK and BAUD spacing, trigger timestamp, cross triggers, decoded UART word & set \\
-LEDs, J5 & operator confirms; J5 read back, both utilities refuse & set \\
+I2C bus & stress sweeps over every device without error & set \\
+LEDs & operator watches & set \\
+J5 & read back; installed: only \opt{read\_only} runs & set; installed J5 not yet tested \\
 Linux, Ethernet, storage & as in the \texttt{pacman\_lnxcheck} table & set \\
 \bottomrule
 \end{longtable}
@@ -314,12 +298,14 @@ Linux, Ethernet, storage & as in the \texttt{pacman\_lnxcheck} table & set \\
 \toprule
 Needed for normal operation, not yet tested & Plan \\
 \midrule
-TRIG / PPS acceptance & 1 kHz TTL on both LEMOs at the operator run. \\
 Full ten-tile run & Production test cards covering all ten tiles. \\
 microSD checks & First run on an SD-booted card. \\
 \bottomrule
 \end{tabularx}
 \end{center}
+
+\noindent Every test has run on the bench 1v5 (PACMAN 51 UCD, 2026-10-30): all PASS on the tiles carrying the
+cards, except \opt{ana\_mon} on tile 4, whose weak TESTP leg is set aside (possibly damage during testing).
 
 \noindent Not needed for normal operation (not tested): RTD temperature probe, QSPI flash contents, SFP/CDR timing path.
 
@@ -434,7 +420,7 @@ pass.
 \item The 23 \texttt{sim} requirements are checked in simulation only: they concern internal timing (register bus
   timing, UART phase and delay), reset, the board pins (tile enables, LEDs, G and H outputs), the LEMO inputs and
   the receiver's tolerance of real lines (glitches, frame errors, stalls).  On each card, \texttt{pacman\_hwcheck}
-  covers the tile enables, LEDs and LEMO inputs, and (\opt{timing\_outputs}) the G and H tile outputs and CLK.
+  covers the tile enables, LEDs and LEMO inputs, and (\opt{atc\_outputs}, \opt{ana\_mon}) the G and H tile outputs and CLK.
 \item The simulation is of the firmware sources, the hardware check of the built bitstream: together they cover
   the build as well as the design.
 \end{itemize}
@@ -465,20 +451,20 @@ For an operator who runs the checkout the standard way.  Items marked \tbd{\ldot
 \begin{enumerate}
 \item Linux checkout (a minute or less):\\
   \texttt{pacman\_lnxcheck -{}-server \tbd{TFTP server} | tee lnxcheck-<serial>.txt}
-\item Hardware tests, one run per card (about \tbd{N} minutes each):\\
-  \texttt{pacman\_hwcheck -{}-loopback\_card | tee hwcheck-loopback-<serial>.txt}\\
-  power off, swap to the ATC test card, power on, log in, stop the servers, then\\
-  \texttt{pacman\_hwcheck -{}-atc\_card | tee hwcheck-atc-<serial>.txt}
-\item Operator run (guided):\\
-  \texttt{pacman\_hwcheck -{}-manual | tee hwcheck-manual-<serial>.txt}
-\item Answer the prompts:
+\item With the loopback test card:\\
+  \texttt{pacman\_hwcheck -{}-read\_only -{}-power -{}-loopback -{}-lemo\_inputs -{}-adc -{}-i2c\_stress
+  | tee hwcheck-loopback-<serial>.txt}
+\item Power off, swap to the ATC test card, power on, log in, stop the servers, then:\\
+  \texttt{pacman\_hwcheck -{}-atc\_outputs -{}-ana\_mon | tee hwcheck-atc-<serial>.txt}
+\item Operator tests:\\
+  \texttt{pacman\_hwcheck -{}-blink -{}-sma | tee hwcheck-operator-<serial>.txt}
   \begin{itemize}
-  \item \texttt{Next: \ldots{} Ready?}: get ready for what it describes (watch the LEDs, put the DMM probes on
-    the named points), then answer \texttt{y}.
-  \item Yes/no questions: answer what you saw.
-  \item Readings: type the DMM value in mV.
-  \item Can't do a step?  Answer \texttt{s}.  It is recorded as skipped; never type a made-up value.
+  \item \opt{blink}: watch the Trenz red LED, then PACMAN LED-0 to LED-3, light in turn; write down what you saw.
+  \item \opt{sma}: put the DMM (resistance) across the SMA jacks J1001 and J14; write down the reading
+    (100\,$\Omega$ $\pm$20\%), then press Enter.
   \end{itemize}
+\item LEMO inputs, each alone: unplug PPS and run \texttt{pacman\_hwcheck -{}-lemo\_inputs} (TRIG near 1 kHz,
+  PPS 0); then the other way round.  Write down both results.
 \end{enumerate}
 
 \subsection*{Read the result}
