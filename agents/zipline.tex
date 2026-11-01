@@ -39,7 +39,7 @@ tools in \h{qaqc.tex}.  Digests are SHA-256, first eight hex digits.
 Repository & Branch & State \\
 \midrule
 \h{mulhearn/pacman-firmware} & \br{working-on-3.6-zipline-2023.2} & 928fcf0 on origin; firmware 3.6.0 candidate \\
-\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 8dc9f28 (671a3dd on origin) \\
+\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 290979d (671a3dd on origin) \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -87,10 +87,11 @@ Recent changes (pacman-software):
 \item 2026-11-01: the \h{pacman\_hwcheck} tests as a submenu of both main menus (da113dc); one menu input on both
   platforms, a letter then Enter in every menu, a clean end at the end of input; one copy of the RX/TX and ADC menus for both platforms, the power menu folded
   into the I2C menu, a 16-BD ring for the menus (671a3dd);  on the 1v4 since 2026-11-01.
-\item 2026-11-01 (8dc9f28): one RX/TX loopback core, which uses the configuration and ring as it finds them; in the
+\item 2026-11-01 (290979d, which replaces 671a3dd with the changes below added): one RX/TX loopback core, which uses the configuration and ring as it finds them; in the
   RX/TX menu the ring size (16 to 512 BDs, default 512, set up by \h{m}), the loopback length, the RXTX UART mask
   (including tiles 2+3) and a BER check; \h{pacman\_hwcheck -{}-loopback} per tile, then all the masked tiles at
-  once.  Built for Linux and bare metal; not yet run on a board.
+  once; the RX config and RX buffer config words built by functions.  Built for Linux and bare metal; not yet run on a
+  board.
 \end{itemize}
 
 \noindent The PetaLinux projects (\h{petalinux/ramdisk}, \h{petalinux/full}) are built in place, incrementally,
