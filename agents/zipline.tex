@@ -1,0 +1,136 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\br}[1]{\texttt{#1}}
+\newcommand{\h}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{PACMAN Zipline Firmware and Software (3.X)\\[2pt]
+  \large Branches, builds, boards and status}
+\author{Maintained by the PACMAN agents (augie)}
+\date{2026-11-01}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+Zipline (3.X) is the current PACMAN firmware and software, for the 1v5 board (also built for the 1v4), after the
+legacy (1.X) and hijinks (2.X) generations (companion notes \h{legacy.tex}, \h{hijinks.tex}).  This note records
+where zipline stands: the branches, what was built from which commit, which build is on which board, the results,
+and what is open.  The firmware itself (registers, units, timing) is described in \h{firmware.tex}; the checkout
+tools in \h{qaqc.tex}.  Digests are SHA-256, first eight hex digits.
+
+\section{Repositories}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+Repository & Branch & State \\
+\midrule
+\h{mulhearn/pacman-firmware} & \br{working-on-3.6-zipline-2023.2} & 928fcf0 on origin; firmware 3.6.0 candidate \\
+\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 41c6e00 on origin; 3c9b2d0 committed, not
+  yet pushed \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{itemize}
+\item Toolchain: Vivado 2023.2 (firmware), PetaLinux 2023.2 (images and the Linux applications), Vitis 2023.2 (bare
+  metal).
+\item Firmware simulation: GHDL, \h{ghdl/} (test benches) and \h{ghdl/agents} (\h{make check} against
+  \h{docs/requirements.txt}); \h{vivado/src/hdl} is kept in step with \h{ghdl/} in each commit.
+\item Software: the Linux applications in \h{petalinux/pkg/pacman-apps} (\h{pacman\_cmdserver},
+  \h{pacman\_dataserver}, \h{pacman\_menu}, \h{pacman\_hwcheck}, \h{pacman\_fwcheck}, \h{pacman\_lnxcheck}), one
+  copy of the drivers (\h{drivers-common}) shared with the bare-metal menu (\h{apps/menu}).
+\end{itemize}
+
+\section{Firmware 3.6}
+
+3.6 adds to 3.5: the ADC unit, the logic analyzer with ADC capture and cross triggers, the \h{\_UPPER}/\h{\_LOWER}
+register names, the RX packet timeout in units of 256 cycles, and the RX sweep that resumes at the next channel after
+a packet closed by its maximum.  It stays a candidate (3.6.0, not an official release) until it is released.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule
+Commit & Date & Build & Result \\
+\midrule
+650dea6 & 2026-10-26 & hw1v5 & bit 82c2be63, BOOT.BIN c43b1340; timing met (WNS +0.115\,ns, WHS +0.049\,ns);
+  \h{pacman\_fwcheck} PASS (30 of 30 requirements, twice) \\
+ae71967 & 2026-10-29 & --- & on hw1v4, a reset on tiles 1--8 asserts the single legacy reset (was 1--10) \\
+928fcf0 & 2026-10-30 & hw1v4 & bit 2755aa4c; timing met (WNS +0.185\,ns, WHS +0.011\,ns) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent The hw1v5 bitstream of 650dea6 is the one in the current images: 928fcf0 changes only the hw1v4 build.
+
+\section{Software and images}
+
+Recent changes (pacman-software):
+\begin{itemize}
+\item 3d77617 to f516bc7 (2026-10-30): support for the ADC and logic analyzer; \h{pacman\_hwcheck} as a test suite
+  and \h{pacman\_fwcheck}; the I2C overhaul (sticky status, bus recovery, MUX refusals as returns); one copy of the
+  drivers; the I2C stress test.
+\item 2026-10-31: I2C at 100\,kHz by default (640a124, needed on a hw1v4 card); ASIC TX at full drive in the
+  configuration root (6d2ad8e); \h{-{}-sma} tolerance 20\% (41c6e00); the I2C device skip removed (3c9b2d0).
+\end{itemize}
+
+\noindent The PetaLinux projects (\h{petalinux/ramdisk}, \h{petalinux/full}) are built in place, incrementally,
+after each software or firmware change:
+
+\begin{center}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Software & Date & Image & \h{BOOT.BIN} & \h{image.ub} \\
+\midrule
+f516bc7 & 2026-10-30 & ramdisk & 41851385 & 7d452b37 \\
+3c9b2d0 & 2026-10-31 & ramdisk & 12813299 & d7761858 \\
+3c9b2d0 & 2026-10-31 & full & 4c1d3a0e & 8094cb12 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Boards}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule
+Board & Firmware & Image & Results \\
+\midrule
+1v5 (PACMAN 51 UCD) & 650dea6 & f516bc7 (SD p1) & 2026-10-30: \h{pacman\_hwcheck}, every test PASS on the tiles
+  carrying the test cards, except \h{-{}-ana\_mon} on tile 4 (a weak TESTP leg, set aside); LArPix v3 on tile 1
+  replies (\h{larpix.tex}) \\
+1v4 & 928fcf0 & 3c9b2d0 (TFTP) & 2026-10-31: \h{-{}-read\_only} as expected (only the hardware version, 1.4.0,
+  fails: \h{pacman\_hwcheck} expects the 1v5); LArPix v3 on tile 1 replies exactly at full drive \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent The 1v4 has no SD card: it boots by JTAG and TFTP.  The 1v5 is off the bench while the 1v4 is on it.
+
+\section{Open}
+
+\begin{itemize}
+\item Release of 3.6 (official), and the 3c9b2d0 software on the 1v5.
+\item An \h{hwcheck} submenu in \h{pacman\_menu} (interface stage).
+\item Robustness of the Vivado build: \h{create.tcl} adds the HDL from the repository, so HDL edited after the
+  project was created partly enters a rebuild.
+\item Set aside: the \h{pattern.vhd} start-up (one write that enables and moves the phase can cut the first start
+  bit short), the DMA race (the dataserver and \h{hwcheck}/menu share the RX ring: stop the servers first), private
+  rootfs customizations, \h{pacman\_setup.sh} at first boot, an I2C termination option, an I2C error state in a
+  register, a richer I2C simulation.
+\end{itemize}
+
+\end{document}
