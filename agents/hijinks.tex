@@ -101,41 +101,54 @@ The released directory names keep their ``hiijinks'' spelling.  Every bundle's \
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{@{}llll@{}}
+\begin{tabular}{@{}lllll@{}}
 \toprule
-Server & \h{pacman\_cmdserver} & \h{pacman\_dataserver} & Shipped in \\
+Server & Commit & \h{pacman\_cmdserver} & \h{pacman\_dataserver} & Shipped in \\
 \midrule
-2.1 & 27f457d0 & 19b33c8c & tarball 2v1 (= 05B's); rootfs of 05C \\
-2.2 & af9df9ab & f0c56599 & tarball 2v2; rootfs of 07A, 07B \\
-2.4 & 629674af & 230cd1df & tarball 2v4; rootfs of 10A, 26A \\
-2.5 & 8e9c70b8 & 665e4383 & tarball 2v5 \\
-2.7 & 61f8cb40 & 13fcbb44 & tarball 2v7 \\
+2.1 & dcdbc71 & 27f457d0 & 19b33c8c & tarball 2v1 (= 05B's); rootfs of 05C \\
+2.2 & 85436ea & af9df9ab & f0c56599 & tarball 2v2; rootfs of 07A, 07B \\
+2.4 & 2f6f6bf & 629674af & 230cd1df & tarball 2v4; rootfs of 10A, 26A \\
+2.5 & ea74a01 & 8e9c70b8 & 665e4383 & tarball 2v5 \\
+2.7 & af73a4b & 61f8cb40 & 13fcbb44 & tarball 2v7 \\
 \bottomrule
 \end{tabular}
-\caption{The released server binaries (SHA-256, first eight hex digits).}
+\caption{The released server binaries (SHA-256, first eight hex digits), each reproduced bitwise from its commit on
+  \br{working-on-hijinks-software}.}\label{tab:servers}
 \end{table}
 
 \section{Reproducing the server}
 
-The server is a PetaLinux 2018.3 application (\h{petalinux/pkg/pacman-server}, recipe \h{pacman-server.bb}),
-built by \h{petalinux-build -c pacman-server} (\h{petalinux/scripts/build\_pacman\_server.sh}, as the branch's
-README describes) and shipped as the files of the resulting RPM.  The binaries are stripped and carry no build
-dates.  A build of af73a4b on felix (2026-10-11) gives binaries of exactly the released 2.7 sizes, with the same
-sections and the same strings, but in a different order: the Makefile collects its sources with
-\h{\$(wildcard src/*.cc)}, whose order is the directory order of the build machine's file system, so the objects
-are linked in a different order.  A pilot rebuilds 2.7 with the objects kept, finds the release's link
-order from its code, and tests whether linking in that order reproduces the release bitwise; the other servers
-follow the pilot's method.
+{\raggedright The server is a PetaLinux 2018.3 application.  Its recipe, \h{pacman-server.bb}, is in
+\h{petalinux/pkg/pacman-server}; the branch's README builds it with
+\h{petalinux/scripts/build\_pacman\_server.sh} (\h{petalinux-build -c pacman-server}), and it ships as the files of
+the resulting RPM.  The binaries are stripped and carry no build
+dates.  Every released server was reproduced bitwise from its commit (2026-10-31, Table~\ref{tab:servers}).\par}
+
+A plain build differs from the release in two ways, both from the build machine rather than the source:
+\begin{itemize}
+\item \textbf{Link order.}  The Makefile collects its sources with \h{\$(wildcard src/*.cc)}, whose order is the
+  directory order of the build machine's file system.  The 2024 builds linked \h{pacman\_simulated.o},
+  \h{message\_format.o}, \h{chan\_map.o} (from 2.2 on), \h{rx\_buffer.o}, \h{pacman\_i2c.o}, \h{dma.o},
+  \h{tx\_buffer.o}, \h{pacman.o}, then the application.  The order was found by locating each object's code in the
+  released binary, and confirmed by the 2024 build log.
+\item \textbf{Build path.}  The build ID (20 bytes) and the \h{.gnu\_debuglink} checksum (4 bytes) are hashes over
+  the debug information, which records the absolute path of the build's sysroot.  The 2024 builds were made in
+  \h{/home/mulhearn/research/petalinux-only/pacman/petalinux/ramdisk} on vonnegut.
+\end{itemize}
+Each release was therefore built from its commit's recipe with the objects kept, then relinked inside the
+PetaLinux 2018.3 container in the release's order, with the work directory mounted at the 2024 path, followed by
+Yocto's packaging steps (\h{debugedit}, \h{objcopy -{}-only-keep-debug}, \h{-{}-add-gnu-debuglink}, \h{strip}).  The
+result equals the release in every byte.  The release commits of 2.2 and 2.5, each of which spans several commits,
+were pinned by the tarballs' file times (a minute or two after 85436ea and ea74a01) and confirmed by the match.
+The servers in the bundles' rootfs images are the tarballs', so every released hijinks server is covered.
 
 \section{Still open}
 
 \begin{itemize}
-\item The 2.7 server pilot, then 2.1, 2.2, 2.4 and 2.5 (2.2 and 2.5 span several commits: the release commit is to
-  be found).
 \item Every firmware version built once more from a fresh clone of the repository.
 \item One hijinks branch of release bundles: one commit per release, each a real merge of the firmware and
   software it brings in, confirmed by a tree check against the proven trees; annotated tags carrying each build
-  result.
+  result; a committed table of how each server was reproduced (commit, link order, build path, hashes).
 \item Validation of 2.10 with the hardware loopback card at 5 and 10 MHz.
 \end{itemize}
 
