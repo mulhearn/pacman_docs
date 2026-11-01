@@ -39,7 +39,7 @@ tools in \h{qaqc.tex}.  Digests are SHA-256, first eight hex digits.
 Repository & Branch & State \\
 \midrule
 \h{mulhearn/pacman-firmware} & \br{working-on-3.6-zipline-2023.2} & 928fcf0 on origin; firmware 3.6.0 candidate \\
-\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 41c6e00 on origin; 3c9b2d0 to b41cf40
+\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 41c6e00 on origin; 3c9b2d0 to 671a3dd
   committed, not yet pushed \\
 \bottomrule
 \end{tabularx}
@@ -86,8 +86,8 @@ Recent changes (pacman-software):
 \item 2026-10-31: I2C at 100\,kHz by default (640a124, needed on a hw1v4 card); ASIC TX at full drive in the
   configuration root (6d2ad8e); \h{-{}-sma} tolerance 20\% (41c6e00); the I2C device skip removed (3c9b2d0).
 \item 2026-11-01: the \h{pacman\_hwcheck} tests as a submenu of both main menus (da113dc); one menu input on both
-  platforms, a letter then Enter in every menu, a clean end at the end of input (b41cf40).  Neither is on a board
-  yet.
+  platforms, a letter then Enter in every menu, a clean end at the end of input (b41cf40); one copy of the RX/TX and ADC menus for both platforms, the power
+  menu folded into the I2C menu, a 16-BD ring for the menus (671a3dd).  None of these is on a board yet.
 \end{itemize}
 
 \noindent The PetaLinux projects (\h{petalinux/ramdisk}, \h{petalinux/full}) are built in place, incrementally,
@@ -127,7 +127,6 @@ Board & Firmware & Image & Results \\
 
 \begin{itemize}
 \item Release of 3.6 (official), and the 3c9b2d0 software on the 1v5.
-\item One copy of the menus: the RX/TX, ADC and main menus are still separate copies for Linux and bare metal.
 \item Robustness of the Vivado build: \h{create.tcl} adds the HDL from the repository, so HDL edited after the
   project was created partly enters a rebuild.
 \item Set aside: the \h{pattern.vhd} start-up (one write that enables and moves the phase can cut the first start
