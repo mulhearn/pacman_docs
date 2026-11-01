@@ -86,7 +86,7 @@ Recent changes (pacman-software):
   configuration root (6d2ad8e); \h{-{}-sma} tolerance 20\% (41c6e00); the I2C device skip removed (3c9b2d0).
 \item 2026-11-01: the \h{pacman\_hwcheck} tests as a submenu of both main menus (da113dc); one menu input on both
   platforms, a letter then Enter in every menu, a clean end at the end of input; one copy of the RX/TX and ADC menus for both platforms, the power menu folded
-  into the I2C menu, a 16-BD ring for the menus (671a3dd).  None of these is on a board yet.
+  into the I2C menu, a 16-BD ring for the menus (671a3dd);  on the 1v4 since 2026-11-01.
 \end{itemize}
 
 \noindent The PetaLinux projects (\h{petalinux/ramdisk}, \h{petalinux/full}) are built in place, incrementally,
@@ -100,6 +100,8 @@ Software & Date & Image & \h{BOOT.BIN} & \h{image.ub} \\
 f516bc7 & 2026-10-30 & ramdisk & 41851385 & 7d452b37 \\
 3c9b2d0 & 2026-10-31 & ramdisk & 12813299 & d7761858 \\
 3c9b2d0 & 2026-10-31 & full & 4c1d3a0e & 8094cb12 \\
+671a3dd & 2026-11-01 & ramdisk & cec3182c & c4bd61b8 \\
+671a3dd & 2026-11-01 & full & 96d3faca & 8094cb12 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -114,8 +116,9 @@ Board & Firmware & Image & Results \\
 1v5 (PACMAN 51 UCD) & 650dea6 & f516bc7 (SD p1) & 2026-10-30: \h{pacman\_hwcheck}, every test PASS on the tiles
   carrying the test cards, except \h{-{}-ana\_mon} on tile 4 (a weak TESTP leg, set aside); LArPix v3 on tile 1
   replies (\h{larpix.tex}) \\
-1v4 & 928fcf0 & 3c9b2d0 (TFTP) & 2026-10-31: \h{-{}-read\_only} as expected (only the hardware version, 1.4.0,
-  fails: \h{pacman\_hwcheck} expects the 1v5); LArPix v3 on tile 1 replies exactly at full drive \\
+1v4 & 928fcf0 & 671a3dd (TFTP) & 2026-11-01: the new menus work (letters and Enter, a clean end at the end of
+  input, the hwcheck submenu: read only as expected, I2C stress PASS); the LArPix v3 on tile 1 does not reply
+  (UART 0 streams junk; it replied exactly on 2026-10-31 with 3c9b2d0) \\
 \bottomrule
 \end{tabularx}
 \end{center}
