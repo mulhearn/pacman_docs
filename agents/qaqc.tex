@@ -246,6 +246,9 @@ Test & Checks & Needs \\
   checks the program makes, and the operator records what was seen.
 \item \opt{lemo\_inputs} starts at once: the source must already be on both inputs.  Each input is identified by
   unplugging the other (one input at 0\,Hz).
+\item The same tests are a submenu of \texttt{pacman\_menu} (Linux and bare metal):  one entry per test on the
+  menu's tile mask, each printing its result lines, without a run verdict; with J5 installed only the read-only
+  report runs.
 \item The I2C bus runs at 100\,kHz by default (needed on at least one hw1v4 card with its cable).
 \item Safe MUX layer: every MUX setting goes through \texttt{iic\_set\_mux\_to\_front\_panel},
   \texttt{iic\_set\_mux\_to\_adc}, \texttt{iic\_set\_mux\_loop} and \texttt{iic\_set\_mux\_open}.  Each common
