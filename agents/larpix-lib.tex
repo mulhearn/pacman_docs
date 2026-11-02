@@ -81,6 +81,9 @@ Date & Board & Result \\
 2026-11-02 & 1v5 & With the input enables written (126 = 0x02, POSI1 only; 14 writes): the reply exact, 3 of 3;
   read back, 124 = 0x00, 125 = 0x01, 126 = 0x02, 248 = 0x07.  The same request on UARTs 1--3 unanswered, on UART 0
   exact: UART 0 drives POSI1 (west), as \h{larpix-lib}'s port map has it. \\
+2026-11-02 & 1v5 & The full configuration sequence (with the input enables and \h{first\_io\_chan} 1; pushed as
+  fce6523, ``ASIC config working at test bench''): the reply exact, 3 of 3, the same read-back; through
+  \h{larpix-lib}'s own routing, io channels 2--4 (UARTs 1--3) unanswered, channel 1 exact. \\
 \bottomrule
 \end{tabularx}
 \end{center}
