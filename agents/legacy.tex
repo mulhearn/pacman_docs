@@ -18,7 +18,7 @@
 \title{PACMAN Legacy Firmware (1.X)\\[2pt]
   \large Branches, build steps and bitwise reproduction}
 \author{Maintained by the PACMAN agents (augie)}
-\date{2026-10-31}
+\date{2026-11-02}
 
 \begin{document}
 \maketitle
@@ -185,7 +185,7 @@ server \\
 Bitstream & Body & Commit & Vivado & Reproduction \\
 \midrule
 \endhead
-v1.4-0.2 release & 1362d6b3 & 0681491 (tag) & 2018.3 & bitwise, the tag as committed (2026-10-13) \\
+v1.4-0.2 release & 1362d6b3 & 0681491 (tag) & 2018.3 & bitwise, the tag as committed (2026-10-13); again from a fresh clone (2026-11-02) \\
 893 (1v3 boards) & 3194812d & a5f8e91 + build step & 2021.1 & bitwise from a fresh clone with the in-repo build
 step (2026-10-31); reference read from a running 1v3 board \\
 883 & 0ff4bf66 & 9fbc1dc & 2021.1 & bitwise from a fresh clone with the in-repo build step (2026-10-31) \\
@@ -199,8 +199,8 @@ reference: LBNL 1v5\_20240810A\_ucd\_rot8 \\
 \bottomrule
 \end{longtable}
 
-Pending: every bitstream above built once more from a fresh clone of the repository with its own scripts (in progress;
-v1.4-0.2); the tags without an artifact (v1.3-0.0 to 0.3, v1.3-1.0, v1.4-0.0) built once and
+Every bitstream above except ``74'' was built once more from a fresh clone of the repository with its own scripts,
+bitwise (finished 2026-11-02).  Pending: the tags without an artifact (v1.3-0.0 to 0.3, v1.3-1.0, v1.4-0.0) built once and
 their bodies recorded; v1.3-1.0 and v1.3-0.3 compared with 60209db9, the bitstream of a 2022-10-31 BOOT.BIN found
 deleted on the 2x2 run-1 SD card, which would give the 1v3 line its release reference.
 
