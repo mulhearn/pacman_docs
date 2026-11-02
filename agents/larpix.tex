@@ -16,7 +16,7 @@
 \title{LArPix ASICs on PACMAN\\[2pt]
   \large Bench setup, configuration, replies and status}
 \author{Maintained by the PACMAN agents (augie)}
-\date{2026-11-01}
+\date{2026-11-02}
 
 \begin{document}
 \maketitle
@@ -28,7 +28,7 @@ This note records the LArPix ASIC work on PACMAN with the zipline firmware and s
 ASICs are on the bench, how they are configured, what they reply, and what is open.  Register numbers are those of
 the LArPix v3 register map in \h{larpix-lib} (\h{config/asics/larpix\_v3.yaml}), which agrees with the LBNL datasheet
 (rev 2.4, not public).  The datasheet has known errors: its bit layouts and defaults are not trusted until they are
-read back from a chip.
+read back from a chip.  The control software, \h{larpix-lib}, has its own record (\h{larpix-lib.tex}).
 
 \section{Bench setup}
 
@@ -100,11 +100,7 @@ Date & Board & Result \\
 2026-11-01 & 1v5 & Software 290979d: ASIC loopback 800 of 800 at full drive.  Drive scan: every point passes except
   zero current (241 = 0xFF); one slice (239 = 0x11) passes at 241 = 0xCC, and the smallest current (241 = 0xEE)
   passes with all slices.  The 1v5 needs far less drive than the 1v4. \\
-2026-11-02 & 1v5 & Configured by larpix-lib (branch working-on-asic-config, \h{demos/init\_network.py} from felix,
-  through \h{pacman\_cmdserver}): 13 configuration writes (chip ID 1 to 11, I/O, drive 0x77, PISO 0 downstream).
-  Then a menu hello without the configuration root: the reply exact, 3 of 3.  Before it, after a full reset, hello
-  had no reply.  The menu needs a running RX ring:  restarting the cmdserver resets the DMA, so the dataserver is
-  started once after it and killed. \\
+2026-11-02 & 1v5 & Configured by \h{larpix-lib}: the reply exact (results in \h{larpix-lib.tex}). \\
 \bottomrule
 \end{tabularx}
 \end{center}

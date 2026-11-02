@@ -1,0 +1,96 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\h}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{larpix-lib on PACMAN\\[2pt]
+  \large LArPix control and data stream software:  setup, bench procedure, results and status}
+\author{Maintained by the PACMAN agents (augie)}
+\date{2026-11-02}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+This note records the work on \h{larpix-lib}, the new LArPix control software, with PACMAN and the zipline firmware
+and software (\h{zipline.tex}).  The goal is for \h{larpix-lib} to replace (1) the control path, including readback
+for control, and (2) the data server; the focus is on (1).  The ASICs themselves (bench setup, registers, TX
+settings) are recorded in \h{larpix.tex}.
+
+\section{Repository and environment}
+
+\begin{itemize}
+\item \h{mulhearn/larpix-lib}, cloned in \h{/agents/cowork/larpix-lib} (shared repository; Michael pushes).
+\item Python environment: conda environment \h{larpix} per user, an editable install of the clone; \h{make test} runs
+  the unit tests (27, OK).
+\item Network configuration: \h{config/network/single\_bench.yaml}, the bench PACMAN at 10.42.0.175, port 5555
+  (\h{pacman\_cmdserver}), \h{first\_io\_chan} 1, \h{uart\_mask} 0xF.  The demo \h{demos/init\_network.py} uses it
+  with the network \h{config/hydra/single.yaml} (chip 11, the FPGA on its west port).
+\end{itemize}
+
+\section{IO channels}
+
+\h{pacman\_cmdserver} sends a DATA word on channel $n$ to UART $n-1$ and drops channel 0; on the RX side the firmware
+stamps each word with its UART's channel register (default UART + 1, writable), and the data server passes it
+through.  The 1-based channel is an upstream convention, so it is not fixed in our code: \h{larpix-lib} takes the
+offset from \h{first\_io\_chan}, and the conversion stays in the PACMAN servers and firmware.  With
+\h{first\_io\_chan} 0, \h{larpix-lib} routes channels 0--3 and cannot reach UART 3.
+
+\section{Bench procedure}
+
+\begin{enumerate}
+\item Stop both servers; start \h{pacman\_cmdserver} in the foreground; start \h{pacman\_dataserver}, wait for its RX
+  descriptor ring, and kill it (restarting the cmdserver resets the DMA and halts the RX channel; the data server
+  rebuilds the ring).  The data server must start after the cmdserver.
+\item RX buffer enables to 0 (no heartbeats or markers; the cmdserver sets them at start).
+\item Hardware check from \h{pacman\_menu}: power, configuration root, hello; then all RX UARTs off and a full reset.
+\item UART 0 on: hello unanswered (the chip ID is back to 1); UART 0 off.
+\item Configure with \h{larpix-lib} (\h{demos/init\_network.py}).
+\item Hello from the menu on UART 0, without the menu's configuration root.
+\end{enumerate}
+
+\section{Configuration sequence}
+
+\h{init\_network.py} on the single network writes 14 registers: the chip ID (to chip 1, the ID after reset: 122 =
+0x0B), then to chip 11 the root termination (248 = 0x07, POSI1), the I/O settings (123, 239--244, 254, 255), the
+input enables (126 = 0x02, POSI1 only), no upstream outputs (124 = 0x00) and the downstream output to the FPGA (125 =
+0x01, PISO0).  All TX words go to channel 1 (\h{asic\_config.tx\_list}).
+
+\section{Results}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+Date & Board & Result \\
+\midrule
+2026-11-02 & 1v5 & First configuration by \h{larpix-lib} (\h{demos/init\_network.py} from felix, through
+  \h{pacman\_cmdserver}), with the input enables left out: 13 writes.  Then a menu hello without the configuration
+  root: the reply exact, 3 of 3.  Before it, after a full reset, hello had no reply. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Open}
+
+\begin{itemize}
+\item ASIC bring-up entirely from the remote server: from power-up to readout confirmation through \h{larpix-lib}
+  alone, without \h{pacman\_menu}.
+\item Graceful handling of test-stand deployment variations: the network file, the io channel offset, the TX channel
+  fixed at 1 in \h{asic\_config.tx\_list}.
+\item For 3.7: separate config and data streams, with server and/or firmware support for matching read requests
+  with their replies.
+\end{itemize}
+
+\end{document}
