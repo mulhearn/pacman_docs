@@ -39,7 +39,7 @@ tools in \h{qaqc.tex}.  Digests are SHA-256, first eight hex digits.
 Repository & Branch & State \\
 \midrule
 \h{mulhearn/pacman-firmware} & \br{working-on-3.6-zipline-2023.2} & 928fcf0 on origin; firmware 3.6.0 candidate \\
-\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 4e9164c (290979d on origin) \\
+\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 9e30354 on origin \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -91,6 +91,14 @@ Recent changes (pacman-software):
   RX/TX menu the ring size (16 to 512 BDs, default 512, set up by \h{m}), the loopback length, the RXTX UART mask
   (including tiles 2+3) and a BER check; \h{pacman\_hwcheck -{}-loopback} per tile, then all the masked tiles at
   once; the RX config and RX buffer config words built by functions.  On the 1v4 since 2026-11-01.
+\item 2026-11-01 evening (4e9164c, 9a36407, 9e30354): \h{pacman\_lnxcheck} memory limits 700--800\,MB (1\,GB less
+  the DMA buffer); menu presets for the bench cards on tiles 6+7 and 9; the ramdisk and device tree loaded below the
+  DMA buffer (U-Boot placed the ramdisk inside it, so the buffer's reservation failed); no PXE tries in the TFTP
+  fall-through, and \h{boot.scr.uimg} copied into \h{images/linux}; the Python library on Python's path in every
+  context (\h{pacman.pth}; \h{pacman\_setup.sh} removed); root may log in over ssh with a password, once one is set;
+  a site overlay: the untracked \h{petalinux/site} (files copied over the root filesystem, then an optional
+  \h{post.sh} for edits such as the root password hash) applied by the in-place builds, with \h{petalinux/site.example}
+  as the template.  Tested on the 1v5.
 \end{itemize}
 
 \noindent The PetaLinux projects (\h{petalinux/ramdisk}, \h{petalinux/full}) are built in place, incrementally,
@@ -108,6 +116,8 @@ f516bc7 & 2026-10-30 & ramdisk & 41851385 & 7d452b37 \\
 671a3dd & 2026-11-01 & full & 96d3faca & 8094cb12 \\
 290979d & 2026-11-01 & ramdisk & 5bf59506 & 73368917 \\
 290979d & 2026-11-01 & full & 348baf8a & 8094cb12 \\
+9e30354 & 2026-11-01 & ramdisk & 31e01844 & 7b229452 \\
+9e30354 & 2026-11-01 & full & 8998d25c & 8094cb12 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -143,17 +153,12 @@ and scp to the board work by key (sshd allows root by key only).
 
 \begin{itemize}
 \item Release of 3.6 (official).
-\item The ramdisk image boots with its ramdisk inside the 256\,MB DMA buffer (U-Boot places it at 2b2ee000--2ffff292),
-  so the buffer's reservation fails and the kernel uses that memory; fix: \h{initrd\_high} and \h{fdt\_high} below
-  0x20000000.  The full SD image is not affected.
-\item Bare-metal RX/TX loopback: 79255 of 80000 words received, nearly all miscompared, identical on fresh starts and
-  with the data cache off; Linux runs the same code without error.
+\item Bare metal: a small DMA ring (16 BDs) loses words in the loopback tests (Linux copes); the default 512 is fine.
+\item Planned for 3.7: registers for communication between processes (an I2C error flag, stalling the dataserver,
+  lost-packet reports, the DMA race), polling for the end of a reset, more robust I2C (a termination option, a richer
+  simulation), the \h{pattern.vhd} start-up.
 \item Robustness of the Vivado build: \h{create.tcl} adds the HDL from the repository, so HDL edited after the
-  project was created partly enters a rebuild.
-\item Set aside: the \h{pattern.vhd} start-up (one write that enables and moves the phase can cut the first start
-  bit short), the DMA race (the dataserver and \h{hwcheck}/menu share the RX ring: stop the servers first), private
-  rootfs customizations, \h{pacman\_setup.sh} at first boot, an I2C termination option, an I2C error state in a
-  register, a richer I2C simulation.
+  project was created partly enters a rebuild; release bitstreams are built from a fresh clone.
 \end{itemize}
 
 \end{document}
