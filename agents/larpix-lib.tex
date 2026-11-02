@@ -78,6 +78,9 @@ Date & Board & Result \\
 2026-11-02 & 1v5 & First configuration by \h{larpix-lib} (\h{demos/init\_network.py} from felix, through
   \h{pacman\_cmdserver}), with the input enables left out: 13 writes.  Then a menu hello without the configuration
   root: the reply exact, 3 of 3.  Before it, after a full reset, hello had no reply. \\
+2026-11-02 & 1v5 & With the input enables written (126 = 0x02, POSI1 only; 14 writes): the reply exact, 3 of 3;
+  read back, 124 = 0x00, 125 = 0x01, 126 = 0x02, 248 = 0x07.  The same request on UARTs 1--3 unanswered, on UART 0
+  exact: UART 0 drives POSI1 (west), as \h{larpix-lib}'s port map has it. \\
 \bottomrule
 \end{tabularx}
 \end{center}

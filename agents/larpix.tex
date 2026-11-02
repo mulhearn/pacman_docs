@@ -35,6 +35,8 @@ read back from a chip.  The control software, \h{larpix-lib}, has its own record
 \begin{itemize}
 \item One LArPix v3 on a single-tile board, on tile 1.  On the 1v4 it is reached through the J1302 cable, with all
   four PISO/POSI pairs routed to the tile-1 UARTs 0--3.
+\item Tile-1 UART 0 drives the ASIC's POSI1 (its west input) and receives PISO0 (west output): with only POSI1
+  enabled, requests on UARTs 1--3 go unanswered (2026-11-02).
 \item Chip ID 0x0B (11).  The hello request is a configuration read of register 122 (the chip ID); the expected reply
   is \h{0x42254139 1C2DE82F} (``read, chip 0x0B, register 122, value 0x0B'').
 \item Tile power by \h{pacman\_menu} (VDDA about 2.32\,V, VDDD about 1.20--1.30\,V, a few mA each).  The 1v4 needs I2C
