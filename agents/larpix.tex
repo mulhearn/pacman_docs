@@ -100,6 +100,11 @@ Date & Board & Result \\
 2026-11-01 & 1v5 & Software 290979d: ASIC loopback 800 of 800 at full drive.  Drive scan: every point passes except
   zero current (241 = 0xFF); one slice (239 = 0x11) passes at 241 = 0xCC, and the smallest current (241 = 0xEE)
   passes with all slices.  The 1v5 needs far less drive than the 1v4. \\
+2026-11-02 & 1v5 & Configured by larpix-lib (branch working-on-asic-config, \h{demos/init\_network.py} from felix,
+  through \h{pacman\_cmdserver}): 13 configuration writes (chip ID 1 to 11, I/O, drive 0x77, PISO 0 downstream).
+  Then a menu hello without the configuration root: the reply exact, 3 of 3.  Before it, after a full reset, hello
+  had no reply.  The menu needs a running RX ring:  restarting the cmdserver resets the DMA, so the dataserver is
+  started once after it and killed. \\
 \bottomrule
 \end{tabularx}
 \end{center}
