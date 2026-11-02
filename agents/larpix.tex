@@ -40,6 +40,9 @@ read back from a chip.
 \item Tile power by \h{pacman\_menu} (VDDA about 2.32\,V, VDDD about 1.20--1.30\,V, a few mA each).  The 1v4 needs I2C
   at 100\,kHz with this cable (now the default).
 \item Unplug any signal source from the LEMO inputs before connecting ASICs.
+\item In scripted menu sequences: RX UARTs all off first (\h{u}), then power, a 2\,s wait (a monitor read right
+  after power-on shows 0\,mV), full reset, wait, configuration, wait, and channel 0 on (the second \h{u}) only when
+  ready to receive.  With channel 0 listening through reset and configuration, it often fills with random words.
 \item After a full reset, wait (0.2\,s is enough) before configuring: the reset returns at once, and a configuration
   sent during it is lost.  A pollable reset state register is set aside for later.
 \end{itemize}
@@ -91,6 +94,12 @@ Date & Board & Result \\
   passes from 241 = 0x88 (0 errors) to 0x00, 0x99 is marginal (22 errors), 0xAA and weaker fail; one timeout at
   0x22.  Repeated with the RX buffer's heartbeat and rollover words off: the same threshold, and 0x22 passes (the
   timeout was those words in the stream). \\
+2026-11-01 & 1v5 & Old image (f516bc7), scripted: no reply and a stream of random words on UART 0, from the script's
+  order (channel 0 on through reset and configuration; the monitor read before the regulators were up).  By hand,
+  and scripted in the order above: the reply exact (4 of 4); the register read-all valid throughout. \\
+2026-11-01 & 1v5 & Software 290979d: ASIC loopback 800 of 800 at full drive.  Drive scan: every point passes except
+  zero current (241 = 0xFF); one slice (239 = 0x11) passes at 241 = 0xCC, and the smallest current (241 = 0xEE)
+  passes with all slices.  The 1v5 needs far less drive than the 1v4. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -99,9 +108,11 @@ Date & Board & Result \\
 
 \begin{itemize}
 \item Systematic adjustment of the PISO drive (registers 239--242, and \h{v\_cm\_lvds\_tx} 254--255) and of the PISO
-  enables (124, 125): why the 1v4 needs more drive than the 1v5, why UARTs 2 and 3 need more than 0 and 1, and
+  enables (124, 125): why the 1v4 needs far more drive than the 1v5 (which passes at one slice or the smallest
+  current), why UARTs 2 and 3 need more than 0 and 1, and
   whether disabled PISOs at full drive are undriven or biased without data.
-\item The real bit layouts and defaults: a read-all of the registers on the 1v5.
+\item The real bit layouts and defaults: a read-all of the registers on the 1v5, recorded (run by hand on
+  2026-11-01, not kept).
 \item ASIC stress tests on the 1v5 (later).
 \item LArPix v2b on the hw1v4: v2 clocks its UART at MCLK/2 (v3 at MCLK).
 \end{itemize}

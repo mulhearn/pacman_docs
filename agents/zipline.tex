@@ -39,7 +39,7 @@ tools in \h{qaqc.tex}.  Digests are SHA-256, first eight hex digits.
 Repository & Branch & State \\
 \midrule
 \h{mulhearn/pacman-firmware} & \br{working-on-3.6-zipline-2023.2} & 928fcf0 on origin; firmware 3.6.0 candidate \\
-\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 290979d (671a3dd on origin) \\
+\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 4e9164c (290979d on origin) \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -119,9 +119,13 @@ f516bc7 & 2026-10-30 & ramdisk & 41851385 & 7d452b37 \\
 \toprule
 Board & Firmware & Image & Results \\
 \midrule
-1v5 (PACMAN 51 UCD) & 650dea6 & f516bc7 (SD p1) & 2026-10-30: \h{pacman\_hwcheck}, every test PASS on the tiles
-  carrying the test cards, except \h{-{}-ana\_mon} on tile 4 (a weak TESTP leg, set aside); LArPix v3 on tile 1
-  replies (\h{larpix.tex}) \\
+1v5 (PACMAN 51 UCD) & 650dea6 & 290979d (full SD image, root on p2) & 2026-10-30, f516bc7:
+  \h{pacman\_hwcheck}, every test PASS on the tiles carrying the test cards, except \h{-{}-ana\_mon} on tile 4 (a weak
+  TESTP leg, set aside).  2026-11-01, 290979d: \h{pacman\_lnxcheck} 23 of 23 PASS (memory limits 700--800\,MB,
+  4e9164c), \h{pacman\_fwcheck} 30 of 30 PASS, \h{pacman\_hwcheck} PASS on tiles 6+7 (loopback card), 9 (ATC card)
+  and the board-wide tests; the production SD boot with TFTP fall-through PASS; LArPix v3 on tile 1 replies and
+  passes the ASIC loopback (\h{larpix.tex}).  Bare-metal menu (4e9164c): boot, versions, I2C, hwcheck read-only,
+  ADC, I2C stress and the ASIC hello PASS; the RX/TX and ASIC loopbacks lose words (open) \\
 1v4 & 928fcf0 & 290979d (TFTP) & 2026-11-01: the new menus work (letters and Enter, a clean end at the end of
   input, the hwcheck submenu: read only as expected, I2C stress PASS); the LArPix v3 on tile 1 does not reply
   (UART 0 streams junk; it replied exactly on 2026-10-31 with 3c9b2d0): the configuration sent right after the full
@@ -132,12 +136,18 @@ Board & Firmware & Image & Results \\
 \end{tabularx}
 \end{center}
 
-\noindent The 1v4 has no SD card: it boots by JTAG and TFTP.  The 1v5 is off the bench while the 1v4 is on it.
+\noindent The 1v4 has no SD card: it boots by JTAG and TFTP; it is off the bench since 2026-11-01.  On the 1v5, ssh
+and scp to the board work by key (sshd allows root by key only).
 
 \section{Open}
 
 \begin{itemize}
-\item Release of 3.6 (official), and the 3c9b2d0 software on the 1v5.
+\item Release of 3.6 (official).
+\item The ramdisk image boots with its ramdisk inside the 256\,MB DMA buffer (U-Boot places it at 2b2ee000--2ffff292),
+  so the buffer's reservation fails and the kernel uses that memory; fix: \h{initrd\_high} and \h{fdt\_high} below
+  0x20000000.  The full SD image is not affected.
+\item Bare-metal RX/TX loopback: 79255 of 80000 words received, nearly all miscompared, identical on fresh starts and
+  with the data cache off; Linux runs the same code without error.
 \item Robustness of the Vivado build: \h{create.tcl} adds the HDL from the repository, so HDL edited after the
   project was created partly enters a rebuild.
 \item Set aside: the \h{pattern.vhd} start-up (one write that enables and moves the phase can cut the first start

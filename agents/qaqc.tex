@@ -188,7 +188,7 @@ Operator PC & \texttt{ssh} session to the PACMAN; keeps the result files. \\
 \toprule
 Section & Checks \\
 \midrule
-System & CPU count, memory size, kernel version. \\
+System & CPU count, memory size (700--800\,MB: 1\,GB less the 256\,MB DMA buffer), kernel version. \\
 On-chip monitors & Die temperature; six Zynq supplies against nominal. \\
 Ethernet & Link speed and duplex (1000/full), MAC address, IP address; ping with small and full-size packets, no
   loss; TFTP transfer of a file twice, compared; interface error counters unchanged. \\
@@ -302,13 +302,17 @@ Linux, Ethernet, storage & as in the \texttt{pacman\_lnxcheck} table & set \\
 Needed for normal operation, not yet tested & Plan \\
 \midrule
 Full ten-tile run & Production test cards covering all ten tiles. \\
-microSD checks & First run on an SD-booted card. \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
 \noindent Every test has run on the bench 1v5 (PACMAN 51 UCD, 2026-10-30): all PASS on the tiles carrying the
-cards, except \opt{ana\_mon} on tile 4, whose weak TESTP leg is set aside (possibly damage during testing).
+cards, except \opt{ana\_mon} on tile 4, whose weak TESTP leg is set aside (possibly damage during testing).  With the
+current software (2026-11-01, 290979d, full SD image): \texttt{pacman\_lnxcheck} 23 of 23 PASS (the microSD checks
+included), \texttt{pacman\_fwcheck} 30 of 30 PASS, and \texttt{pacman\_hwcheck} PASS on tiles 6+7 (loopback card), 9
+(ATC card) and the board-wide tests (\opt{lemo\_inputs}, \opt{blink}, \opt{sma} not rerun).  The production boot,
+an SD card with only \texttt{BOOT.BIN} that falls through to TFTP, also works.  \texttt{pacman\_fwcheck} is safe with
+ASICs connected, as long as their tiles are off.
 
 \noindent Not needed for normal operation (not tested): RTD temperature probe, QSPI flash contents, SFP/CDR timing path.
 
