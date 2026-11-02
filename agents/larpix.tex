@@ -89,7 +89,8 @@ Date & Board & Result \\
 2026-11-01 & 1v4 & Drive scan with the ASIC loopback test (800 readbacks of random register values per point): at
   the power-on current (241 = 0xCC) no slice setting (239 = 0x11 to 0xFF) passes; with all slices on, the current
   passes from 241 = 0x88 (0 errors) to 0x00, 0x99 is marginal (22 errors), 0xAA and weaker fail; one timeout at
-  0x22. \\
+  0x22.  Repeated with the RX buffer's heartbeat and rollover words off: the same threshold, and 0x22 passes (the
+  timeout was those words in the stream). \\
 \bottomrule
 \end{tabularx}
 \end{center}
