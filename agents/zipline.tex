@@ -17,7 +17,7 @@
 \title{PACMAN Zipline Firmware and Software (3.X)\\[2pt]
   \large Branches, builds, boards and status}
 \author{Maintained by the PACMAN agents (augie)}
-\date{2026-11-01}
+\date{2026-11-04}
 
 \begin{document}
 \maketitle
@@ -38,8 +38,10 @@ tools in \h{qaqc.tex}.  Digests are SHA-256, first eight hex digits.
 \toprule
 Repository & Branch & State \\
 \midrule
-\h{mulhearn/pacman-firmware} & \br{working-on-3.6-zipline-2023.2} & 928fcf0 on origin; firmware 3.6.0 candidate \\
-\h{mulhearn/pacman-software} & \br{working-on-v3.6.0-zipline-2023.2} & 9e30354 on origin \\
+\h{mulhearn/pacman-firmware} & \br{zipline-2023.2} & tag \br{v3.6} (a85681c, the release); branch at aaa46c1
+  (bump to 3.7, candidate), also \br{working-on-3.7-zipline-2023.2} \\
+\h{mulhearn/pacman-software} & \br{zipline-2023.2} & tags \br{v3.6.0} (94e3f01) and \br{v3.6.1} (90d4e19); branch
+  at 90677a7 (bump to 3.6.2, candidate), also \br{working-on-v3.6.2-zipline-2023.2} \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -58,7 +60,8 @@ Repository & Branch & State \\
 
 3.6 adds to 3.5: the ADC unit, the logic analyzer with ADC capture and cross triggers, the \h{\_UPPER}/\h{\_LOWER}
 register names, the RX packet timeout in units of 256 cycles, and the RX sweep that resumes at the next channel after
-a packet closed by its maximum.  It stays a candidate (3.6.0, not an official release) until it is released.
+a packet closed by its maximum.  Released 2026-11-02 as 3.6 (a85681c, \h{BUILD\_RELEASE}; tag \br{v3.6}); the
+next commit bumps the version to 3.7 (candidate).
 
 \begin{center}
 \begin{tabularx}{\linewidth}{@{}lllL@{}}
@@ -69,11 +72,37 @@ Commit & Date & Build & Result \\
   \h{pacman\_fwcheck} PASS (30 of 30 requirements, twice) \\
 ae71967 & 2026-10-29 & --- & on hw1v4, a reset on tiles 1--8 asserts the single legacy reset (was 1--10) \\
 928fcf0 & 2026-10-30 & hw1v4 & bit 2755aa4c; timing met (WNS +0.185\,ns, WHS +0.011\,ns) \\
+a85681c & 2026-11-02 & hw1v5 & the release, from a fresh clone: bit 6d84be5d, official (DIRTY 0); timing met
+  (WNS +0.117\,ns, WHS +0.014\,ns), no critical warnings \\
+a85681c & 2026-11-02 & hw1v4 & the release: bit aa06b896, official; timing met (WNS +0.075\,ns, WHS +0.025\,ns);
+  one critical warning (ADC inputs unconnected in the hw1v4 block design, open) \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-\noindent The hw1v5 bitstream of 650dea6 is the one in the current images: 928fcf0 changes only the hw1v4 build.
+\noindent The release bitstreams are in the release images.  Utilization of the release (hw1v5, post-place,
+xc7z020): 30\,725 slice LUTs (57.8\%), 50\,712 registers (47.7\%), 45 block RAM tiles (32.1\%); hijinks 2.8 used
+39\,788 LUTs (74.8\%), 60\,644 registers (57.0\%) and 99 tiles (70.7\%), the v1.5 1.X line (\br{sync-fix}) 40\,777
+LUTs (76.7\%).  The release still holds a VIO (109 LUTs) and the Vivado debug hub it brings in (449 LUTs).
+
+\section{Releases}
+
+\begin{itemize}
+\item A release is a dedicated commit that sets only the release flag (firmware \h{BUILD\_RELEASE},
+  software \h{PACMAN\_SOFTWARE\_RELEASE}~1); the next commit bumps the version and clears the flag, nothing else.
+  Builds of the release commit report ``official'', all others ``candidate''.
+\item Software 3.6.0 (94e3f01, 2026-11-03): Michael's production build, with the official site overlay, on the 1v5:
+  \h{pacman\_lnxcheck} 23 of 23, \h{pacman\_fwcheck} 30 of 30, \h{pacman\_hwcheck} all PASS, loopback 0 errors in
+  5.1\,Mbit; LArPix v3 configured by larpix-lib through the servers (\h{larpix-lib.tex}).
+\item Software 3.6.1 (90d4e19, 2026-11-03): the ASIC power scripts (\h{power\_up\_tile.sh}, \h{power\_down.sh},
+  \h{report\_power.sh}) ported to zipline, through the command server at the \h{pacman\_menu} nominal values;
+  package scripts for the \h{pacman-apps} tarball (software-only updates, untarred at \h{/}) and the
+  \h{firmware-dev} kit (the \h{BOOT.BIN} inputs and a \h{bootgen.bif}, for firmware developers).
+\item Point releases confined to \h{pacman-apps} ship only its tarball, no new images.  The bundle
+  (Michael's \h{bundle-v3.6.0}) is named for the firmware: the 3.6.0 images (\h{BOOT.BIN} 801a5711,
+  \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12), the 3.6.1 root filesystem 48e50939, \h{pacman-apps-v3\_6\_1}
+  2a67b0a4, \h{firmware-dev-v3\_6\_1} 8c0ab6b1.  The 3.6.1 images match 3.6.0 bit for bit except the root filesystem.
+\end{itemize}
 
 \section{Software and images}
 
@@ -129,7 +158,13 @@ f516bc7 & 2026-10-30 & ramdisk & 41851385 & 7d452b37 \\
 \toprule
 Board & Firmware & Image & Results \\
 \midrule
-1v5 (PACMAN 51 UCD) & 650dea6 & 290979d (full SD image, root on p2) & 2026-10-30, f516bc7:
+1v5 (PACMAN 51 UCD) & a85681c & 3.6.0 (SD) & Full SD image of the 3.6.0 release (root on p2), \h{pacman-apps}
+  3.6.1 installed by tarball.  2026-11-03, 3.6.1: ASIC configuration via \h{pacman\_menu}; tile power and monitoring via
+  \h{pacman\_menu} and the power scripts (tile 1: VDDA 2365\,mV, VDDD 1301\,mV, matching the menu); SYNC words;
+  \h{pacman\_units}; RX/TX internal loopback from \h{pacman\_cmdserver} to \h{pacman\_dataserver}
+  (\h{pacman\_push}, \h{pacman\_counter}, e.g.\ \h{-w 400 -n 100 -d 0}); RX test patterns at full speed on all 40
+  UARTs, 6060 packets/ms sustained (the theoretical maximum: 100\,MHz / (10 clocks $\times$ 66 bits) $\times$ 40) with
+  no loss, \h{pacman\_dataserver} at 70\% CPU.  Earlier (650dea6, 290979d): 2026-10-30, f516bc7:
   \h{pacman\_hwcheck}, every test PASS on the tiles carrying the test cards, except \h{-{}-ana\_mon} on tile 4 (a weak
   TESTP leg, set aside).  2026-11-01, 290979d: \h{pacman\_lnxcheck} 23 of 23 PASS (memory limits 700--800\,MB,
   4e9164c), \h{pacman\_fwcheck} 30 of 30 PASS, \h{pacman\_hwcheck} PASS on tiles 6+7 (loopback card), 9 (ATC card)
@@ -152,7 +187,14 @@ and scp to the board work by key (sshd allows root by key only).
 \section{Open}
 
 \begin{itemize}
-\item Release of 3.6 (official).
+\item ZMQ (queued for 3.7): whole messages can be dropped between \h{pacman\_dataserver} and a client without
+  any error (seen with \h{pacman\_push -w 40} at a long delay; \h{-w 400 -d 0} counts all).  Suspect: the
+  fire-and-forget PUB socket (high-water mark 1, send timeout 0), on which \h{zmq\_msg\_send} succeeds although the
+  message is dropped.  \h{pacman\_counter} prints no final report and not its message count.  In the 3.6.1 release
+  notes as a known issue.
+\item The VIO in the release (in discussion for 3.7).
+\item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
+  payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
 \item Bare metal: a small DMA ring (16 BDs) loses words in the loopback tests (Linux copes); the default 512 is fine.
 \item Planned for 3.7: registers for communication between processes (an I2C error flag, stalling the dataserver,
   lost-packet reports, the DMA race), polling for the end of a reset, more robust I2C (a termination option, a richer
