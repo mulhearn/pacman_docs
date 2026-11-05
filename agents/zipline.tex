@@ -222,6 +222,14 @@ and scp to the board work by key (sshd allows root by key only).
   otherwise it is discarded as an incomplete packet, with a warning, and counted (\h{pacman\_rx\_incomplete\_packets};
   the data server reports it).  Tested twice:  abort, restart of both servers, one 944-byte tail
   discarded, then read-backs 4 of 4 and 64 of 64;  normal running (420000 words, 1500 messages):  no discards.
+\item ZMQ throughput (2026-11-05, the 1v5, 3.6.2 official, RX test pattern on all 40 UARTs;  UART losses from the
+  firmware lost counters, zeroed first:  they are 16-bit and saturate).  Without a subscriber the data server receives
+  the full input (3030.4 and 6060.9 packets/ms;  at full speed the RX ring peaks at 510 of 512).  With
+  \h{pacman\_counter}:  quarter speed (1515) delivered whole, on the board and from felix, 0 lost, CPU 27--28\% idle;
+  half speed:  2589 per ms on the board (both cores full;  72 UART losses per ms), 2165 from felix (22\% idle;  1237
+  UART losses per ms);  full speed on the board:  2564 per ms, UART losses over 2621 per ms.  No message lost
+  (\h{seq}) in any run:  the losses are at the UARTs, while the data server waits on ZMQ.  Delivery tops out near
+  50--60 MB/s (2200--2600 packets/ms) whether the client is local or remote:  the TCP send path, not the wire.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
