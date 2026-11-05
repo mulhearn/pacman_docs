@@ -198,6 +198,12 @@ and scp to the board work by key (sshd allows root by key only).
   0 lost;  a server restart during a run:  1 restart, 0 lost;  a stand-in publisher with known gaps:  all counted.
   \h{pacman\_counter} and \h{pacman\_push} take the PACMAN address (\h{-i}, default localhost;  uncommitted, for
   review):  run from felix against the 1v5, 60000 words in 600 messages, 0 lost.
+\item A stalled subscriber stops the data server (2026-11-04, the 1v5, tested):  a felix SUB that connects and never
+  reads, while \h{pacman\_push -w 400 -n 1000 -d 0} runs on internal loopback:  the data server aborts (``timeout
+  waiting on msg\_ready'', its 1~s limit);  \h{pacman\_counter} on the board receives 5 messages (7600 words) of 400000.
+  Without the stalled subscriber:  400000 words, 1000 messages, 0 lost.  The data server hands ZMQ its own buffer
+  and waits until the message is sent;  one stalled peer holds it.  Afterwards the RX path holds broken transfers
+  (new data servers abort on the RX trailer assertions);  only a reboot cleared it.  Same in 3.6.1.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
