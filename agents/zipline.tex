@@ -208,8 +208,9 @@ and scp to the board work by key (sshd allows root by key only).
   Why a reboot was needed:  the DMA reset (by the command server) resets only the DMA core;  the RX buffer and the
   stream FIFO before the DMA are reset only at boot.  A reset in the middle of a packet leaves its tail in the firmware,
   and the new ring's first transfer is that tail (not a whole number of words:  the RX assertions).  Fix (pacman.cc,
-  uncommitted, for review):  a transfer is used only if it is a whole packet (words, then a trailer counting them);
-  otherwise it is discarded with a warning.  Tested twice:  abort, restart of both servers, one 944-byte tail
+  for review):  a transfer is used only if it is a whole packet (words, then a trailer counting them);
+  otherwise it is discarded as an incomplete packet, with a warning, and counted (\h{pacman\_rx\_incomplete\_packets};
+  the data server reports it).  Tested twice:  abort, restart of both servers, one 944-byte tail
   discarded, then read-backs 4 of 4 and 64 of 64;  normal running (420000 words, 1500 messages):  no discards.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
