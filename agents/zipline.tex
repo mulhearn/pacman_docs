@@ -104,6 +104,10 @@ LUTs (76.7\%).  The release still holds a VIO (109 LUTs) and the Vivado debug hu
   as for 3.6.0:  read-only PASS, ADC and I2C stress PASS (8 of 8), power and loopback on tiles 6 and 7 (18 pass, 0 fail),
   ATC on tile 9 (11 pass, 0 fail);  read-backs 4 of 4 and 64 of 64 (message version 1.1);  \h{pacman\_push} and
   \h{pacman\_counter} on internal loopback, from felix and on the board:  420000 words each, 0 lost.
+\item Software 3.6.2 (2c079c8, release commit), Michael's production build in his release area:
+  \h{pacman-apps-v3\_6\_2.tar.gz} cfffc412, root filesystem ac8ac3ef, \h{firmware-dev-v3\_6\_2} 8c0ab6b1 (byte-identical
+  to v3\_6\_1);  \h{BOOT.BIN} 801a5711, \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12 as for 3.6.0.  Installed on the 1v5
+  (tarball at \h{/}, reboot):  ``PACMAN software 3.6.2 official'';  read-backs 4 of 4 and 64 of 64.  3.6.1 retired.
 \item Point releases confined to \h{pacman-apps} ship only its tarball, no new images.  The bundle
   (Michael's \h{bundle-v3.6.0}) is named for the firmware: the 3.6.0 images (\h{BOOT.BIN} 801a5711,
   \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12), the 3.6.1 root filesystem 48e50939, \h{pacman-apps-v3\_6\_1}
