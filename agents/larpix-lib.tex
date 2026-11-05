@@ -88,6 +88,12 @@ Date & Board & Result \\
   \h{larpix-lib} (\h{demos/init\_network.py}, fce6523) through \h{pacman\_cmdserver}, with \h{pacman\_dataserver} left
   running;  the menu's hello replies (without the configuration root) seen on felix through the data server
   (\h{pacman\_util.py --rx -1 -t -1}). \\
+2026-11-04 & 1v5 & Bring-up from felix alone (\h{agents/bringup.sh}, 2bed846;  SD image 94e3f01 with pacman-apps
+  3.6.1, both servers as started at boot):  tile 1 power (VDDA 2367~mV, VDDD 1302~mV, IDDA 7~mA, IDDD 3~mA), RX
+  buffer enables 0, all RX UARTs off, full reset, the 14 configuration writes, RX UART 0 on, read-back through
+  the data server (\h{agents/readback.py}).  Read one at a time, all four exact:  124 = 0x00, 125 = 0x01, 126 =
+  0x02, 248 = 0x07.  Four reads in a row:  only the first and the last replies arrive (124, 248;  three runs, the
+  same), as the dataserver dropping messages would explain (3.7 ZMQ robustness). \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -96,7 +102,8 @@ Date & Board & Result \\
 
 \begin{itemize}
 \item ASIC bring-up entirely from the remote server: from power-up to readout confirmation through \h{larpix-lib}
-  alone, without \h{pacman\_menu}.
+  alone, without \h{pacman\_menu}.  Prototype in \h{agents/} (2026-11-04):  works one read at a time;  replies to
+  reads in a row are lost.
 \item Graceful handling of test-stand deployment variations: the network file, the io channel offset, the TX channel
   fixed at 1 in \h{asic\_config.tx\_list}.
 \item For 3.7: separate config and data streams, with server and/or firmware support for matching read requests
