@@ -191,11 +191,13 @@ and scp to the board work by key (sshd allows root by key only).
   The data server's PUB socket (high-water mark 1, send timeout 0) dropped messages silently while
   \h{zmq\_msg\_send} succeeded:  of four ASIC read replies in a row, the data server sent 4 (4 messages), felix
   received 2.  High-water mark 1000 (6591987):  read-backs 4 of 4 and 64 of 64;  \h{pacman\_push -w 40 -n 500 -d 1000}
-  on internal loopback, 20000 sent, 20000 counted (with 1:  6680).  Message version 1.1 (interface 470e195):  the data
+  on internal loopback, 20000 sent, 20000 counted (with 1:  6680).  Message version 1.1:  the data
   message header carries \h{seq} (from 0, wraps) and \h{session} (random at each data server start, never 0);
   \h{pacman\_counter} counts lost messages, restarts and unnumbered messages, prints its message count and a final
-  report on exit, and closes oversize messages (uncommitted, for review).  On the 1v5:  60000 words in 599 messages,
+  report on exit, and closes oversize messages (ad1a58a;  larpix-lib 0d43f7f).  On the 1v5:  60000 words in 599 messages,
   0 lost;  a server restart during a run:  1 restart, 0 lost;  a stand-in publisher with known gaps:  all counted.
+  \h{pacman\_counter} and \h{pacman\_push} take the PACMAN address (\h{-i}, default localhost;  uncommitted, for
+  review):  run from felix against the 1v5, 60000 words in 600 messages, 0 lost.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
