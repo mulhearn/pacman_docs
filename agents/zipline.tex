@@ -203,7 +203,8 @@ and scp to the board work by key (sshd allows root by key only).
   waiting on msg\_ready'', its 1~s limit);  \h{pacman\_counter} on the board receives 5 messages (7600 words) of 400000.
   Without the stalled subscriber:  400000 words, 1000 messages, 0 lost.  The data server hands ZMQ its own buffer
   and waits until the message is sent;  one stalled peer holds it.  Afterwards the RX path holds broken transfers
-  (new data servers abort on the RX trailer assertions);  only a reboot cleared it.  Same in 3.6.1.
+  (new data servers abort on the RX trailer assertions);  only a reboot cleared it.  Same in 3.6.1.  By design
+  (Michael 2026-11-04):  no backpressure from ZMQ into the DMA, zero copy kept;  a slow peer ends the run.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
