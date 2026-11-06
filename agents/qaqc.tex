@@ -88,7 +88,8 @@
   \node[jack] (trig) at (0.18,5.4) {};  \node[sig] at (0.5,5.4) {LEMO TRIG};
   \node[jack] (pps)  at (0.18,4.7) {};  \node[sig] at (0.5,4.7) {LEMO PPS};
   \node[port] (eth)  at (0.18,1.8) {};  \node[sig] at (0.55,1.8) {Ethernet};
-  \node[port] (pwr)  at (0.18,0.8) {};  \node[sig] at (0.55,0.8) {power};
+  \node[port] (sfp)  at (0.18,0.9) {};  \node[sig] at (0.55,0.9) {timing SFP (unused)};
+  \node[port,minimum width=9mm] (pwr) at (1.4,0.0) {};  \node[sig,anchor=north west] at (1.9,-0.05) {power};
   % inside
   \node[box,minimum width=12mm] (j5) at (4.2,7.1) {J5};
   \node[font=\scriptsize,align=center,below=1mm of j5] {ASIC protection jumper\\(removed for checkout)};
@@ -127,10 +128,10 @@
   \draw[thick] (tee) |- (pps.west);
   \node[box,minimum width=26mm,minimum height=12mm] (pc) at (-4.0,1.8) {operator PC\\(ssh)};
   \draw[thick,{Latex[length=2mm]}-{Latex[length=2mm]}] (pc.east) -- (eth.west);
-  \node[box,minimum width=26mm,minimum height=8mm] (ps) at (-4.0,0.8) {power supply};
-  \draw[thick] (ps.east) -- (pwr.west);
+  \node[box,minimum width=26mm,minimum height=8mm] (ps) at (-4.0,-0.9) {power supply};
+  \draw[thick] (ps.east) -| (pwr.south);
 \end{circuitikz}}
-\caption{Test setup (physical view; connector placement to be confirmed).  Two test cards, one run each:  the
+\caption{Test setup (physical view, top; front panel and power as on the bench 1v5).  Two test cards, one run each:  the
   loopback test card (Tile 1's connections shown) and the ATC test card (Tile 4's);  a production card repeats its
   connections for all ten tiles.  Dashed: placement still to be confirmed.}
 \end{figure}
