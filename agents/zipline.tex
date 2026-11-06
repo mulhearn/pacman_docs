@@ -284,6 +284,14 @@ and scp to the board work by key (sshd allows root by key only).
   DMA buffers are mapped through \h{/dev/mem} with \h{O\_SYNC}:  uncached, so each word is a separate read from
   DRAM, slower still while the network interrupts share the core.  At the ceiling the data server is the uncached
   copy, not the ring handling.
+\item \h{memcpy} in 16 KB blocks (one RX buffer) over 16 MB, the 1v5 idle (servers stopped;  a scratch test, never
+  committed):  from the DMA region through \h{/dev/mem} with \h{O\_SYNC} (as the drivers map it) 272 MB/s;  without
+  \h{O\_SYNC} (cached) 426--438 MB/s;  from \h{malloc} memory 412 MB/s;  cached with the ARM \h{cacheflush} call on
+  each block first 199--206 MB/s.  (That call cleans rather than invalidates;  a stand-in for the cost of software
+  cache maintenance, not the exact operation.)  So a cached copy is 1.6 times faster at idle, but software cache
+  maintenance per buffer costs more than it saves;  only hardware coherency (DMA through the ACP) gets the cached rate
+  safely.  Under load the uncached copy ran at 69 MB/s (full speed) and 161 MB/s (quarter speed), far below its idle
+  272:  contention for the memory bus and the core, not measured for a cached copy.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
