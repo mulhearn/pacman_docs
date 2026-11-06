@@ -243,6 +243,17 @@ and scp to the board work by key (sshd allows root by key only).
   UART losses per ms);  full speed on the board:  2564 per ms, UART losses over 2621 per ms.  No message lost
   (\h{seq}) in any run:  the losses are at the UARTs, while the data server waits on ZMQ.  Delivery tops out near
   50--60 MB/s (2200--2600 packets/ms) whether the client is local or remote:  the TCP send path, not the wire.
+\item Delivery ceiling, by thread (2026-11-06, the 1v5, 3.6.3 candidate;  \h{threads.sh}, \h{pubbench.py},
+  \h{subcount.py} in augie's \h{pacman/hwcheck/dev}).  Half speed, a felix subscriber:  2350 packets/ms (56 MB/s);  ZMQ's
+  I/O thread at 100\% system time on cpu0 (cpu0:  75\% system, 24\% softirq, 0\% idle), the data server's main thread
+  (ring polling and copy) 48\% user on cpu1 (cpu1 47\% idle).  The limit is one thread:  ZMQ's I/O thread in the
+  kernel's TCP send, sharing its core with the network softirq.  A plain ZMQ PUB of prebuilt 64000-word messages (no
+  DMA, no copy;  zero copy, one message in flight as in the data server) to a felix subscriber:  3492 packets/ms
+  (84 MB/s), the I/O thread again at 99\% system time, now with the softirq mostly on the other core (cpu0 55\%
+  softirq, cpu1 75\% system).  Without the data server's work the ceiling is about 50\% higher, still set by the TCP
+  send;  the gain may come from where the threads and the softirq run rather than from CPU time freed (cpu1 had
+  47\% idle), not yet separated.  Free-running sends (no wait) delivered 2596 packets/ms:  the sending thread
+  competes with the I/O thread.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
