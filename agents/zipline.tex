@@ -269,6 +269,14 @@ and scp to the board work by key (sshd allows root by key only).
   drops messages and the send rate means nothing).  On the 1v5:  the counter on the board 3695 packets/ms
   (89 MB/s);  on felix 2913--3637 (70--87 MB/s) over five runs, the Python benchmark 3417 on the same boot;  0 lost
   messages in every run, sessions matching.
+\item Core pinning in \h{pacman\_zmqbench} and \h{pacman\_dataserver} (2026-11-06, unstaged on the 3.6.3 candidate):
+  ZMQ's I/O thread on cpu1 (\h{ZMQ\_THREAD\_AFFINITY\_CPU\_ADD}), the main thread on cpu0, where the Ethernet interrupts
+  land (all of them in every run);  the IRQ itself unchanged.  \h{pacman\_zmqbench} pinned by default (\h{-u}
+  unpinned), with the interrupt split and a warning if they left cpu0.  On the 1v5, to felix:
+  \h{pacman\_zmqbench} pinned 3617--3635 packets/ms (five runs), unpinned four near 3630 and one 2908.  The data
+  server at full speed (6060 in):  pinned 2727--2737 (three runs, 65.5 MB/s), unpinned 2737, 2736, 2248;  at half
+  speed both deliver the full 3030.  Pinned data server with the servers restarted in order:  \h{hello\_asic} 14 of 14,
+  \h{dump\_registers} 256 of 256.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
