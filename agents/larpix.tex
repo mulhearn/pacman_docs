@@ -69,6 +69,33 @@ Register & Value & Meaning \\
 
 \noindent The drive settings were added on 2026-10-31 (pacman-software 6d2ad8e) after the 1v4 results below.
 
+\section{Reset values read back}
+
+After a full reset, all 256 registers of the v3 on the 1v5 were read back (\h{larpix-lib}
+\h{demos/dump\_registers.py}, 2026-11-05) and compared field by field with the reset values of the register map
+(\h{larpix\_v3.yaml}, as in the datasheet), leaving out the 14 registers the configuration writes.  These disagree;
+the chip is taken as right:
+
+\begin{center}
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Field & Registers & Datasheet & Read back \\
+\midrule
+\h{pixel\_trim\_dac} (all 64) & 0--63 & 0 & 16 \\
+\h{vref\_dac} & 82 & 219 & 222 \\
+\h{periodic\_reset\_cycles} (byte 1) & 164 & 0 & 16 \\
+\h{reset\_threshold} & 171 & 0 & 255 \\
+\h{i\_rx\_clk}, \h{i\_rx\_rst} & 245 & 2, 2 & 0, 0 \\
+\h{i\_rx\_ext\_trig} & 246 & 2 & 0 \\
+Register 81, bit 6 (no field in the map) & 81 & 0 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All other fields read back at their datasheet reset values.  Bit layouts:  the decoded fields are consistent with the
+map;  register 81 (\h{ref\_current\_trim}, 16 as documented) reads 0x50, its bit 6 set and undocumented.
+
 \section{Results}
 
 \begin{center}
@@ -103,6 +130,8 @@ Date & Board & Result \\
   zero current (241 = 0xFF); one slice (239 = 0x11) passes at 241 = 0xCC, and the smallest current (241 = 0xEE)
   passes with all slices.  The 1v5 needs far less drive than the 1v4. \\
 2026-11-02 & 1v5 & Configured by \h{larpix-lib}: the reply exact (results in \h{larpix-lib.tex}). \\
+2026-11-05 & 1v5 & Read-all after a full reset (\h{dump\_registers.py}):  256 of 256 answered in 0.10~s, three reads
+  each without a discrepancy;  the reset values in the section above. \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -114,8 +143,6 @@ Date & Board & Result \\
   enables (124, 125): why the 1v4 needs far more drive than the 1v5 (which passes at one slice or the smallest
   current), why UARTs 2 and 3 need more than 0 and 1, and
   whether disabled PISOs at full drive are undriven or biased without data.
-\item The real bit layouts and defaults: a read-all of the registers on the 1v5, recorded (run by hand on
-  2026-11-01, not kept).
 \item ASIC stress tests on the 1v5 (later).
 \item LArPix v2b on the hw1v4: v2 clocks its UART at MCLK/2 (v3 at MCLK).
 \end{itemize}
