@@ -262,6 +262,13 @@ and scp to the board work by key (sshd allows root by key only).
   I/O thread (one core), softirq (half a core) and the data server's main thread (0.4 core), nearly both cores:
   with pinning the main thread's work is what limits, and removing it (the prebuilt-message benchmark, 3492) leaves
   the TCP send as the limit again.
+\item \h{pacman\_zmqbench} (2026-11-06, for the 3.6.3 candidate, unstaged):  publishes prebuilt data messages (64000
+  words, real header with \h{seq} and \h{session}) on 5556 with no DMA and no copy;  \h{pacman\_counter} counts them
+  unchanged.  Options \h{-w} (words per message), \h{-t} (seconds), \h{-q} (messages in flight, 1 as in the data
+  server);  refuses while the data server holds the port;  ends the run when its subscriber leaves (with none, ZMQ
+  drops messages and the send rate means nothing).  On the 1v5:  the counter on the board 3695 packets/ms
+  (89 MB/s);  on felix 2913--3637 (70--87 MB/s) over five runs, the Python benchmark 3417 on the same boot;  0 lost
+  messages in every run, sessions matching.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
