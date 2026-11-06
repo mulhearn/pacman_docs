@@ -108,6 +108,19 @@ LUTs (76.7\%).  The release still holds a VIO (109 LUTs) and the Vivado debug hu
   \h{pacman-apps-v3\_6\_2.tar.gz} cfffc412, root filesystem ac8ac3ef, \h{firmware-dev-v3\_6\_2} 8c0ab6b1 (byte-identical
   to v3\_6\_1);  \h{BOOT.BIN} 801a5711, \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12 as for 3.6.0.  Installed on the 1v5
   (tarball at \h{/}, reboot):  ``PACMAN software 3.6.2 official'';  read-backs 4 of 4 and 64 of 64.  3.6.1 retired.
+\item Software 3.6.3 candidate (294027b on \br{working-on-v3.6.3-zipline-2023.2}, after the bump 7906243), a
+  \h{pacman\_cmdserver} fix found through larpix-lib (2026-11-05):  the main loop moved at most 100 TX buffers (one
+  word per UART each) to the DMA per request handled, then blocked for the next request, so words beyond 100 per
+  UART waited for a later request and their ASIC replies arrived late.  Now the TX buffer drains between requests
+  (\h{zmq\_poll}, 1~ms while words remain), a word waits for buffer space (\h{tx\_buffer\_free}, at most 100~ms
+  per request), word counts are 32 bits (wrapped above 2730 words) and the channel 16 bits (257 reached UART 0);
+  every word not accepted gets ERR 0xEEEE, the cause in the log:  channels outside 1--40, no buffer space in time,
+  requests too short, too large (over \h{MAX\_WORDS}, 16000) or not the size their header gives (these crashed or
+  stopped the server).  The repeat and broadcast channels are removed;  \h{tx\_buffer\_count} off by one fixed;
+  the reset comment in \h{pacman\_vspace.cc} corrected (0x00100410 internal, 0x00100420 full).  On the 1v5 (the
+  new server from \h{/tmp}, then the candidate tarball \h{pacman-apps-v3\_6\_3-candidate.tar.gz} 82fd5296
+  installed at \h{/} and rebooted):  256, 2000 and 16000 reads in one request exact, refusals answered with ERR,
+  the server up after each;  the TX timeout path not exercised.
 \item Point releases confined to \h{pacman-apps} ship only its tarball, no new images.  The bundle
   (Michael's \h{bundle-v3.6.0}) is named for the firmware: the 3.6.0 images (\h{BOOT.BIN} 801a5711,
   \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12), the 3.6.1 root filesystem 48e50939, \h{pacman-apps-v3\_6\_1}

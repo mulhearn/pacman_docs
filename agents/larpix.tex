@@ -132,6 +132,10 @@ Date & Board & Result \\
 2026-11-02 & 1v5 & Configured by \h{larpix-lib}: the reply exact (results in \h{larpix-lib.tex}). \\
 2026-11-05 & 1v5 & Read-all after a full reset (\h{dump\_registers.py}):  256 of 256 answered in 0.10~s, three reads
   each without a discrepancy;  the reset values in the section above. \\
+2026-11-05 & 1v5 & Pedestals (periodic and rolling trigger, larpix-control's settings):  100 data packets/s, the
+  rolling trigger stepping through all 64 channels (about 1.6/s each);  the data packet layout of table 16 holds on
+  real packets, timestamps 28 bits (steps of 100001 cycles for a period of 100000);  ADC mean about 257 warm, range
+  248--542 (\h{larpix-lib.tex}). \\
 \bottomrule
 \end{tabularx}
 \end{center}
