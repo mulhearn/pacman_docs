@@ -254,6 +254,14 @@ and scp to the board work by key (sshd allows root by key only).
   send;  the gain may come from where the threads and the softirq run rather than from CPU time freed (cpu1 had
   47\% idle), not yet separated.  Free-running sends (no wait) delivered 2596 packets/ms:  the sending thread
   competes with the I/O thread.
+\item Core pinning (2026-11-06, the 1v5;  \h{pin.sh}:  \h{taskset} and the Ethernet IRQ's \h{smp\_affinity}), half
+  speed, a felix subscriber.  Unpinned:  2307 packets/ms (55 MB/s), the I/O thread at 101\% system time on the core
+  that takes the network softirq, the other core 47\% idle.  The I/O thread alone on one core, the main thread and the
+  IRQ on the other:  2600 (62 MB/s);  mirrored:  2663 (64 MB/s);  about 15\% more.  The I/O thread then runs at 82\%
+  (its core 16--17\% idle);  the other core is full (main thread about 40\% user, softirq 52--54\%).  So the work is
+  I/O thread (one core), softirq (half a core) and the data server's main thread (0.4 core), nearly both cores:
+  with pinning the main thread's work is what limits, and removing it (the prebuilt-message benchmark, 3492) leaves
+  the TCP send as the limit again.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
