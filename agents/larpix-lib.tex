@@ -1,0 +1,219 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\h}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\title{larpix-lib on PACMAN\\[2pt]
+  \large LArPix control software:  architecture, setup, bench results and status}
+\author{Maintained by the PACMAN agents (augie)}
+\date{2026-11-05}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+\h{larpix-lib} (package \h{larpix\_control}) is the new LArPix control software for PACMAN with the zipline firmware
+and software (\h{zipline.tex}).  Since 2026-11-05 it is a tool Michael supports officially, no longer an experiment,
+and this record moved back into pacman\_docs \h{agents/} beside \h{zipline.tex}.  The goal is for \h{larpix-lib} to
+replace (1) the control path, including readback for control, and (2) the data server;  the focus is (1).  The ASICs
+themselves (bench setup, registers, TX settings) are recorded in \h{larpix.tex}.
+
+Scope (Michael 2026-11-05):  a single Hydra strand on one UART channel, taken far;  more than one channel is out of
+scope for now (the binding of io groups and channels to strands is postponed), but the design must scale to the whole
+system.  Every PACMAN carries precisely one ASIC type, so the ASIC version is an attribute of the PACMAN.
+
+\section{Repository and environment}
+
+\begin{itemize}
+\item \h{mulhearn/larpix-lib}, cloned in \h{/agents/cowork/larpix-lib} (shared repository;  Michael pushes).  Work is
+  on the branch \h{working} (no releases yet;  \h{main} follows \h{origin/main}).  At c78825f:  PEP 8 names
+  (e1e2dbb), David Yang's authorship commit (fea7566), the closed loop (322c119), board control and
+  \h{demos/hello\_asic.py} (c78825f).
+\item Python environment:  conda environment \h{larpix} per user, an editable install of the clone;  \h{make test}
+  runs the unit tests (41, OK).
+\item Names (Michael 2026-11-05):  Python classes in CapWords (PEP 8), functions, methods, modules snake\_case,
+  constants UPPER\_CASE.  ``PACMAN'' names only the real board or an accurate emulation;  toys and generic contracts
+  say ``board''.
+\end{itemize}
+
+\section{Architecture}
+
+\h{larpix\_control} separates what varies independently:  the ASIC version, what each configuration step means, the
+network topology, register access to the ASICs, and control of the board they sit on.  Version-specific content
+lives in YAML, not code.  The contracts are abstract base classes in \h{common.interfaces}.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}P{0.11\linewidth} P{0.24\linewidth} L@{}}
+\toprule
+Layer & Module & Role \\
+\midrule
+ASIC spec & \h{asic.\allowbreak asic\_spec} & One ASIC version from YAML (\h{config/asics/larpix\_v3.yaml}):  register
+  space and config packet layout.  Field updates to register writes (\h{build\_write\_list}), registers to config
+  packets, and the read side (\h{valid\_config\_read\_response}, \h{parse\_chip\_address\_value}).  No I/O. \\
+Fragments & \h{asic.\allowbreak fragment\_lib} & Named configuration steps in YAML (\h{config/fragments/}) with
+  external parameters and per-version overrides. \\
+ASIC config & \h{AsicConfigIface}, \h{asic.\allowbreak asic\_config} & The operations a network needs (chip ID, I/O
+  init, input and output enables), one step up from register access.  \h{AsicConfig} evaluates a fragment, turns the
+  field updates into \h{RegisterOp} writes on its io channel and transmits them. \\
+Topology & \h{hydra.\allowbreak strand} & One Hydra network on one UART, from YAML (\h{config/hydra/});  configures
+  it from the root outward.  Uses only \h{AsicConfigIface}. \\
+Register access & \h{AsicRegisterIface} & \h{transmit(ops, fire\_and\_forget)}:  \h{RegisterOp}s
+  (\h{OpType} WRITE or READ, \h{nrep} repeats, io channel, chip, register, value) in order;  returns \h{OpReplies}:
+  per register (\h{RegisterKey}) the \h{WriteReply} (requested, acknowledged) and \h{ReadReply} (requested,
+  acknowledged, majority value, received, discrepant), and an overall \h{complete}. \\
+Board control & \h{BoardControlIface} & One readout board (one io group):  \h{ping}, \h{get\_tile},
+  \h{reset} (FULL or INTERNAL, by tile) with \h{wait\_on\_reset}, \h{power\_on}/\h{power\_off} (by tile),
+  \h{uart\_enable}/\h{uart\_disable} (by io channel).  Pokes return at once, without replies. \\
+PACMAN & \h{pacman.\allowbreak pacman} & \h{Pacman} implements both:  one PACMAN from one network file entry;
+  ASIC words and board register writes through \h{pacman\_cmdserver} (each acknowledged), replies from
+  \h{pacman\_dataserver} matched by the reply correlator (\h{asic.\_correlator}).  \h{load\_network} builds one per
+  entry;  \h{sync\_pacman\_id} sets the PACMAN's own ID to its io group. \\
+Toy & \h{common.\allowbreak board\_toy} & \h{BoardToy} implements both without hardware:  registers in memory,
+  resets, power and UART enables with their effect on the chips. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+A configuration runs:  \h{Strand.init\_network} $\to$ \h{AsicConfig} operation $\to$ fragment $\to$ field updates
+$\to$ register writes $\to$ \h{RegisterOp}s $\to$ \h{Pacman.transmit} $\to$ config packets $\to$ \h{pacman\_cmdserver};
+replies return through \h{pacman\_dataserver} to the correlator and the \h{OpReplies}.
+
+\subsection{Design decisions (Michael 2026-11-05)}
+
+\begin{itemize}
+\item Chip identity is \h{(io\_chan, chip\_id)}:  chip IDs are unique only within an io channel.  Each board owns a
+  configured range of io channels (\h{first\_io\_chan}, \h{uart\_mask});  the upper bits may encode the PACMAN by
+  configuration, never checked.  The wire channel is the io channel's low byte (UART + 1);  the UART is
+  \h{io\_chan - first\_io\_chan}, so no ``+1'' appears in our code.
+\item One board per io group:  the board knows its io group, so board control takes tiles and io channels only.
+\item Replies:  one persistent SUB socket per PACMAN, subscribed only during a transmission (an idle subscriber cannot
+  stall the data server) and drained at its start (no stale reply counts as fresh).  The race between the
+  subscription and the first reply is accepted until the 3.7 XPUB confirmation.
+\item The timeout is a property of each implementation (\h{timeout\_ms} in the network file, 200~ms), bounding the
+  acknowledgements and the wait for replies.  Missing acknowledgements and replies are reported, not raised.
+  \h{fire\_and\_forget} skips collecting replies;  acknowledgements are still counted.
+\item Reads repeated (\h{nrep} or listed again) are collated:  the majority value (the last received on a tie) and the
+  number discrepant.
+\item PACMAN registers, power values and the reset pokes are private to \h{Pacman}, from \h{pacman\_vspace.cc}.  The
+  code there sends the internal reset at 0x00100410 and the full reset at 0x00100420;  its header comment has the two
+  swapped.
+\item Interface first, in Python:  the interface step reviews generated \h{.pyi} stubs (baseline committed on the
+  interface branch, the draft in the stubs, propagated into the \h{.py} once accepted);  the stubs never reach
+  \h{working}.
+\end{itemize}
+
+\section{Network file}
+
+\h{config/network/*.yaml}, one entry per PACMAN:
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\h{io\_group} & The PACMAN;  set as its own ID by \h{sync\_pacman\_id}. \\
+\h{hostname}, \h{port} & \h{pacman\_cmdserver} (5555). \\
+\h{data\_port} & \h{pacman\_dataserver};  optional, default 5556. \\
+\h{timeout\_ms} & Acknowledgement and reply timeout (200). \\
+\h{first\_io\_chan}, \h{uart\_mask} & The board's io channels:  \h{first\_io\_chan} + $u$ for each bit $u$;  the
+  low byte of each must be its PACMAN channel. \\
+\h{uarts\_per\_tile} & 4 on every revision (1v5:  10 tiles, 40 UARTs;  1v4:  8 tiles, 32 UARTs). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The bench file is \h{single\_bench.yaml}:  the 1v5 at 10.42.0.175, io group 1, \h{first\_io\_chan} 0x001,
+\h{uart\_mask} 0xF (tile 0, io channels 1--4).
+
+\section{Hello ASIC}
+
+\h{demos/hello\_asic.py}, from the repo top, takes a PACMAN just booted or powered up to a configured, answering strand:
+\begin{enumerate}
+\item Ping until \h{pacman\_cmdserver} answers (up to \h{--wait}, 120~s), then \h{sync\_pacman\_id}.
+\item On the strand's tile:  UART off, \h{power\_on}, 50~ms, full reset, \h{wait\_on\_reset} (1~ms).
+\item Configure the strand (\h{Strand} $\to$ \h{AsicConfig} $\to$ \h{Pacman}), recording every register written;
+  UART on.
+\item Read back every register written and each chip's ID register;  PASS or FAIL, and the exit status.
+\end{enumerate}
+Options:  \h{--network}, \h{--io\_group}, \h{--io\_chan}, \h{--hydra}, \h{--asic}, \h{--wait}, \h{-v} (the
+configuration trace and the board's warnings).  No RX buffer enables are written:  the correlator ignores everything
+but config replies.  It replaces the earlier \h{agents/bringup.sh} and \h{pacman\_util.py}.
+
+The settles come from a sweep on the 1v5 (tile 0 off 1~s before each run, 10 runs per step):  a full reset passes
+with no settle at all (the reset is about 13~\textmu{}s, shorter than the next round trip), and the power settle
+passes from 10~ms and fails at 5~ms and below.  50~ms and 1~ms keep margins of 5$\times$ and about 75$\times$;  the
+1v4 and other tiles are not measured.
+
+\section{Results}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+Date & Board & Result \\
+\midrule
+2026-11-02 & 1v5 & First configuration by \h{larpix-lib} (\h{demos/init\_network.py} from felix, through
+  \h{pacman\_cmdserver}), with the input enables left out:  13 writes.  Then a menu hello without the configuration
+  root:  the reply exact, 3 of 3.  Before it, after a full reset, hello had no reply. \\
+2026-11-02 & 1v5 & With the input enables written (126 = 0x02, POSI1 only;  14 writes):  the reply exact, 3 of 3;
+  read back 124 = 0x00, 125 = 0x01, 126 = 0x02, 248 = 0x07.  UART 0 drives POSI1 (west), as the port map has it. \\
+2026-11-02 & 1v5 & The full configuration sequence (fce6523, ``ASIC config working at test bench''):  the reply
+  exact, 3 of 3;  io channels 2--4 unanswered, channel 1 exact. \\
+2026-11-03 & 1v5 & The whole chain, by Michael, on the software release 94e3f01:  the configuration by
+  \h{larpix-lib} through \h{pacman\_cmdserver}, the menu's hello replies seen on felix through the data server. \\
+2026-11-04 & 1v5 & Bring-up from felix alone (then \h{agents/bringup.sh}):  tile 1 power (VDDA 2367~mV, VDDD
+  1302~mV), full reset, 14 configuration writes, read-back through the data server.  One read at a time exact;  four
+  in a row, only the first and last replies:  the data server's PUB socket dropped them (send high-water mark 1). \\
+2026-11-04 & 1v5 & \h{PUB\_HWM} 1000:  four reads in a row 4 of 4, 64 in a row 64 of 64;  \h{pacman\_push} 20000
+  words, all counted (6680 with HWM 1).  In software 3.6.2. \\
+2026-11-05 & 1v5 & The closed loop (\h{AsicRegisterIface}, \h{PacmanAsicRegister} then):  4 reads answered in 6~ms
+  (was a fixed 0.5~s subscription sleep);  \h{nrep} 3 without discrepancy;  64 registers in one transmission in
+  8~ms;  fire and forget acknowledged with no reply collected and nothing stale after it;  pixel trim 0 written and
+  read back, then restored;  \h{init\_network.py} through \h{AsicConfig}, configuration unchanged;  20 of 20 runs. \\
+2026-11-05 & 1v5 & Board control (\h{Pacman}):  \h{read\_pacman\_id} 1 after \h{sync\_pacman\_id};  with UART 1
+  disabled a read is acknowledged with no reply (\h{complete} False), answered again once enabled;  an internal
+  reset of tile 0 keeps every register;  a full reset silences chip 11 and \h{init\_network.py} restores it from
+  chip 1;  tile 0 power off and on:  VDDA 2365 $\to$ 29 $\to$ 2367~mV, VDDD 1302 $\to$ 8 $\to$ 1302~mV. \\
+2026-11-05 & 1v5 & \h{hello\_asic.py}:  PASS warm (14 of 14 registers, chip ID included);  after \h{reboot}, PASS
+  29~s after the reboot (the board answered after about 22~s);  after a supply power cycle (halt, \h{OUTP 0},
+  \h{OUTP 1}), PASS 47~s after power-on.  With \h{timeout\_ms} 200 and the swept settles:  0.18--0.19~s, warm and
+  from a powered-off tile (6 of 6). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Student work}
+
+David Yang (\h{dy241/larpix-lib}, 2026-06 to 08):  his reply correlator and \h{AsicSpec} read-side fixes are in
+\h{larpix-lib} as his own commit (fea7566, authored with his GitHub no-reply address;  an authorship commit, not in
+a working state on its own), adapted to \h{AsicRegisterIface} in the next commit.  His data packet format and his
+ASIC simulator with multi-chip grids (\h{sim/}) are not taken yet;  the simulator would implement both interfaces.
+
+\section{Open}
+
+\begin{itemize}
+\item Chip state:  the expected registers per chip, readback verification, the other fields of partly written
+  registers (\h{build\_write\_list}'s \h{as\_needed}), the \h{CONFIRMED\_WRITE} and \h{WRITE\_READ} op types.
+\item Pedestals (tabled):  data packets in the ASIC YAML, a trigger fragment, per-channel mean and RMS.
+\item Board control:  the power monitors and other replies (deferred:  pokes return nothing for now);  whether
+  \h{power\_on} alone leaves the ASICs as after a full reset (untested:  \h{hello\_asic.py} always resets).
+\item Deployment variations and more than one channel or board:  the binding of io groups and channels to strands.
+\item For 3.7:  the XPUB subscription confirmation, separate config and data streams, polling for reset complete.
+\end{itemize}
+
+\end{document}
