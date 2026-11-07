@@ -242,7 +242,8 @@ and scp to the board work by key (sshd allows root by key only).
   half speed:  2589 per ms on the board (both cores full;  72 UART losses per ms), 2165 from felix (22\% idle;  1237
   UART losses per ms);  full speed on the board:  2564 per ms, UART losses over 2621 per ms.  No message lost
   (\h{seq}) in any run:  the losses are at the UARTs, while the data server waits on ZMQ.  Delivery tops out near
-  50--60 MB/s (2200--2600 packets/ms) whether the client is local or remote:  the TCP send path, not the wire.
+  50--60 MB/s (2200--2600 packets/ms) whether the client is local or remote:  the TCP send path, not the wire
+  (refined 2026-11-06, below and in the summary).
 \item Delivery ceiling, by thread (2026-11-06, the 1v5, 3.6.3 candidate;  \h{threads.sh}, \h{pubbench.py},
   \h{subcount.py} in augie's \h{pacman/hwcheck/dev}).  Half speed, a felix subscriber:  2350 packets/ms (56 MB/s);  ZMQ's
   I/O thread at 100\% system time on cpu0 (cpu0:  75\% system, 24\% softirq, 0\% idle), the data server's main thread
@@ -292,6 +293,13 @@ and scp to the board work by key (sshd allows root by key only).
   maintenance per buffer costs more than it saves;  only hardware coherency (DMA through the ACP) gets the cached rate
   safely.  Under load the uncached copy ran at 69 MB/s (full speed) and 161 MB/s (quarter speed), far below its idle
   272:  contention for the memory bus and the core, not measured for a cached copy.
+\item Throughput limits, current (3.6.3, 2026-11-06, the 1v5, a remote client):  the firmware and the data server
+  alone sustain 6060 packets/ms (all 40 UARTs, the theoretical maximum).  Delivery to a ZMQ client is CPU-limited:
+  2730 packets/ms (66 MB/s, about 18 UARTs at full speed) with the data server's threads pinned (3.6.3), the ZMQ
+  I/O thread taking one core for the TCP send and the main thread sharing the other with the network interrupts;
+  its uncached copy out of the DMA buffers is most of the main thread's time.  The ZMQ/TCP path alone
+  (\h{pacman\_zmqbench}) reaches 3630 packets/ms (87 MB/s).  Beyond the delivery limit, words are dropped at the
+  UARTs and counted;  no ZMQ message is lost.
 \item The VIO in the release (in discussion for 3.7).
 \item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
   payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
