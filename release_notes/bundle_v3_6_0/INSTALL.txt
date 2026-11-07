@@ -1,0 +1,81 @@
+
+PACMAN Zipline Installation Instructions
+========================================
+
+More detailed instructions (suitable for an AI agent) are available in AGENTS.txt
+
+1) Build an SD card:
+
+   Partition a microSD card, 4 GB or more with:
+   - Partition 1:  FAT32, 512 MB, label BOOT:  
+   - Partition 2:  ext4, the rest, label root:
+   then format (as indicated) and mount them.
+
+   Copy BOOT.BIN, boot.scr and image.ub into BOOT.
+   
+   As root, untar rootfs.tar.gz into <mount point> of Partition 2 (root)
+    sudo tar -xzpf rootfs.tar.gz --numeric-owner -C <mount point>
+    
+   Before the first boot, make sure you can log in as root: either obtain the root password from the
+   PACMAN team, or install your own ssh key for root on the card (/home/root/.ssh/authorized_keys).
+   (If using an agent, we recommend that they install their own ssh key in authorized keys.)
+
+2) Boot:
+
+   PACMAN 1v5 production boards are hard-wired to boot from the SD card. Insert the card, connect
+   Ethernet, power up.  The first boot takes about one minute.
+
+   You will need to determine the IP address the PACMAN comes up at, which can be the greatest
+   challenge of the entire process on some networks.  Here are four ways:
+   - The serial console (3):  log in and run  ip addr show eth0  (the same root login as ssh).
+   - The SD card:  at every boot, pacman_boot (part of the pacman applications) waits up to a minute
+     for the DHCP address, then writes the MAC and IPv4 address of eth0 to last-boot.txt on the boot
+     partition.  Boot on the network, wait two minutes, power down, and read last-boot.txt from the
+     card on any computer.  "none" means the network gave no DHCP address.
+   - Your DHCP server's leases, by the PACMAN's MAC address (in last-boot.txt).  A DHCP reservation
+     for that MAC address keeps the address fixed from then on.
+   - Boot the Trenz module first on a Trenz carrier board with a USB serial console, sort out your
+     network there, then move the module, and with it its MAC address and any DHCP reservation, to
+     the PACMAN.  
+
+   With IP <address> in hand:
+   $ ssh root@<address>
+   root@Trenz:~# pacman_menu                 (shows the versions;  exit with x)
+
+3) Serial console and JTAG, for test stands 
+
+   For test stand work, it is convenient to install the USB JTAG header (J1701 in the PACMAN 1v5
+   schematic) and use a Trenz TE0790 adapter: serial console at 115200 baud, and JTAG.  This allows
+   you to see the boot process, for example.
+
+4) Software patches that only impact the pacman application stack (a common scenario) will be
+   released as additional tar files within the initial release, e.g. patch <X> at:
+
+   ./pacman-apps-v3_6_<X>.tar.gz
+
+   The 3.6.3 version is included for completeness, but it is already installed on the rootfs.
+
+   To install, copy the tar file to your PACMAN card at /home/root
+   
+   Then, as root, untar into /
+
+   root@Trenz:/# cd /
+   root@Trenz:/# tar -xzf home/root/pacman-apps-v3_6_<X>.tar.gz
+
+   If you do not untar into /, the startup scripts will continue to load the original applications.
+   Avoiding absolute path names, as in the command above, will prevent accidentally untarring
+   somewhere else.
+
+   Reboot to start the new applications:
+
+   root@Trenz:/# reboot
+
+   The running servers keep the old applications until they are restarted.
+
+5) A kit for bundling your own firmware bitstream with this Petalinux release of the pacman-software is provided.
+
+   Untar the ./firmware-dev-v3_6_<X>.tar.gz which writes ./firmware-dev
+
+   Follow ./firmware-dev/README.txt
+
+

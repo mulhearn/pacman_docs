@@ -1,0 +1,163 @@
+
+----------------
+Zipline Overview
+----------------
+
+The zipline firmware is a from scratch rewrite of the PACMAN firmware aimed at high-speed DAQ
+throughput, efficient resource usage, and transparent operation.  The firmware (and dataserver) are
+able to keep up with all forty UARTs running continuously at full speed.  With its nearly complete
+feature set, this zipline version is at 58% LUT utilization. (The legacy and hijinks lines hit 75%
+utilization with far more limited configuration and diagnostic features.)  Every critical feature
+operates transparently.  For just one example, the RX and TX units provide look registers to see the
+most recent data independently of DMA.  This release adds a built-in logic analyzer which can record
+PISO/POSI/reset signals (or nearly any other signal of interest) at 100 MHz.  The onboard ADC is
+also supported for monitoring ASIC analog monitor signals, and can cross trigger with the logic
+analyzer.  The zipline firmware is fully compatible with both the PACMAN 1v5 and 1v4, with planned
+support for 1v3 in the near future.
+
+Please note first the following MAJOR DIFFERENCE between zipline (3.X) and hijinks (2.X) usage:
+
+(**1**) You will have to include boot.scr file in the DOS BOOT partition.  That is, you will now need
+        three files:
+
+        BOOT.BIN, boot.scr, and image.ub
+
+(**2**) There is a new command line tool, pacman_menu, which provides a commandline, menu-driven
+        interface to the pacman drivers.  This is intended for expert configuration and diagnostics,
+        as well as hardware checkout.
+
+This bundle uses pacman firmware v3.6.0 and pacman software v3.6.3.  You can confirm the version
+that you are running by opening pacman_menu:
+
+# pacman_menu
+pacman_menu:  PACMAN Linux driver access via menu, for diagnostics and hardware checkout.
+INFO:  Opening /dev/mem.
+INFO:  Initializing PACMAN AXI-Lite interface of size 65536 at 0x40000000
+INFO:  PACMAN software 3.6.3 official
+INFO:  PACMAN firmware 3.6.0 (official), hardware 1.5.0, git a85681c, synthesized 2026-11-02 21:01:52 UTC
+
+--------
+Changes:
+--------
+
+Please see the TRM for a complete description of the zipline firmware and software.
+
+These are the major firmware changes since v3.5.0:
+
+- The firmware is now ready for a detector clock derived by the timing unit, which could range from
+  60-100 MHz.  The ASIC timing and control unit (ATC) moved to a new, correct timing model, with
+  clock domain crossing in the register bus and at the asynchronous LEMO inputs.  Slow ASIC clock
+  and control signals (SYNC/TRIG/RESET) are signals in the fast detector clock domain with a
+  configurable baud.  The RX and TX units cross from the detector clock domain to the AXI clock
+  domain (for DMA) using FIFOs.
+
+- New ADC unit:  DAQ of the onboard ADC (ASIC analog monitor signals), read out over BRAM.
+
+- New logic analyzer:  records PISO/POSI/reset (or nearly any other signal) at 100 MHz, with cross
+  triggering between ADC and logic analyzer.
+
+- The RX unit was rewritten, with input mux (PISO, internal loopback, test pattern), majority
+  voting, configurable sample phase, falling edge detection (optional), frame error and noise
+  counters.  A new test pattern generator allows for full speed tests.
+
+- The ATC and RX units can be configured to add markers in the event record.  For example, a LEMO
+  pulse can simply mark the data stream, or a register poke can send a trigger to the ASICs and
+  place a marker in the event record, and trigger the ADC and logic analyzer.
+
+- This release includes support for the PACMAN 1v4 alongside the 1v5, from the same source.
+
+- Experimental on-FPGA ASIC emulation.
+
+These are the major software changes since v3.5.0:
+
+- New checkout tools:  pacman_hwcheck (hardware), pacman_fwcheck (firmware), and pacman_lnxcheck
+  (embedded Linux).
+
+- pacman_menu supports the new ADC, logic analyzer, RX/TX test configurations and test patterns.
+
+- I2C overhaul:  sticky error status, bus recovery, MUX refusals for hardware safety, and
+  simulation.  I2C clock set to 100 kHz everywhere (robust on problematic legacy hardware).
+
+- The message format now includes a (data server) session (random number) and a sequence count,
+  so that ZMQ clients can check for message drops and detect server restarts.  Before 3.6.2, the
+  ZMQ high-water mark was set too low, causing ZMQ messages to be lost (now set to 1000);  this is
+  fixed.
+
+- The command server accepts requests of up to 16000 words and drains them promptly (before 3.6.3,
+  words beyond 100 per UART waited for the next request, and word counts wrapped above 2730).  Any
+  refused word or request is answered with an error (ERR 0xEEEE), the cause in the log:  a channel
+  outside 1-40, the TX path stalled for more than 100 ms, or a malformed or oversized request.  The
+  broadcast and repeat channels are removed.
+
+- The data server's threads are pinned (ZMQ's I/O thread on cpu1, the main thread on cpu0), for
+  consistent throughput when CPU limited.  Incomplete RX packets (after a DMA reset) are discarded
+  and counted instead of crashing the data server.
+
+- New pacman_zmqbench:  a ZMQ-only throughput benchmark (prebuilt messages, no DMA), counted by
+  pacman_counter.  pacman_push and pacman_counter take the PACMAN address (-i), so they can run
+  remotely.
+
+- New pacman_boot init script:  at every boot it records the MAC and IPv4 address of eth0 in
+  last-boot.txt on the SD card's boot partition (waiting up to a minute for DHCP), so the address
+  can be read from the card on any computer.
+
+- Most known issues from previous release were addressed: the command line power scripts were
+  restored and no special setup needed on first boot.
+
+------------------
+Release Validation
+------------------
+
+The following essential features have been validated at the UCD test stand (under Linux):
+
+- ASIC (v3) configuration and register read/write loopback via pacman_menu
+
+- RX test patterns at full speed on all forty UARTs: 6060 packets/ms sustained (the theoretical
+  maximum) through pacman_dataserver (no ZMQ client) with no loss, at 70% CPU
+
+- pacman_dataserver delivers about 2730 packets/ms continuously to a remote ZMQ client
+  (pacman_counter);  pacman_zmqbench reaches about 3630 packets/ms over the same path
+
+- 16000 ASIC register reads in one command server request, exact (0.6 s)
+
+- Dedicated hardware and firmware checkout tools all pass: pacman_lnxcheck, pacman_fwcheck and
+  pacman_hwcheck.
+
+- Power and monitoring of TILES 1-10 via pacman_menu, and command line scripts in utils/
+  (power_up_tile.sh, power_down.sh, report_power.sh)
+
+- RX/TX loopback (internal and via loopback card) in many different software configurations
+  (pacman_menu, pacman_hwcheck).  Some tests include pacman_cmdserver and pacman_dataserver in the
+  loop, using pacman_push and pacman_counter.
+
+- Receiving of SYNC words via pacman-server
+
+- pacman_units runs successfully (software unit tests).
+
+----------------------
+Known Issues and Bugs:
+----------------------
+
+- The pacman firmware and data server sustain continuous full-speed UART transmission on all forty
+  channels.  However, with a ZMQ client, delivery is limited by the CPU to about 2730 packets/ms (66
+  MB/s), about 18 of the forty UARTs at full speed.  Above this, the DMA falls behind and words are
+  dropped at the UARTs (counted by the per-UART lost counters).  No ZMQ messages are lost.
+
+--------------
+Release Files:
+--------------
+
+$ sha256sum BOOT.BIN boot.scr image.ub rootfs.tar.gz
+801a57118777f243b2d6722d63dd9c786a2458ee3f9b65123314a891cb406517  BOOT.BIN
+3b9b939dfab95e26e69855ab23fc84e6e2ab9431ab71998aece3db7f2a8c37cd  boot.scr
+8094cb12c030800f1337383ad9c277148ff7be048e637b1f4e23616128938a1c  image.ub
+42ed4f571affd80858e0e9a69d0993df8fc8e49c40a4af11cca0a6b20e3d182d  rootfs.tar.gz
+
+$ sha256sum pacman-apps-*.tar.gz
+031697aaf99744edc97b42d2b58c54efe220413599965caedc6cd79766d21122  pacman-apps-v3_6_3.tar.gz
+
+$ sha256sum firmware-dev-*.tar.gz
+8c0ab6b16fde14306ec3ef9c8d3d01112aa5fc326ad1147941980b22751d622b  firmware-dev-v3_6_3.tar.gz
+
+
+

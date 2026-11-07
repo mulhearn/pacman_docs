@@ -1,0 +1,316 @@
+
+PACMAN zipline 3.6 bundle:  detailed procedures (for AI agents, and for people who want every step)
+===================================================================================================
+
+INSTALL.txt and MIGRATION.txt are the short versions for people;  this file gives every step in
+full.  Firmware v3.6.0, software v3.6.3.  What changed, and the known limits:  NOTES.txt.
+
+For agents
+----------
+
+- Work only from this bundle, these files and what the person you work for gives you.  If a step
+  needs a fact that is not here (an address, a password, which disk is the SD card, how a board is
+  wired), ask; do not guess.
+- Ask the person before anything that cannot be undone or that touches hardware:  erasing or
+  partitioning a disk (confirm the device name with them first), powering a board, rebooting a
+  PACMAN that others may be using.  Reading, checking and planning need no permission.
+- Report faithfully:  what you ran, what it printed, what failed.  "These instructions are not
+  enough" (with what is missing) is a useful result.
+- Log in to the PACMAN with your own ssh key, installed for root on the SD card (section 1e), rather
+  than with the root password:  then nobody needs to pass you a password.
+
+=========================================
+1) Building an SD card for the PACMAN 1v5
+=========================================
+
+You need:  a microSD card (4 GB or more;  everything on it will be erased), a Linux computer with an
+SD card reader and sudo, and from this bundle:  BOOT.BIN, boot.scr, image.ub, rootfs.tar.gz.
+
+The card has two partitions:
+
+    partition 1   FAT32, label BOOT, 512 MB    BOOT.BIN, boot.scr, image.ub:  boot loader, FPGA
+                                               firmware, Linux kernel and device tree
+    partition 2   ext4, label root, the rest   the root file system (Linux, PACMAN applications)
+
+a) Find the card's device name.  Run lsblk before and after inserting the card:  the new disk is the
+   card (e.g. /dev/sdb, or /dev/mmcblk0 on a built-in reader, whose partitions are then mmcblk0p1,
+   p2).  Check the size.  The commands below use /dev/sdX;  replace it with the correct device.
+   Choosing the wrong device erases that disk:  agents, confirm the device with the person first.
+
+   $ lsblk
+
+b) Unmount anything the desktop mounted from the card, then partition it:
+
+   $ sudo umount /dev/sdX?*
+   $ sudo parted -s /dev/sdX mklabel msdos \
+         mkpart primary fat32 4MiB 516MiB \
+         mkpart primary ext4 516MiB 100% \
+         set 1 boot on
+
+   Check:  sudo parted -s /dev/sdX unit MiB print  shows partition 1 (4-516 MiB, flag boot) and
+   partition 2 (516 MiB to the end).
+
+c) Make the file systems:
+
+   $ sudo mkfs.vfat -F 32 -n BOOT /dev/sdX1
+   $ sudo mkfs.ext4 -L root /dev/sdX2
+
+d) Mount them and copy the files.  Untar the root file system as root, keeping owners and
+   permissions (--numeric-owner:  the owners on the card are the PACMAN's, not your computer's):
+
+   $ sudo mkdir -p /mnt/boot /mnt/root
+   $ sudo mount /dev/sdX1 /mnt/boot
+   $ sudo mount /dev/sdX2 /mnt/root
+   $ sudo cp BOOT.BIN boot.scr image.ub /mnt/boot/
+   $ sudo tar -xzpf rootfs.tar.gz --numeric-owner -C /mnt/root
+
+e) Login (before the first boot).  You log in as root over ssh, so you need one of two things:
+
+   either the root password:  root has a password in this release, which you obtain from the PACMAN
+   team;
+
+   or your own ssh key installed for root on the card (root's home is /home/root):
+
+     $ sudo install -d -m 700 -o 0 -g 0 /mnt/root/home/root/.ssh
+     $ sudo install -m 600 -o 0 -g 0 ~/.ssh/id_ed25519.pub \
+           /mnt/root/home/root/.ssh/authorized_keys
+
+   (use your own public key file).  Without one of them you cannot log in at all:  the serial
+   console (section 4) asks for the same root password.  Once logged in, you can set your own root
+   password with passwd.
+
+   Agents:  use the key, installed for root as above.  Use the public key of the account you run as
+   (~/.ssh/id_ed25519.pub);  if there is none, make one first (no passphrase, so you can log in
+   without help):
+
+     $ ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519
+
+   Then log in with  ssh root@<address>  (section 3b).  The root file system ships without ssh host
+   keys:  the PACMAN makes its own on its first boot, so ssh asks you to accept a new host key on
+   the first login (check that the address is the PACMAN you mean).  A rebuilt card makes new keys,
+   and ssh then warns that the host key changed:  remove the old entry with ssh-keygen -R <address>.
+
+f) Write everything to the card and unmount it:
+
+   $ sync
+   $ sudo umount /mnt/boot /mnt/root
+
+==========
+2) Network
+==========
+
+- The PACMAN takes its address by DHCP on its Ethernet port (eth0).  It needs a DHCP server on that
+  network:  a lab network, or a direct cable to a Linux computer sharing its connection, e.g. with
+  NetworkManager (replace <port> with that computer's Ethernet port, e.g. enp3s0):
+
+    $ nmcli connection add type ethernet ifname <port> ipv4.method shared
+
+  The PACMAN then gets an address 10.42.0.x, and the computer's own address on that port is
+  10.42.0.1.
+- Finding the address.  Every PACMAN has the host name Trenz, and there is no name service on the
+  board, so find it by one of:
+
+  - The SD card:  at every boot, the pacman_boot init script waits up to a minute for the DHCP
+    address, then writes the MAC and IPv4 address of eth0 to last-boot.txt on the boot partition,
+    e.g.
+
+      eth0 MAC:    9c:95:6e:c3:bf:ac eth0 IPv4:   10.42.0.175/24
+
+    Boot on the network, wait two minutes, power down (ask the person), and read last-boot.txt from
+    partition 1 of the card.  "none" means the network gave no DHCP address.
+  - The DHCP server's leases, by the MAC address (from last-boot.txt, or the newest lease after
+    power up;  with NetworkManager's shared mode:  the dnsmasq leases under
+    /var/lib/NetworkManager/).  A DHCP reservation for the MAC address keeps the address fixed.
+  - The serial console (section 4):  the boot messages show the MAC (the boot loader's  MAC:  line);
+    after logging in, ip addr show eth0 shows the address.  The login needs the root password.
+  - A Trenz carrier board with a USB serial console:  boot the Trenz module there first (with the SD
+    card in the carrier's slot), find its address and MAC address, then move the module and the card
+    to the PACMAN.  The MAC address belongs to the module, so the address and any DHCP reservation
+    carry over.
+
+  Scanning a shared network (nmap, arp-scan) also finds it, but ask the network's owner first: scans
+  can trip security monitoring.
+- The servers listen on TCP ports 5555 (pacman_cmdserver, commands) and 5556 (pacman_dataserver,
+  data); ssh on port 22.
+
+=====================
+3) Booting the PACMAN
+=====================
+
+a) With the board powered off, insert the card in the PACMAN's microSD slot (on the PACMAN board,
+   not on the Trenz module), connect Ethernet, and power up.  PACMAN 1v5 production boards are
+   hard-wired to boot from the SD card:  there is no boot switch to set.  The boot loader loads the
+   FPGA firmware and image.ub from partition 1, and Linux mounts partition 2 as its root file
+   system.  Boot takes about a minute;  the PACMAN command and data servers start by themselves.
+
+b) Log in:
+
+   $ ssh root@<address>
+
+c) Check the versions:  start the menu, read its first lines, and exit with x:
+
+   root@Trenz:~# pacman_menu
+
+   It prints e.g.
+
+   INFO:  PACMAN software 3.6.3 official
+   INFO:  PACMAN firmware 3.6.0 (official), hardware 1.5.0, git a85681c, ...
+
+d) Check the Linux system:
+
+   root@Trenz:~# pacman_lnxcheck --no_tftp
+
+   It prints one line per check and ends with a VERDICT line.  Expect VERDICT INCOMPLETE:  only the
+   TFTP transfer test is skipped (it needs a TFTP server on the network).  Any FAIL line is a
+   problem to report.
+
+e) The servers:  /etc/init.d/pacman_server start|stop|restart.  pacman_menu and pacman_hwcheck use
+   the same hardware as the servers:  stop the servers first, and start them again afterwards.
+
+========================================
+4) Serial console and JTAG (test stands)
+========================================
+
+Production boards are built without the USB JTAG header (J1701 in the PACMAN 1v5 schematic,
+https://github.com/mulhearn/pacman_docs/blob/main/schematics/pacman_1v5.pdf).  For test stand work,
+it is convenient to install the header on the PACMAN and use a Trenz TE0790 (XMOD USB JTAG/UART
+adapter) on it. On a Linux computer the adapter appears as two serial devices, usually /dev/ttyUSB0
+(JTAG) and /dev/ttyUSB1 (UART).  Do not run FTDI's EEPROM tools on the TE0790:  they erase its JTAG
+license.
+
+- Serial console:  115200 baud, 8N1, e.g.
+
+    $ sudo microcom -s 115200 /dev/ttyUSB1
+
+  It shows the boot messages, the boot loader's prompt and a Linux login, with no network needed:
+  find the address (ip addr show eth0), or diagnose a card that does not boot.  Only one program can
+  use the console at a time.
+- JTAG:  load firmware and programs without the SD card, for development, debugging and recovery
+  (AMD Vivado or Vitis tools).
+
+=================================================
+5) Installing a newer pacman applications release
+=================================================
+
+Software patches that only change the pacman applications are released as tarballs
+(pacman-apps-v3_6_<X>.tar.gz).  The 3.6.3 one is in this bundle for completeness;  it is already
+installed on the root file system.
+
+a) Copy the tarball to the PACMAN:
+
+   $ scp pacman-apps-v3_6_<X>.tar.gz root@<address>:/home/root/
+
+b) On the PACMAN, as root, untar it into / (the relative path avoids untarring elsewhere by mistake;
+   if you do not untar into /, the startup scripts keep loading the original applications):
+
+   root@Trenz:~# cd /
+   root@Trenz:/# tar -xzf home/root/pacman-apps-v3_6_<X>.tar.gz
+
+c) Reboot to start the new applications (the running servers keep the old ones until restarted),
+   then check the version as in section 3c:
+
+   root@Trenz:/# reboot
+
+======================
+6) Firmware developers
+======================
+
+A kit for bundling your own firmware bitstream with this PetaLinux release is provided:  untar
+firmware-dev-v3_6_<X>.tar.gz, which writes ./firmware-dev, and follow ./firmware-dev/README.txt.
+
+=============================================================
+7) Migration:  the larpix software, up to pedestals on a tile
+=============================================================
+
+From a booted PACMAN (sections 1-3) to pedestals on a LArPix v3 5x5 tile on PACMAN tile 1 (io
+channels 1-4), with the zipline-hw1v5 branches of larpix-control and larpix-5x5-test (Bruno Gelli's
+zipline work, with fixes for PACMAN 1v5).  MIGRATION.txt is the short version, with what changes
+from legacy and hijinks.  This runs on the DAQ computer (any Linux computer on the PACMAN's
+network), not on the PACMAN.
+
+a) The repositories, at the commits tested with this release:
+
+   $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-control.git
+   $ git -C larpix-control checkout dfef53b
+   $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-5x5-test.git
+   $ git -C larpix-5x5-test checkout 7480eed
+
+   Check:  git -C larpix-control log -1 --format=%h  prints dfef53b, and 7480eed for
+   larpix-5x5-test.
+
+b) A Python environment (Python 3.9 or newer) of your choice;  a venv here (no sudo needed):
+
+   $ python3 -m venv larpix-venv
+   $ . larpix-venv/bin/activate
+   $ pip install -e ./larpix-control
+   $ pip install matplotlib scipy pyyaml tqdm
+
+   Check:  python -c "import larpix, larpix.io"  prints nothing (it may print a SyntaxWarning about
+   an escape sequence in packet_v1.py:  harmless).
+
+   Install larpix-control from this clone, not from PyPI:  the PyPI release (3.7.0, 2022) predates
+   zipline but has the same version number.  Check which copy is in use:  pip show larpix-control
+   gives "Editable project location" pointing at the clone.
+
+c) The PACMAN's address:  edit larpix-5x5-test/io/pacman.json and replace the host name in
+   "io_group" with your PACMAN's address (section 2), keeping io group 1:
+
+     "io_group": [ [1, "10.42.0.175"] ]
+
+d) From here on, work in the larpix-5x5-test directory with the virtual environment active (the
+   scripts find io/pacman.json and util.py there).  Agents:  powering the tile and configuring the
+   chips act on hardware:  ask the person before d) to g).
+
+   Power tile 1 (DAC codes, in decimal;  the nominal values for LArPix v3):
+
+   $ python power_on.py --pacman_tile 1 --vdda 58111 --vddd 30207
+
+   Its readback right after switching on may show 0 mV;  read again a second later:
+
+   $ python read_power.py
+
+   expect tile 1 at about VDDA 2370 mV and VDDD 1305 mV (on the UC Davis 5x5:  about 200 mA and 100
+   mA).
+
+e) Configure the network of chips:
+
+   $ python network_5x5.py
+
+   It prints "Root-chip added: 1-1-11" (and 1-2-21, 1-3-31, 1-4-41), then "<key> added to
+   hydra-network!" for each other chip:  25 chips in all, rows 11-15 to 51-55 (row 5 hangs off row
+   4, io channel 4).  A chip that does not configure prints nothing:  count the lines.  At the end
+   it saves the configured controller as controller.pkl (needed by the next step).  About 10 s.
+
+f) Pedestals:  periodic triggers, self-triggering masked:
+
+   $ python enable_pedestal_5x5.py
+
+   prints "<key>  pedestal enabled: True" for each of the 25 chips.  Then record 60 s:
+
+   $ python record_data.py --runtime 60 --tag pedestal
+
+   It writes data/pedestal-packet-<date>_<zone>.h5.  Plot the pixel mean and RMS:
+
+   $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric mean
+   $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric std
+
+   The plots are tile-id-1-1-xy-*.png (the 5x5 layout) and tile-id-1-1-1d-*.png (histograms).  On
+   the UC Davis 5x5 (2026-11-06):  1596 of 1600 pixels fired, about 1065 packets per chip in 60 s,
+   ADC mean around 265 (most 257-270), RMS around 1;  a few pixels stuck (RMS 0) or silent, and chip
+   11 noisier than the rest.
+
+g) Power the tile off at the end:
+
+   $ python power_off.py --pacman_tile 1
+
+   It prints every tile at 0 mV.
+
+Notes:
+
+- A single-chip card instead of the 5x5:  python network_single_chip_pedestal.py --pacman_tile 1
+  configures chip 11 for pedestals;  then record_data.py and plot_metric.py as in f).
+- Self-triggering at a low global threshold on a pixel tile can saturate a UART with one chip's
+  hits: the replies to register reads are then lost.  Keep to the pedestal steps above unless asked.
+- In larpix-control's PACMAN_IO, the helpers for tile power and enables (set_vddd, set_vdda,
+  enable_tile) still use hijinks addresses:  use the larpix-5x5-test scripts for board control.
+- One command server request holds at most 16000 words;  larger requests are refused with an error.

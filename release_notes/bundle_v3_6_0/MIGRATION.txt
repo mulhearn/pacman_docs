@@ -1,0 +1,99 @@
+
+PACMAN Migration from Legacy/Hijinks to Zipline
+===============================================
+
+This takes a test stand from legacy (1.X) or hijinks (2.X) PACMAN firmware to zipline (3.6), up to
+taking pedestals on a LArPix v3 tile with the larpix software.  These instructions are for a PACMAN
+1v5 (but support for 1v3 and 1v4 can be arranged.)  More detailed instructions (suitable for an AI
+agent) are in AGENTS.txt, section 7.
+
+Major changes from legacy firmware
+----------------------------------
+
+- SD card:  zipline needs three files on the boot partition (BOOT.BIN, boot.scr, image.ub) and
+  its own root file system (INSTALL.txt).
+
+- The message format was updated to 24-byte words with 64-bit timestamps, and the pacman command
+  server interface has changed.
+
+- You'll need an updated version of larpix-control adapted to the new message format and server
+  interface (see below).
+
+- This test uses an updated version of larpix-5x5-test which has been similarly adapted (see below).
+
+- Board control (tile power, resets, UART enables) is through the PACMAN's virtual registers, which
+  the larpix-5x5-test scripts use directly.  The command (5555) and data (5556) ports are unchanged.
+
+- There are new applications installed on the PACMAN: pacman_menu (expert configuration and
+  diagnostics) and the checkout tools (pacman_lnxcheck, pacman_fwcheck, pacman_hwcheck).
+
+Stage 1:  Install zipline on the PACMAN
+---------------------------------------
+
+Build the SD card, boot, find the PACMAN's address and log in:  INSTALL.txt.
+
+Check that pacman_menu reports software 3.6.3 and firmware 3.6.0.
+
+Stage 2:  The larpix software on the DAQ computer
+-------------------------------------------------
+
+The two repositories, at the commits tested with this release (Python 3.9 or newer):
+
+   $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-control.git
+   $ git -C larpix-control checkout dfef53b
+   $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-5x5-test.git
+   $ git -C larpix-5x5-test checkout 7480eed
+
+A Python environment of your choice with larpix-control and what the scripts need;  a venv here:
+
+   $ python3 -m venv larpix-venv
+   $ . larpix-venv/bin/activate
+   $ pip install -e ./larpix-control
+   $ pip install matplotlib scipy pyyaml tqdm
+
+Install larpix-control from this clone, not from PyPI:  the PyPI release (3.7.0, 2022) predates
+zipline but has the same version number.  pip show larpix-control should give an "Editable project
+location" pointing at the clone.
+
+Point the scripts at your PACMAN:  in larpix-5x5-test/io/pacman.json, replace the host name in
+"io_group" with your PACMAN's address, e.g.  [1, "10.42.0.175"].
+
+Stage 3:  Power and configure the tile
+--------------------------------------
+
+Run the scripts from the larpix-5x5-test directory, with the virtual environment active.  The 5x5
+tile is on PACMAN tile 1 (io channels 1-4).  Power, in DAC codes (decimal):
+
+   $ python power_on.py --pacman_tile 1 --vdda 58111 --vddd 30207
+
+Configure the network of chips (25 chips, rows 11-15 to 51-55):
+
+   $ python network_5x5.py
+
+Each chip that configures prints "added to hydra-network!" (the four roots "Root-chip added");  the
+configured controller is saved as controller.pkl, for the next steps.
+
+Stage 4:  Pedestals
+-------------------
+
+   $ python enable_pedestal_5x5.py
+   $ python record_data.py --runtime 60 --tag pedestal
+   $ python plot_metric.py --filename data/pedestal-packet-<date>.h5 --metric mean
+   $ python plot_metric.py --filename data/pedestal-packet-<date>.h5 --metric std
+
+enable_pedestal_5x5.py prints "pedestal enabled: True" for each chip.  The plots (tile-id-1-1-*.png)
+show the ADC mean and RMS of every pixel on the 5x5 layout.  On the UC Davis 5x5 (2026-11-06):  1596
+of 1600 pixels, ADC mean around 265, RMS around 1.
+
+Then power the tile off:
+
+   $ python power_off.py --pacman_tile 1
+
+Notes
+-----
+
+- The scripts and settings are for a LArPix v3 5x5 tile on PACMAN 1v5.  For a single-chip card,
+  network_single_chip_pedestal.py configures chip 11 for pedestals (then record_data.py as above).
+- One command server request holds at most 16000 words;  larger requests are refused with an error.
+- In larpix-control's PACMAN_IO, the helpers for tile power and enables (set_vddd, set_vdda,
+  enable_tile) still use hijinks addresses:  use the larpix-5x5-test scripts for board control.
