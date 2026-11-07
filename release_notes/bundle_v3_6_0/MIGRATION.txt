@@ -42,7 +42,7 @@ The two repositories, at the commits tested with this release (Python 3.9 or new
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-control.git
    $ git -C larpix-control checkout dfef53b
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-5x5-test.git
-   $ git -C larpix-5x5-test checkout 7480eed
+   $ git -C larpix-5x5-test checkout aca8eec
 
 A Python environment of your choice with larpix-control and what the scripts need;  a venv here:
 
@@ -77,23 +77,41 @@ Stage 4:  Pedestals
 -------------------
 
    $ python enable_pedestal_5x5.py
+   $ mkdir -p data
    $ python record_data.py --runtime 60 --tag pedestal
-   $ python plot_metric.py --filename data/pedestal-packet-<date>.h5 --metric mean
-   $ python plot_metric.py --filename data/pedestal-packet-<date>.h5 --metric std
+   $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric mean
+   $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric std
 
-enable_pedestal_5x5.py prints "pedestal enabled: True" for each chip.  The plots (tile-id-1-1-*.png)
-show the ADC mean and RMS of every pixel on the 5x5 layout.  On the UC Davis 5x5 (2026-11-06):  1596
-of 1600 pixels, ADC mean around 265, RMS around 1.
+enable_pedestal_5x5.py prints "pedestal enabled: True" for each chip.  record_data.py writes into
+data, which the clone does not have (without it, the script hangs:  Ctrl-C, mkdir, again).  The
+plots (tile-id-1-1-*.png) show the ADC mean and RMS of every pixel on the 5x5 layout.  On the UC
+Davis 5x5 (2026-11-06):  1596 of 1600 pixels, ADC mean around 265, RMS around 1.
 
 Then power the tile off:
 
    $ python power_off.py --pacman_tile 1
 
+Stage 5:  A single-chip card
+----------------------------
+
+For a single-chip card on PACMAN tile 1, power the tile as in stage 3, then in place of
+network_5x5.py and enable_pedestal_5x5.py:
+
+   $ python network_single_chip_pedestal.py --pacman_tile 1
+   $ python record_data.py --runtime 60 --tag pedestal
+   $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric mean
+   $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric std
+   $ python power_off.py --pacman_tile 1
+
+network_single_chip_pedestal.py configures chip 11 (io channel 1) and enables its pedestals:  it
+prints "1-1-11 True" and "1-1-11  pedestal enabled: True".  Tested on the UC Davis 5x5 with chip 11
+alone (2026-11-07):  64 channels, 162 packets each in 60 s, ADC mean around 265, RMS around 13
+(chip 11 is that tile's noisiest chip), channel 31 stuck at 721.
+
 Notes
 -----
 
-- The scripts and settings are for a LArPix v3 5x5 tile on PACMAN 1v5.  For a single-chip card,
-  network_single_chip_pedestal.py configures chip 11 for pedestals (then record_data.py as above).
+- The scripts and settings are for LArPix v3 on PACMAN 1v5.
 - One command server request holds at most 16000 words;  larger requests are refused with an error.
 - In larpix-control's PACMAN_IO, the helpers for tile power and enables (set_vddd, set_vdda,
   enable_tile) still use hijinks addresses:  use the larpix-5x5-test scripts for board control.

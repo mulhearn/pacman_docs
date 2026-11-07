@@ -151,10 +151,10 @@ $ sha256sum BOOT.BIN boot.scr image.ub rootfs.tar.gz
 801a57118777f243b2d6722d63dd9c786a2458ee3f9b65123314a891cb406517  BOOT.BIN
 3b9b939dfab95e26e69855ab23fc84e6e2ab9431ab71998aece3db7f2a8c37cd  boot.scr
 8094cb12c030800f1337383ad9c277148ff7be048e637b1f4e23616128938a1c  image.ub
-42ed4f571affd80858e0e9a69d0993df8fc8e49c40a4af11cca0a6b20e3d182d  rootfs.tar.gz
+ee45ef7a2499f84e660ced81c2aa1de6142886f1d2d6a1d4c1c152f3be8fb3ff  rootfs.tar.gz
 
 $ sha256sum pacman-apps-*.tar.gz
-031697aaf99744edc97b42d2b58c54efe220413599965caedc6cd79766d21122  pacman-apps-v3_6_3.tar.gz
+a162f6c6414b232f33fe99dc10bd1fba7daa27a6935a9d6fb9775f184ac6d229  pacman-apps-v3_6_3.tar.gz
 
 $ sha256sum firmware-dev-*.tar.gz
 8c0ab6b16fde14306ec3ef9c8d3d01112aa5fc326ad1147941980b22751d622b  firmware-dev-v3_6_3.tar.gz

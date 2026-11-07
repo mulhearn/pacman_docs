@@ -27,7 +27,7 @@ More detailed instructions (suitable for an AI agent) are available in AGENTS.tx
 
    You will need to determine the IP address the PACMAN comes up at, which can be the greatest
    challenge of the entire process on some networks.  Here are four ways:
-   - The serial console (3):  log in and run  ip addr show eth0  (the same root login as ssh).
+   - The serial console (3):  it logs in as root by itself;  run  ip addr show eth0.
    - The SD card:  at every boot, pacman_boot (part of the pacman applications) waits up to a minute
      for the DHCP address, then writes the MAC and IPv4 address of eth0 to last-boot.txt on the boot
      partition.  Boot on the network, wait two minutes, power down, and read last-boot.txt from the

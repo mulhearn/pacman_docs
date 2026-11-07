@@ -50,6 +50,20 @@ b) Unmount anything the desktop mounted from the card, then partition it:
    Check:  sudo parted -s /dev/sdX unit MiB print  shows partition 1 (4-516 MiB, flag boot) and
    partition 2 (516 MiB to the end).
 
+   Without parted (e.g. on a PACMAN's own Linux, which has sfdisk, mkfs.vfat and mkfs.ext4), the
+   same layout with sfdisk (sectors of 512 bytes).  On a PACMAN the SD card is /dev/mmcblk0
+   (partitions mmcblk0p1, p2);  /dev/mmcblk1 is the Trenz module's eMMC:  never touch it.
+
+   $ printf 'label: dos\nstart=8192, size=1048576, type=c, bootable\nstart=1056768, type=83\n' \
+         | sudo sfdisk /dev/sdX
+
+   A used card, even one that looks new (a single FAT32 partition), can hold old file systems
+   that reappear with the new partition table, and the automounter may mount them at once.
+   Check again (mount | grep sdX), unmount anything from the card, then clear the old
+   signatures before making the file systems:
+
+   $ sudo wipefs -a /dev/sdX?*
+
 c) Make the file systems:
 
    $ sudo mkfs.vfat -F 32 -n BOOT /dev/sdX1
@@ -64,10 +78,17 @@ d) Mount them and copy the files.  Untar the root file system as root, keeping o
    $ sudo cp BOOT.BIN boot.scr image.ub /mnt/boot/
    $ sudo tar -xzpf rootfs.tar.gz --numeric-owner -C /mnt/root
 
+   On a PACMAN's own Linux (as root, no sudo):  its busybox tar has no -p (as root it keeps modes
+   and owners anyway), and its RAM cannot hold the tarball and the unpacked files together, so
+   stream the tarball from your computer instead of copying it to the PACMAN first:
+
+   $ ssh root@<address> 'tar -xzf - --numeric-owner -C /mnt/root' < rootfs.tar.gz
+
 e) Login (before the first boot).  You log in as root over ssh, so you need one of two things:
 
    either the root password:  root has a password in this release, which you obtain from the PACMAN
-   team;
+   team (the comment in /etc/ssh/sshd_config.d/pacman.conf, "set one with passwd first", is out of
+   date);
 
    or your own ssh key installed for root on the card (root's home is /home/root):
 
@@ -75,9 +96,9 @@ e) Login (before the first boot).  You log in as root over ssh, so you need one 
      $ sudo install -m 600 -o 0 -g 0 ~/.ssh/id_ed25519.pub \
            /mnt/root/home/root/.ssh/authorized_keys
 
-   (use your own public key file).  Without one of them you cannot log in at all:  the serial
-   console (section 4) asks for the same root password.  Once logged in, you can set your own root
-   password with passwd.
+   (use your own public key file).  Without one of them you cannot log in over ssh.  The serial
+   console (section 4) logs in as root by itself, with no password.  Once logged in, you can set
+   your own root password with passwd.
 
    Agents:  use the key, installed for root as above.  Use the public key of the account you run as
    (~/.ssh/id_ed25519.pub);  if there is none, make one first (no passphrase, so you can log in
@@ -117,12 +138,14 @@ f) Write everything to the card and unmount it:
       eth0 MAC:    9c:95:6e:c3:bf:ac eth0 IPv4:   10.42.0.175/24
 
     Boot on the network, wait two minutes, power down (ask the person), and read last-boot.txt from
-    partition 1 of the card.  "none" means the network gave no DHCP address.
+    partition 1 of the card.  "none" means the network gave no DHCP address.  On a running PACMAN,
+    partition 1 is mounted at /run/media/BOOT-mmcblk0p1.
   - The DHCP server's leases, by the MAC address (from last-boot.txt, or the newest lease after
     power up;  with NetworkManager's shared mode:  the dnsmasq leases under
-    /var/lib/NetworkManager/).  A DHCP reservation for the MAC address keeps the address fixed.
+    /var/lib/NetworkManager/, readable by root only).  A DHCP reservation for the MAC address keeps
+    the address fixed.
   - The serial console (section 4):  the boot messages show the MAC (the boot loader's  MAC:  line);
-    after logging in, ip addr show eth0 shows the address.  The login needs the root password.
+    the console then logs in as root by itself, and ip addr show eth0 shows the address.
   - A Trenz carrier board with a USB serial console:  boot the Trenz module there first (with the SD
     card in the carrier's slot), find its address and MAC address, then move the module and the card
     to the PACMAN.  The MAC address belongs to the module, so the address and any DHCP reservation
@@ -142,6 +165,10 @@ a) With the board powered off, insert the card in the PACMAN's microSD slot (on 
    hard-wired to boot from the SD card:  there is no boot switch to set.  The boot loader loads the
    FPGA firmware and image.ub from partition 1, and Linux mounts partition 2 as its root file
    system.  Boot takes about a minute;  the PACMAN command and data servers start by themselves.
+   The first boot also finishes installing the PACMAN applications (their start-up links):  let it
+   complete before powering off.
+   On the console, the first boot may print "udhcpc: no lease, forking to background" before the
+   address arrives:  harmless.
 
 b) Log in:
 
@@ -164,8 +191,14 @@ d) Check the Linux system:
    TFTP transfer test is skipped (it needs a TFTP server on the network).  Any FAIL line is a
    problem to report.
 
-e) The servers:  /etc/init.d/pacman_server start|stop|restart.  pacman_menu and pacman_hwcheck use
-   the same hardware as the servers:  stop the servers first, and start them again afterwards.
+e) The servers:  /etc/init.d/pacman_server start|stop|restart.  Over a non-interactive ssh, give
+   ssh -n (e.g.  ssh -n root@<address> /etc/init.d/pacman_server start):  otherwise the session
+   waits on the servers it started and does not return.
+   - pacman_menu runs beside the servers.  Stop pacman_dataserver only when the menu reads packets
+     from the RX DMA (RX tests):  the data server would take them first.
+   - pacman_fwcheck and pacman_hwcheck:  stop the servers first, and start them again afterwards.
+     With the servers running, pacman_fwcheck leaves most requirements not checked and reports
+     VERDICT INCOMPLETE.
 
 ========================================
 4) Serial console and JTAG (test stands)
@@ -178,7 +211,8 @@ adapter) on it. On a Linux computer the adapter appears as two serial devices, u
 (JTAG) and /dev/ttyUSB1 (UART).  Do not run FTDI's EEPROM tools on the TE0790:  they erase its JTAG
 license.
 
-- Serial console:  115200 baud, 8N1, e.g.
+- Serial console:  115200 baud, 8N1, with any serial terminal (microcom, screen, minicom, pyserial;
+  sudo only if the device is not open to your account), e.g.
 
     $ sudo microcom -s 115200 /dev/ttyUSB1
 
@@ -285,11 +319,17 @@ f) Pedestals:  periodic triggers, self-triggering masked:
 
    $ python enable_pedestal_5x5.py
 
-   prints "<key>  pedestal enabled: True" for each of the 25 chips.  Then record 60 s:
+   prints "<key>  pedestal enabled: True" for each of the 25 chips.  Then record 60 s, into the
+   directory data (not in the clone:  make it first):
 
+   $ mkdir -p data
    $ python record_data.py --runtime 60 --tag pedestal
 
-   It writes data/pedestal-packet-<date>_<zone>.h5.  Plot the pixel mean and RMS:
+   Without the directory, record_data.py fails to write its file and then hangs:  stop it with
+   Ctrl-C, make the directory and record again.
+
+   It writes data/pedestal-packet-<date>_<zone>.h5 (it prints the name as data//pedestal-...:  the
+   same file).  Plot the pixel mean and RMS:
 
    $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric mean
    $ python plot_metric.py --filename data/pedestal-packet-<date>_<zone>.h5 --metric std
@@ -303,7 +343,9 @@ g) Power the tile off at the end:
 
    $ python power_off.py --pacman_tile 1
 
-   It prints every tile at 0 mV.
+   Its readback right after switching off may still show tile 1 near 1 V;  read again a second
+   later (python read_power.py):  every tile at 0 mA, and near 0 mV (tile 1 VDDA may stay at a few
+   tens of mV).
 
 Notes:
 
@@ -314,3 +356,6 @@ Notes:
 - In larpix-control's PACMAN_IO, the helpers for tile power and enables (set_vddd, set_vdda,
   enable_tile) still use hijinks addresses:  use the larpix-5x5-test scripts for board control.
 - One command server request holds at most 16000 words;  larger requests are refused with an error.
+- Your own analysis of the h5 files:  data packets have packet_type 1 (as plot_metric.py uses).
+- Harmless messages:  a Python 3.12 DeprecationWarning about os.fork() in a multi-threaded process
+  from every larpix script;  "xilinx-vdma ... failed to get irq" in the PACMAN's boot messages.
