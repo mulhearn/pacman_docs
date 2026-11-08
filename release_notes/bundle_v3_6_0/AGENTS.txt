@@ -257,9 +257,9 @@ firmware-dev-v3_6_<X>.tar.gz, which writes ./firmware-dev, and follow ./firmware
 =============================================================
 
 From a booted PACMAN (sections 1-3) to pedestals on a LArPix v3 5x5 tile on PACMAN tile 1 (io
-channels 1-4), with the zipline-hw1v5 branches of larpix-control and larpix-5x5-test (Bruno Gelli's
-zipline work, with fixes for PACMAN 1v5).  MIGRATION.txt is the short version, with what changes
-from legacy and hijinks.  This runs on the DAQ computer (any Linux computer on the PACMAN's
+channels 1-4;  a single-chip card:  h), with the zipline-hw1v5 branches of larpix-control and
+larpix-5x5-test (Bruno Gelli's zipline work, with fixes for PACMAN 1v5).  MIGRATION.txt is the short
+version, with what changes from legacy and hijinks.  This runs on the DAQ computer (any Linux computer on the PACMAN's
 network), not on the PACMAN.
 
 a) The repositories, at the commits tested with this release:
@@ -267,9 +267,9 @@ a) The repositories, at the commits tested with this release:
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-control.git
    $ git -C larpix-control checkout dfef53b
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-5x5-test.git
-   $ git -C larpix-5x5-test checkout 7480eed
+   $ git -C larpix-5x5-test checkout aca8eec
 
-   Check:  git -C larpix-control log -1 --format=%h  prints dfef53b, and 7480eed for
+   Check:  git -C larpix-control log -1 --format=%h  prints dfef53b, and aca8eec for
    larpix-5x5-test.
 
 b) A Python environment (Python 3.9 or newer) of your choice;  a venv here (no sudo needed):
@@ -347,10 +347,19 @@ g) Power the tile off at the end:
    later (python read_power.py):  every tile at 0 mA, and near 0 mV (tile 1 VDDA may stay at a few
    tens of mV).
 
+h) A single-chip card on PACMAN tile 1 instead of the 5x5:  d) as above (power), then in place of e)
+   and f)'s network_5x5.py and enable_pedestal_5x5.py:
+
+   $ python network_single_chip_pedestal.py --pacman_tile 1
+
+   It configures chip 11 (io channel 1) and enables its pedestals:  it prints "1-1-11 True" and
+   "1-1-11  pedestal enabled: True".  Then record_data.py and the two plot_metric.py commands as in
+   f), and power the tile off as in g).  Tested on the UC Davis 5x5 with chip 11 alone (2026-11-07):
+   64 channels, 162 packets each in 60 s, ADC mean around 265, RMS around 13 (chip 11 is that tile's
+   noisiest chip), channel 31 stuck at 721 (RMS 0).
+
 Notes:
 
-- A single-chip card instead of the 5x5:  python network_single_chip_pedestal.py --pacman_tile 1
-  configures chip 11 for pedestals;  then record_data.py and plot_metric.py as in f).
 - Self-triggering at a low global threshold on a pixel tile can saturate a UART with one chip's
   hits: the replies to register reads are then lost.  Keep to the pedestal steps above unless asked.
 - In larpix-control's PACMAN_IO, the helpers for tile power and enables (set_vddd, set_vdda,
