@@ -40,8 +40,9 @@ Repository & Branch & State \\
 \midrule
 \h{mulhearn/pacman-firmware} & \br{zipline-2023.2} & tag \br{v3.6} (a85681c, the release); branch at aaa46c1
   (bump to 3.7, candidate), also \br{working-on-3.7-zipline-2023.2} \\
-\h{mulhearn/pacman-software} & \br{zipline-2023.2} & tags \br{v3.6.0} (94e3f01) and \br{v3.6.1} (90d4e19); branch
-  at 90677a7 (bump to 3.6.2, candidate), also \br{working-on-v3.6.2-zipline-2023.2} \\
+\h{mulhearn/pacman-software} & \br{zipline-2023.2} & tags \br{v3.6.0} (94e3f01), \br{v3.6.1} (90d4e19),
+  \br{v3.6.2} (2c079c8) and \br{v3.6.3} (e9b21cf); branch at 54fee11 (bump to 3.6.4, candidate), also
+  \br{working-on-v3.6.4-zipline-2023.2} \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -121,6 +122,12 @@ LUTs (76.7\%).  The release still holds a VIO (109 LUTs) and the Vivado debug hu
   new server from \h{/tmp}, then the candidate tarball \h{pacman-apps-v3\_6\_3-candidate.tar.gz} 82fd5296
   installed at \h{/} and rebooted):  256, 2000 and 16000 reads in one request exact, refusals answered with ERR,
   the server up after each;  the TX timeout path not exercised.
+\item Software 3.6.3 (e9b21cf, release commit, 2026-11-07):  the command server TX path above, data server threads
+  pinned (main on cpu0, ZMQ I/O on cpu1, by inheritance), \h{pacman\_zmqbench}, \h{pacman\_boot} (address at boot in
+  \h{last-boot.txt}), the logic analyzer and ADC capture setups in the menus, the test-DAC sawtooth in
+  \h{pacman\_hwcheck -{}-adc} and \h{pacman\_capture}.  Michael's production build:  \h{pacman-apps-v3\_6\_3.tar.gz}
+  a162f6c6, root filesystem ee45ef7a, \h{firmware-dev-v3\_6\_3} 8c0ab6b1;  the 3.6.0 images unchanged.  Bundle
+  \h{bundle-v3.6.0} with 3.6.3;  migration notes with a single-chip section (tested on the 5x5, chip 11 alone).
 \item Point releases confined to \h{pacman-apps} ship only its tarball, no new images.  The bundle
   (Michael's \h{bundle-v3.6.0}) is named for the firmware: the 3.6.0 images (\h{BOOT.BIN} 801a5711,
   \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12), the 3.6.1 root filesystem 48e50939, \h{pacman-apps-v3\_6\_1}
