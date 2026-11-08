@@ -249,6 +249,42 @@ Date & Board & Result \\
 \end{tabularx}
 \end{center}
 
+\section{Hydra strands on the 5x5}
+
+Single hydra on the 5x5 (2026-11-07, Michael's scope:  are larpix-lib's configurations sufficient?).  The
+UC Davis 5x5 tile on PACMAN tile 1, the 1v5 on software 3.6.3;  \h{demos/hydra\_5x5.py}:  one power-up and full
+reset, each strand configured root outward, every register written read back, then 10\,s of pedestals.  The
+roots take larpix-lib's own fragments;  every other chip also \h{init\_link\_5x5} (network\_5x5.py's link settings,
+on all four ports, since \h{init\_io} has no port).  Hydra files \h{config/hydra/5x5\_io1}--\h{4.yaml} (rows;  row 5
+south of 41) and \h{5x5\_one\_strand.yaml} (row 1 east from 11, each column south from it).
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lL}
+\toprule
+Step & Result \\
+\midrule
+5 chips, row 11--15, io channel 1 & configured;  pedestals about 100 packets/s on every chip \\
+25 chips, one strand from 11 & configured in 0.3\,s;  420 of 422 reads match;  pedestals about 100/s on all 25 \\
+25 chips, four roots, io channels 1--4 & pedestals about 100/s on all 25 (chip 13:  87);  1--2 reads missed per strand \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Findings:
+\begin{itemize}
+\item \h{pedestal\_channels} (channel mask 0) leaves every channel's own trigger on:  on the pixel tile chip 11 sent
+  140\,000 packets/s and saturated its UART.  \h{pedestal\_channels\_5x5} masks them (channel mask 1, periodic
+  trigger mask 0, global threshold 255), as \h{enable\_pedestal\_5x5.py}.
+\item With VDDA off (as \h{pedestal.py} writes the pedestal fragments) the root takes writes, the chips beyond it
+  do not:  writes are not passed from chip to chip.  \h{hydra\_5x5.py} keeps VDDA on.
+\item Register dumps against network\_5x5.py (chips 11--13):  larpix-lib leaves \h{i\_rx\_clk}, \h{i\_rx\_rst},
+  \h{i\_rx\_ext\_trig} at 0 and \h{reset\_threshold} at 255, the chips' power-on values (the spec's reset values:
+  2, 2, 2, 0);  larpix-control writes every register (3, 3, 3, 0).  Configuration and pedestals work either way.
+\end{itemize}
+Open:  in the readback batch, the chip ID read of a root or its first child sometimes has no reply (once
+\h{0x04}), and the farthest chip's last read can time out;  the same reads alone always answer.  The data server
+quit three times during the session;  restarting both servers brought it back each time.
+
 \section{Student work}
 
 David Yang (\h{dy241/larpix-lib}, 2026-06 to 08), each part as his own commit, authored with his GitHub no-reply
