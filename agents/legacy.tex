@@ -8,6 +8,7 @@
 \usepackage{longtable}
 \usepackage{enumitem}
 \usepackage{array}
+\usepackage{upquote}
 \usepackage[hidelinks]{hyperref}
 
 \setlist{itemsep=1pt,topsep=3pt}
@@ -18,7 +19,7 @@
 \title{PACMAN Legacy Firmware (1.X)\\[2pt]
   \large Branches, build steps and bitwise reproduction}
 \author{Maintained by the PACMAN agents (augie)}
-\date{2026-11-02}
+\date{2026-11-08}
 
 \begin{document}
 \maketitle
@@ -51,8 +52,9 @@ by their first eight hex digits.
   \end{itemize}
 \item Superseded side lines, which change nothing on the main lines, are recorded on two \emph{excursions}
   branches, firmware and software.
-\item Branches under review are named \br{working-on-}\emph{name} until they are frozen (renamed without the
-  prefix and tagged); they may be rewritten only until then.
+\item The layout is frozen (2026-11-08):  the branches lost their \br{working-on-} prefix, every built state has an
+  annotated tag, and the archive branch \br{legacy-archive-2026} holds all of it (Section~\ref{sec:archive}).
+  Nothing on it is rewritten.
 \item A checker (\h{check-legacy-hw1vN.sh}, run on fresh clones) enforces the layout: each spine ends at its
   historic tip with the original hashes and is followed by exactly the listed new commits, the build steps change
   only build scripts, the excursions never change the tree, and commit messages cite only commits on the spines.
@@ -71,7 +73,8 @@ Branch & Tip & Historic tip & New at the tip \\
 \br{legacy-software-excursions} & 4a27ae1 & (2425e67) & three record merges \\
 \bottomrule
 \end{tabularx}
-\caption{The legacy branches (2026-10-31).}
+\caption{The legacy line branches (2026-10-31).  Each is the second parent of a merge on
+\br{legacy-archive-2026}.}
 \end{table}
 
 The first commit of all of them is 0b9bee4 (2019-11-16, the Trenz TE0720 skeleton).  Zipline shares only that
@@ -200,9 +203,73 @@ reference: LBNL 1v5\_20240810A\_ucd\_rot8 \\
 \end{longtable}
 
 Every bitstream above except ``74'' was built once more from a fresh clone of the repository with its own scripts,
-bitwise (finished 2026-11-02).  Pending: the tags without an artifact (v1.3-0.0 to 0.3, v1.3-1.0, v1.4-0.0) built once and
-their bodies recorded; v1.3-1.0 and v1.3-0.3 compared with 60209db9, the bitstream of a 2022-10-31 BOOT.BIN found
-deleted on the 2x2 run-1 SD card, which would give the 1v3 line its release reference.
+bitwise (finished 2026-11-02).  The release tags without a released bitstream were each built once from a fresh
+clone as committed (Vivado 2018.3, 2026-11-03 to 05), and their bodies recorded:
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Tag & Commit & Body \\
+\midrule
+v1.3-0.0 & a10a44a & 17392858 \\
+v1.3-0.1 & e26918e & 7b70edb5 \\
+v1.3-0.2 & 1dfc351 & 7b70edb5 (no firmware change from v1.3-0.1) \\
+v1.3-0.3 & 2099d0d & 6f00801f \\
+v1.3-1.0 & 501180f & fdda3a17 \\
+v1.4-0.0 & 4532a23 & 5aeadbf0 \\
+\bottomrule
+\end{tabular}
+\caption{Release tags built from the repository, with no released bitstream to compare with.}
+\end{table}
+
+Neither v1.3-0.3 nor v1.3-1.0 matches 60209db9, the bitstream of a 2022-10-31 BOOT.BIN found deleted on the 2x2 run-1
+SD card, so the 1v3 line has no release reference.
+
+\section{The archive and its tags}\label{sec:archive}
+
+The branch \br{legacy-archive-2026} (pushed 2026-11-08) is the historical record of the legacy firmware and software.
+Development has ended.  Its first-parent history is a root commit, one merge per line, and a final commit, and every
+one of them holds only a \h{README.md}:  the merges change no files, each line comes in whole as the merge's second
+parent with its original hashes.  The README describes the merges and how to get each line back.
+
+\begin{table}[h]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}llllL@{}}
+\toprule
+Merge & Line & Tip & Suggested local branch & Tags \\
+\midrule
+f3584fe & hw1v3 & 9fbc1dc & \br{legacy-hw1v3} & v1.3-0.0 to 0.3, v1.3-1.0, 893, 883 \\
+df51664 & hw1v4 & d08d199 & \br{legacy-hw1v4} & v1.4-0.0, v1.4-0.2, 894 \\
+c119fd5 & hw1v5 & 7062e17 & \br{legacy-hw1v5} & syncfix, rot8 \\
+1169b63 & firmware excursions & d5fd1c7 & \br{legacy-firmware-excursions} & \\
+4482068 & software excursions & 4a27ae1 & \br{legacy-software-excursions} & \\
+\bottomrule
+\end{tabularx}
+\caption{The merges on \br{legacy-archive-2026} (tip f2c89c6).}
+\end{table}
+
+\begin{verbatim}
+git log --first-parent legacy-archive-2026     # the merges
+git branch legacy-hw1v3 f3584fe^2              # one line back (= legacy/hw1v3/883)
+\end{verbatim}
+
+The twelve tags are annotated and named \h{legacy/<board>/<state>}:  \h{legacy/hw1v3/v1.3-0.0} to
+\h{legacy/hw1v3/v1.3-1.0}, \h{legacy/hw1v3/893}, \h{legacy/hw1v3/883}, \h{legacy/hw1v4/v1.4-0.0},
+\h{legacy/hw1v4/v1.4-0.2}, \h{legacy/hw1v4/894}, \h{legacy/hw1v5/syncfix} and \h{legacy/hw1v5/rot8}.  The 893, 894
+and SYNC FIX tags sit on their build steps, the commits that build.  Each annotation gives the commit, the toolchain and
+build commands, the configuration body, the result (bitwise against its reference, or built only), the SHA-256 of
+the bitstream and hardware description, and the date of the build from a fresh clone.  The older states (v0.0 to
+v1.2b-0.1) were never built and carry no tag.  The larpix lightweight tags \h{v1.x} exist only in \h{larpix/pacman}.
+
+\begin{verbatim}
+git tag --merged legacy-archive-2026                       # every tag on the archive
+git tag -l --format='%(contents)' legacy/hw1v4/v1.4-0.2    # one tag's annotation
+git checkout legacy/hw1v4/v1.4-0.2                         # the state, ready to build
+\end{verbatim}
+
+The layout checker reads the lines from the archive's merges and also checks the archive itself:  every first-parent
+commit holds only the README, five merges, twelve annotated tags in place.
 
 \section{Conventions}
 
@@ -215,7 +282,7 @@ deleted on the 2x2 run-1 SD card, which would give the 1v3 line its release refe
   without behavior change; each records its bitwise result in its message.
 \end{itemize}
 
-\section{Old branches}
+\section{Old branches}\label{sec:old}
 
 Deleted on 2026-10-31, after a check that every commit they held is reachable from a kept branch or tag, or has its
 tree there: \br{legacy-firmware-historic}, \br{working-on-legacy-firmware-buildable} (the earlier design with
@@ -227,8 +294,12 @@ which equal 2425e67's.  Six further branches (the 2020.2 GPIO-only hwcheck, the 
 
 \section{Still open}
 
-The branches were renamed without \br{working-on-} on 2026-11-08.  Freezing still needs annotated tags on every state of interest, each
-carrying its build result (toolchain, how it builds, configuration body and build-product hashes), under a prefix
-of our own; a single \br{legacy} branch merging the line branches is under discussion.
+\begin{itemize}
+\item Deleting the five line branches from \h{mulhearn/pacman}, now that the archive holds them, after the deletion
+  checks (the checker on a fresh clone, every commit reachable from \br{legacy-archive-2026}).
+\item The six further branches of Section~\ref{sec:old} and two more (\br{hw-demo-2023.2}, the default branch, and
+  \br{working-on-zipline-3v5}), all from the zipline era before \h{pacman-firmware} and \h{pacman-software}.
+\item ``74'' and 60209db9, not reproduced.
+\end{itemize}
 
 \end{document}
