@@ -8,6 +8,7 @@
 \usepackage{longtable}
 \usepackage{enumitem}
 \usepackage{array}
+\usepackage{upquote}
 \usepackage[hidelinks]{hyperref}
 
 \setlist{itemsep=1pt,topsep=3pt}
@@ -18,7 +19,7 @@
 \title{PACMAN Hijinks Firmware and Software (2.X)\\[2pt]
   \large Branches, releases and bitwise reproduction}
 \author{Maintained by the PACMAN agents (augie)}
-\date{2026-10-31}
+\date{2026-11-08}
 
 \begin{document}
 \maketitle
@@ -42,7 +43,11 @@ body (first eight hex digits quoted).
 \item \br{hijinks-software} (af73a4b): the 2024 pacman-server history as committed (server 2.1 to 2.7,
   2024-10-02 to 11-08), unchanged, linear.
 \end{itemize}
-Both will be superseded by a single hijinks branch of release bundles (under discussion) and then deleted.
+Both stay as they are, writable for new releases.  On GitHub a repository ruleset forbids force pushes and deletion
+on both (2026-11-08), so the history the reproductions cite cannot change.  A release bundle is a pair of tags
+(Section~\ref{sec:tags}):  the firmware and the server it ships.  No combined branch:  both lines are linear, and the
+PetaLinux leg of the firmware releases is of no use (\h{packaging/} on \br{hijinks-software} holds the SYNC FIX
+bitstream throughout, the BOOT.BINs were assembled outside the repository).
 
 \subsection{Firmware versions}
 
@@ -143,14 +148,43 @@ result equals the release in every byte.  The release commits of 2.2 and 2.5, ea
 were pinned by the tarballs' file times (a minute or two after 85436ea and ea74a01) and confirmed by the match.
 The servers in the bundles' rootfs images are the tarballs', so every released hijinks server is covered.
 
+\section{Tags}\label{sec:tags}
+
+Every released firmware and server carries an annotated tag (2026-11-08), read-only on GitHub through a second
+ruleset.  Each annotation gives the commit, the build recipe, the result (bitwise against the release), the release
+bundles that used it, and for the firmware the SHA-256 of the bitstream and hardware description.  Every firmware
+version was built once more from a fresh clone of the repository (2026-11-01 and 02), bitwise.
+
+\begin{table}[h]
+\centering\footnotesize
+\begin{tabular}{@{}lll@{\qquad}lll@{}}
+\toprule
+Firmware tag & Commit & Body & Server tag & Commit & Link order \\
+\midrule
+\h{hijinks/hw1v5/fw-2.1} & b163935 & f87eb690 & \h{hijinks/hw1v5/server-2v1} & dcdbc71 & without chan\_map \\
+\h{hijinks/hw1v5/fw-2.2} & d70db3c & 1431d8cb & \h{hijinks/hw1v5/server-2v2} & 85436ea & with chan\_map \\
+\h{hijinks/hw1v5/fw-2.7} & 96d41a0 & 6ba3a82a & \h{hijinks/hw1v5/server-2v4} & 2f6f6bf & with chan\_map \\
+\h{hijinks/hw1v5/fw-2.8} & 4b463da & c4a85eb2 & \h{hijinks/hw1v5/server-2v5} & ea74a01 & with chan\_map \\
+\h{hijinks/hw1v5/fw-2.9} & e250cfd & 0be6948d & \h{hijinks/hw1v5/server-2v7} & af73a4b & with chan\_map \\
+\h{hijinks/hw1v5/fw-2.10} & da3f75c & ede22a64 & & & \\
+\bottomrule
+\end{tabular}
+\caption{The hijinks tags.}
+\end{table}
+
+\begin{verbatim}
+git tag -l 'hijinks/*'                                  # every hijinks tag
+git tag -l --format='%(contents)' hijinks/hw1v5/fw-2.8  # one tag's annotation
+git checkout hijinks/hw1v5/server-2v7                   # the state, ready to build
+\end{verbatim}
+
+The bundle table (each bundle's firmware tag, server tag and artifact hashes) is also kept with the artifacts, as
+\h{HIJINKS.md} in \h{mulhearn/pacman\_releases}.  A new release adds a tag and a row in both.
+
 \section{Still open}
 
 \begin{itemize}
-\item Every firmware version built once more from a fresh clone of the repository.
-\item One hijinks branch of release bundles: one commit per release, each a real merge of the firmware and
-  software it brings in, confirmed by a tree check against the proven trees; annotated tags carrying each build
-  result; a committed table of how each server was reproduced (commit, link order, build path, hashes).
-\item Validation of 2.10 with the hardware loopback card at 5 and 10 MHz.
+\item Validation of 2.10 with the hardware loopback card at 5 and 10 MHz (tabled).
 \end{itemize}
 
 \end{document}
