@@ -228,7 +228,9 @@ Test & Checks & Needs \\
   $\pm$20\% each (link alive). & 1 kHz TTL on both (tee) \\
 \opt{ana\_mon} & Each tile in turn: its clock on the analog monitor, into the ADC (100\,$\Omega$), then from the
   front panel through the MUX loop resistors (series, swapped, divider P, divider N). & ATC test card \\
-\opt{adc} & ADC registers; the test DAC into the ADC through the MUX, directly and through both series loops. &
+\opt{adc} & ADC registers; the test DAC into the ADC through the MUX, directly and through both series loops;
+  a 32-step test-DAC sawtooth captured by the ADC (comparator trigger), left in the buffer for
+  \texttt{pacman\_capture -{}-dump-scope}. &
   -- \\
 \opt{blink} & The Trenz red LED, then PACMAN LED-0 to LED-3, in turn; the operator watches. & operator \\
 \opt{sma} & The MUX puts R28 across the SMA jacks J1001 (P) and J14 (N): 100\,$\Omega$ $\pm$20\% on a DMM (the
@@ -288,6 +290,8 @@ Front-panel SMAs & R28 through the MUX on a DMM: 100\,$\Omega$ $\pm$20\% (113\,$
   switches included) & set; operator reading \\
 Onboard ADC & emulator ramp without bad steps; DAC-step captures within 8 codes of LOOK & readings recorded;
   limits \tbd{} \\
+ADC sawtooth & at least 3 full ramps, no step back (32-sample block means, 16 DN);  calibration within 5\% of
+  2.048 DN/mV;  fit residual at most 50 DN (DAC 0 excluded) & set (2.02 DN/mV, residual 36--41 DN on the 1v5) \\
 I2C bus & stress sweeps over every device without error & set \\
 LEDs & operator watches & set \\
 J5 & read back; installed: only \opt{read\_only} runs & set; installed J5 not yet tested \\
