@@ -36,10 +36,10 @@ body (first eight hex digits quoted).
 \section{Branches}
 
 \begin{itemize}
-\item \br{working-on-hijinks-firmware} (da3f75c): firmware only, linear, on the SYNC FIX build step of the hw1v5
+\item \br{hijinks-firmware} (da3f75c): firmware only, linear, on the SYNC FIX build step of the hw1v5
   legacy line (3155d4a), so every commit builds by construction.  Each 2.X version is one commit restored from its
   project archive, with the SYNC FIX build fixes applied to the archive's exported block design the same way.
-\item \br{working-on-hijinks-software} (af73a4b): the 2024 pacman-server history as committed (server 2.1 to 2.7,
+\item \br{hijinks-software} (af73a4b): the 2024 pacman-server history as committed (server 2.1 to 2.7,
   2024-10-02 to 11-08), unchanged, linear.
 \end{itemize}
 Both will be superseded by a single hijinks branch of release bundles (under discussion) and then deleted.
@@ -114,7 +114,7 @@ Server & Commit & \h{pacman\_cmdserver} & \h{pacman\_dataserver} & Shipped in \\
 \bottomrule
 \end{tabular}
 \caption{The released server binaries (SHA-256, first eight hex digits), each reproduced bitwise from its commit on
-  \br{working-on-hijinks-software}.}\label{tab:servers}
+  \br{hijinks-software}.}\label{tab:servers}
 \end{table}
 
 \section{Reproducing the server}

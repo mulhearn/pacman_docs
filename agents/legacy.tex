@@ -64,11 +64,11 @@ by their first eight hex digits.
 \toprule
 Branch & Tip & Historic tip & New at the tip \\
 \midrule
-\br{working-on-legacy-firmware-hw1v3} & 9fbc1dc & 501180f & 893 snapshot, build step, 883 snapshot \\
-\br{working-on-legacy-firmware-hw1v4} & d08d199 & 21019ee & 894 (two commits), build step \\
-\br{working-on-legacy-firmware-hw1v5} & 7062e17 & 2425e67 & SYNC FIX build step, build option rot8 \\
-\br{working-on-legacy-firmware-excursions} & d5fd1c7 & (2425e67) & three record merges \\
-\br{working-on-legacy-software-excursions} & 4a27ae1 & (2425e67) & three record merges \\
+\br{legacy-firmware-hw1v3} & 9fbc1dc & 501180f & 893 snapshot, build step, 883 snapshot \\
+\br{legacy-firmware-hw1v4} & d08d199 & 21019ee & 894 (two commits), build step \\
+\br{legacy-firmware-hw1v5} & 7062e17 & 2425e67 & SYNC FIX build step, build option rot8 \\
+\br{legacy-firmware-excursions} & d5fd1c7 & (2425e67) & three record merges \\
+\br{legacy-software-excursions} & 4a27ae1 & (2425e67) & three record merges \\
 \bottomrule
 \end{tabularx}
 \caption{The legacy branches (2026-10-31).}
@@ -227,7 +227,7 @@ which equal 2425e67's.  Six further branches (the 2020.2 GPIO-only hwcheck, the 
 
 \section{Still open}
 
-Freezing (the branches renamed without \br{working-on-}), and annotated tags on every state of interest, each
+The branches were renamed without \br{working-on-} on 2026-11-08.  Freezing still needs annotated tags on every state of interest, each
 carrying its build result (toolchain, how it builds, configuration body and build-product hashes), under a prefix
 of our own; a single \br{legacy} branch merging the line branches is under discussion.
 
