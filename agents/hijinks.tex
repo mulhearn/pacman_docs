@@ -181,10 +181,13 @@ git checkout hijinks/hw1v5/server-2v7                   # the state, ready to bu
 The bundle table (each bundle's firmware tag, server tag and artifact hashes) is also kept in the repository, as
 \h{README.md} at the tip of \br{hijinks-firmware}.  A new release adds a tag and a row there.
 
-\section{Still open}
+\section{Status}
 
-\begin{itemize}
-\item Validation of 2.10 with the hardware loopback card at 5 and 10 MHz (tabled).
-\end{itemize}
+Done (2026-11-08), and this note is no longer kept up to date.  Hijinks itself stays live:  a new release goes on
+\br{hijinks-firmware} or \br{hijinks-software} as an ordinary commit, with its tag and a row in the README at the tip of
+\br{hijinks-firmware}.  The validation of 2.10 with the hardware loopback card was dropped (if ever needed, it is
+checked then).  The rest of \h{mulhearn/pacman} is archived alongside:  \br{legacy-archive-2026} (legacy),
+\br{zipline-archive} and \br{zipline-working-archive} (zipline before the move to \h{pacman-firmware} and
+\h{pacman-software}), and \br{origins-archive} (the 2024 experiments that led to zipline), all read-only.
 
 \end{document}
