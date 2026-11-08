@@ -74,7 +74,8 @@ Branch & Tip & Historic tip & New at the tip \\
 \bottomrule
 \end{tabularx}
 \caption{The legacy line branches (2026-10-31).  Each is the second parent of a merge on
-\br{legacy-archive-2026}.}
+\br{legacy-archive-2026}.  Deleted from \h{mulhearn/pacman} on 2026-11-08, they are recovered from the archive
+(Section~\ref{sec:archive}).}
 \end{table}
 
 The first commit of all of them is 0b9bee4 (2019-11-16, the Trenz TE0720 skeleton).  Zipline shares only that
@@ -269,7 +270,9 @@ git checkout legacy/hw1v4/v1.4-0.2                         # the state, ready to
 \end{verbatim}
 
 The layout checker reads the lines from the archive's merges and also checks the archive itself:  every first-parent
-commit holds only the README, five merges, twelve annotated tags in place.
+commit holds only the README, five merges, twelve annotated tags in place.  The archive and the tags are read-only on
+GitHub (2026-11-08):  two repository rulesets forbid updates, force pushes and deletion of \br{legacy-archive-2026} and
+of every \h{legacy/} tag.
 
 \section{Conventions}
 
@@ -292,14 +295,11 @@ with a tree of its own is the first 2.8 restore (61e2fa4): the kept 2.8 plus the
 which equal 2425e67's.  Six further branches (the 2020.2 GPIO-only hwcheck, the 2024 v1.5 reorganization, the
 2020.2 and 2023.2 hardware demos, a 3v4 driver fixup) are under discussion.
 
-\section{Still open}
+\section{Status}
 
-\begin{itemize}
-\item Deleting the five line branches from \h{mulhearn/pacman}, now that the archive holds them, after the deletion
-  checks (the checker on a fresh clone, every commit reachable from \br{legacy-archive-2026}).
-\item The six further branches of Section~\ref{sec:old} and two more (\br{hw-demo-2023.2}, the default branch, and
-  \br{working-on-zipline-3v5}), all from the zipline era before \h{pacman-firmware} and \h{pacman-software}.
-\item ``74'' and 60209db9, not reproduced.
-\end{itemize}
+Done (2026-11-08).  The five line branches were deleted from \h{mulhearn/pacman} after the deletion checks (the
+checker on a fresh clone, every commit reachable from \br{legacy-archive-2026}).  ``74'' and 60209db9 remain
+unreproduced, and ``74'' is left to Armin to follow up if possible.  The other branches still in \h{mulhearn/pacman}
+belong to hijinks and to the zipline era before \h{pacman-firmware} and \h{pacman-software}, outside this note.
 
 \end{document}
