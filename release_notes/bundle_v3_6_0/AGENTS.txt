@@ -267,9 +267,9 @@ a) The repositories, at the commits tested with this release:
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-control.git
    $ git -C larpix-control checkout dfef53b
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-5x5-test.git
-   $ git -C larpix-5x5-test checkout aca8eec
+   $ git -C larpix-5x5-test checkout 69c5f6d
 
-   Check:  git -C larpix-control log -1 --format=%h  prints dfef53b, and aca8eec for
+   Check:  git -C larpix-control log -1 --format=%h  prints dfef53b, and 69c5f6d for
    larpix-5x5-test.
 
 b) A Python environment (Python 3.9 or newer) of your choice;  a venv here (no sudo needed):
