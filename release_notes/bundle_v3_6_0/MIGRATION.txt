@@ -42,7 +42,7 @@ The two repositories, at the commits tested with this release (Python 3.9 or new
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-control.git
    $ git -C larpix-control checkout dfef53b
    $ git clone -b zipline-hw1v5 https://github.com/mulhearn/larpix-5x5-test.git
-   $ git -C larpix-5x5-test checkout aca8eec
+   $ git -C larpix-5x5-test checkout 69c5f6d
 
 A Python environment of your choice with larpix-control and what the scripts need;  a venv here:
 
