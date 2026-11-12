@@ -305,7 +305,7 @@ interface via AXI-Lite.
   \centering
   \includegraphics[width=0.68\paperwidth, keepaspectratio]{timing_diagrams/single_write.pdf}
 \caption{Single REGBUS write request (output of ghdl testbench)}
-\label{fig:single-read}
+\label{fig:single-write}
 \end{figure}
 
 Access to registers in the PL firmware is done via a simple custom
@@ -365,7 +365,8 @@ Timing     & 0{\rm x}E         & 0b1110 \\
 ADC        & 0{\rm x}D         & 0b1101 \\
 TX         & 0{\rm x}4-0{\rm x}7     & 0b01XX \\
 RX         & 0{\rm x}0-0{\rm x}3     & 0b00XX \\
-(Reserved) & 0{\rm x}8-0{\rm x}C     & 0b1000-0b1100 \\
+LA         & 0{\rm x}C         & 0b1100 \\
+(Reserved) & 0{\rm x}8-0{\rm x}B     & 0b1000-0b1011 \\
 \hline
 \end{tabular} \\
 \end{center}
@@ -392,13 +393,14 @@ SCRATCH\_A  & 0xF020 & RW \\
 SCRATCH\_B  & 0xF024 & RW \\
 FIRMWARE\_MAJOR   & 0xFF10 & RO \\
 FIRMWARE\_MINOR   & 0xFF14 & RO \\
-FIRMWARE\_LETTER  & 0xFF18 & RO \\
+FIRMWARE\_PATCH   & 0xFF18 & RO \\
 HARDWARE\_MAJOR   & 0xFF20 & RO \\
 HARDWARE\_MINOR   & 0xFF24 & RO \\
-HARDWARE\_LETTER  & 0xFF28 & RO \\
+HARDWARE\_PATCH   & 0xFF28 & RO \\
 SYNTHESIS\_DATE   & 0xFF30 & RO \\
 GIT\_HASH\_UPPER   & 0xFF40 & RO \\
 GIT\_HASH\_LOWER   & 0xFF44 & RO \\
+BUILD\_FLAGS      & 0xFF48 & RO \\
 VIVADO\_MAJOR     & 0xFF50 & RO \\
 VIVADO\_MINOR     & 0xFF54 & RO \\
 \hline
@@ -422,6 +424,10 @@ LEDS     & LED\_3              & 0    & 0x00000001 \\
 \end{tabular}
 \end{center}
 \end{table}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/global.pdf}
+\end{center}
 
 The global unit handles simple board-wide tasks, and manages the
 registers listed in Table~\ref{tbl:global-reg}.  The bit field
@@ -524,11 +530,11 @@ the PS using DMA.
 \hline
 Beat: & Contents: & Description \\
 \hline
-1     & {\tt 0}x{\tt 000000MMMMMMMMMM} & M=UART Mask \\
-2     & {\tt 0}x{\tt AAAAAAAABBBBBBBB} & A=UART[1], B=UART[0]   \\
-3     & {\tt 0}x{\tt AAAAAAAABBBBBBBB} & A=UART[3], B=UART[2]   \\
+0     & {\tt 0}x{\tt 000000MMMMMMMMMM} & M=UART Mask \\
+1     & {\tt 0}x{\tt DDDDDDDDDDDDDDDD} & D=UART[0]   \\
+2     & {\tt 0}x{\tt DDDDDDDDDDDDDDDD} & D=UART[1]   \\
       & $\ldots$           &                        \\
-21    & {\tt 0}x{\tt AAAAAAAABBBBBBBB} & A=UART[39], B=UART[38] \\
+40    & {\tt 0}x{\tt DDDDDDDDDDDDDDDD} & D=UART[39] \\
 \hline
 \end{tabular}
 \end{center}
@@ -549,6 +555,14 @@ Payloads from inactive UARTs are simply ignored.
 \caption{TX buffer handling a single DMA packet (output of ghdl testbench)}
 \label{fig:tx-buffer}
 \end{figure}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/tx_stream.pdf}
+\end{center}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/tx_frames.pdf}
+\end{center}
 
 A timing diagram of the TX Buffer handling a single DMA packet is
 presented in Fig.~\ref{fig:tx-buffer}.  As discussed in the
@@ -670,13 +684,13 @@ Register    & Address   & RWC & Per UART    \\
 \hline
 UART\_STATUS     & 0x00  & RO  & Per UART   \\
 UART\_CONFIG     & 0x04  & RW  & Per UART   \\
-UART\_LOOK\_C    & 0x18  & RO  & Per UART   \\
-UART\_LOOK\_D    & 0x1C  & RO  & Per UART   \\
 UART\_STARTS     & 0x20  & RO  & Per UART   \\
 UART\_BEATS      & 0x24  & RO  & Per UART   \\
-UART\_CHAN       & 0x50  & RO  & Per UART   \\
-BUFFER\_STATUS     & 0xA0  & RO  & In Common  \\
-ZERO\_CNTS       & 0xA8  & CMD & In Common  \\
+LOOK\_SELECT     & 0xA0  & RW  & In Common  \\
+LOOK\_LOWER      & 0xA4  & RO  & In Common  \\
+LOOK\_UPPER      & 0xA8  & RO  & In Common  \\
+BUFFER\_STATUS   & 0xB0  & RO  & In Common  \\
+ZERO\_CNTS       & 0xF8  & CMD & In Common  \\
 \hline
 \end{tabular}
 \end{center}
@@ -692,10 +706,8 @@ Register & Field    & Bits & Mask       \\
 \hline
 UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
 \hline
-UART\_CONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
-              & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
-              & MODE       & 13-12 & {\tt 0}x{\tt 00003000}  \\
-              & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000}  \\
+UART\_CONFIG  & PHASE      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
+              & (Reserved) & 15-8  & {\tt 0}x{\tt 0000FF00}  \\
               & DELAY      & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
 \hline
 BUFFER\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
@@ -828,7 +840,13 @@ Counter $c$: & Stream word for:  & Word type (ASCII) \\
 0x29         & sync rollover     & 0x53 (S)\\
 (41)         &                   &\\
 \hline
-0x32         & trailer           & 0x45 (E)\\
+0x2A         & marker 2          & 0x54 (T)\\
+(42)         &                   &\\
+\hline
+0x2B         & marker 3          & 0x00 \\
+(43)         &                   &\\
+\hline
+(after 43)   & trailer           & 0x4C (L)\\
 \hline
 \end{tabular}
 \end{center}
@@ -850,6 +868,10 @@ presented in Table~\ref{tbl:rx-turns}.
   testbench) For simplicity, only a single indicative byte of the
   stream data (tdata) is shown (e.g. 0xAA).}
 \end{figure}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/rx_stream.pdf}
+\end{center}
 
 The RX unit uses a valid and ready handshake, as in the AXI protocol,
 which was described in previous sections.  Upon receiving a complete
@@ -908,7 +930,7 @@ during normal operation).
 \hline
 Channel      & $C$                   & RX Register Address       \\
 \hline
-UART 0-39    & 0{\rm x}04-0{\rm x}67 & 0{\rm x}40XX-0{\rm x}67XX \\
+UART 0-39    & 0{\rm x}00-0{\rm x}27 & 0{\rm x}40XX-0{\rm x}67XX \\
 Broadcast    & 0{\rm x}7B            & 0{\rm x}7BXX              \\
 In Common    & 0{\rm x}7F            & 0{\rm x}7FXX              \\
 \hline
@@ -937,22 +959,38 @@ Register        & Address   & RWC & Per UART \\
 \hline
 UART\_STATUS      & 0x00  & RO  & Per UART   \\
 UART\_CONFIG      & 0x04  & RW  & Per UART   \\
-UART\_LOOK\_A     & 0x10  & RO  & Per UART   \\
-UART\_LOOK\_B     & 0x14  & RO  & Per UART   \\
-UART\_LOOK\_C     & 0x18  & RO  & Per UART   \\
-UART\_LOOK\_D     & 0x1C  & RO  & Per UART   \\
+UART\_CHAN        & 0x08  & RW  & Per UART   \\
 UART\_STARTS      & 0x20  & RO  & Per UART   \\
 UART\_BEATS       & 0x24  & RO  & Per UART   \\
 UART\_UPDATES     & 0x28  & RO  & Per UART   \\
 UART\_LOST        & 0x2C  & RO  & Per UART   \\
-UART\_CHAN        & 0x50  & RO  & Per UART   \\
-BUFFER\_STATUS    & 0xA0  & RO  & In Common  \\
-BUFFER\_CONFIG    & 0xA4  & RW  & In Common  \\
-ZERO\_CNTS        & 0xA8  & CMD & In Common  \\
-FIFO\_CNT         & 0xB0  & RO  & In Common  \\
-FIFO\_MAX         & 0xB4  & RO  & In Common  \\
+UART\_FRAME\_ERR  & 0x30  & RO  & Per UART   \\
+UART\_NOISE       & 0x34  & RO  & Per UART   \\
+PATTERN\_LOWER    & 0x80  & RW  & In Common  \\
+PATTERN\_UPPER    & 0x84  & RW  & In Common  \\
+PATTERN\_DELAY    & 0x88  & RW  & In Common  \\
+PATTERN\_CONFIG   & 0x8C  & RW  & In Common  \\
+PATTERN\_STATUS   & 0x90  & RO  & In Common  \\
+PATTERN\_STARTS   & 0x94  & RO  & In Common  \\
+PATTERN\_STOPS    & 0x98  & RO  & In Common  \\
+LOOK\_SELECT      & 0xA0  & RW  & In Common  \\
+LOOK\_LOWER       & 0xA4  & RO  & In Common  \\
+LOOK\_UPPER       & 0xA8  & RO  & In Common  \\
+BUFFER\_STATUS    & 0xB0  & RO  & In Common  \\
+BUFFER\_CONFIG    & 0xB4  & RW  & In Common  \\
+BUFFER\_ENABLES   & 0xB8  & RW  & In Common  \\
+PACMAN            & 0xBC  & RW  & In Common  \\
 HEARTBEAT\_CONFIG & 0xC0  & RW  & In Common  \\
 ROLLOVER\_CONFIG  & 0xC4  & RW  & In Common  \\
+WORD\_TYPE\_LUT   & 0xC8  & RW  & In Common  \\
+HEADER\_A         & 0xD0  & RW  & In Common  \\
+HEADER\_B         & 0xD4  & RW  & In Common  \\
+HEADER\_C         & 0xD8  & RW  & In Common  \\
+HEADER\_D         & 0xDC  & RW  & In Common  \\
+EOP\_HEADER       & 0xE0  & RW  & In Common  \\
+FIFO\_CNT         & 0xF0  & RO  & In Common  \\
+FIFO\_MAX         & 0xF4  & RO  & In Common  \\
+ZERO\_CNTS        & 0xF8  & CMD & In Common  \\
 \hline
 \end{tabular}
 \end{center}
@@ -968,21 +1006,34 @@ Register & Field      & Bits & Mask       \\
 \hline
 UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
 \hline
-UART\_CONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
-              & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
+UART\_CONFIG  & PHASE      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
+              & INPUT      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
               & MODE       & 13-12 & {\tt 0}x{\tt 00003000}  \\
-              & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000}  \\
-              & INPUT      & 17-16 & {\tt 0}x{\tt 00030000}  \\
-              & (Reserved) & 31-18 & {\tt 0}x{\tt FFFC0000}  \\
+              & FLAGS      & 15-14 & {\tt 0}x{\tt 0000C000}  \\
+              & PERIOD     & 23-16 & {\tt 0}x{\tt 00FF0000}  \\
+              & (Reserved) & 31-24 & {\tt 0}x{\tt FF000000}  \\
 \hline
 BUFFER\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
 \hline
-BUFFER\_CONFIG  & TCYCLES    & 15-0  & {\tt 0}x{\tt 0000FFFF}  \\
-              & (Reserved) & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
+BUFFER\_CONFIG  & TIMEOUT    & 15-0  & {\tt 0}x{\tt 0000FFFF}  \\
+              & MAX\_WORDS & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
+\hline
+BUFFER\_ENABLES & HEARTBEAT  & 0     & {\tt 0}x{\tt 00000001}  \\
+              & ROLLOVER   & 1     & {\tt 0}x{\tt 00000002}  \\
+              & MARKER\_2  & 2     & {\tt 0}x{\tt 00000004}  \\
+              & MARKER\_3  & 3     & {\tt 0}x{\tt 00000008}  \\
 \hline
 \end{tabular}
 \end{center}
 \end{table}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/rx_chan_start.pdf}
+\end{center}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/rx_chan_frames.pdf}
+\end{center}
 
 The registers managed by the RX unit are presented in
 Table~\ref{tbl:rx-reg}, and bit field interpretations for some of the
@@ -1030,6 +1081,18 @@ fully featured Timing Unit is available in the latest firmware, but we
 expect at least one round of substantial revisions before this design
 stabalizes, and so we will not document this unit further for this
 version.
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/atc_timer.pdf}
+\end{center}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/atc_poke.pdf}
+\end{center}
+
+\begin{center}
+\includegraphics[width=0.85\textwidth]{timing_diagrams/atc_lemo.pdf}
+\end{center}
 
 \subsection{ADC Unit}
 The ADC unit is responsible for operating the on-board
@@ -1288,8 +1351,7 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
 \textbf{Command} & \textbf{Description} \\
 \hline
 \texttt{ping}                              & Reply pong \\
-\texttt{report\_version\_info}             & Report firmware version and related info \\
-\texttt{report\_power}                     & Report voltage and current info  \\
+\texttt{report\_version\_details}          & Report firmware version and related info \\
 \texttt{read\_pacman\_id}                  & Reply with current PACMAN ID \\
 \hline
 \texttt{set\_pacman\_id id=<id>}           & Set PACMAN ID to \texttt{<id>} \\
