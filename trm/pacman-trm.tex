@@ -45,8 +45,8 @@ ethernet.
 
 The PACMAN card plays a supporting role in the LArPix system.  It does
 not face technical challenges as severe as the cold electronics of the
-LArPix system and therefore a basic design constraint is that it in no
-way limits the performance of the supported system.
+LArPix system and therefore a fundamental design constraint is that it
+in no way limits the performance of the supported system.
 
 \section{Hardware Implementation}
 \subsection{Package Pin to Schematic Netlist}
@@ -143,51 +143,6 @@ PISO[39] & W5   & POSI[39] & W8   \\
 
 \section{Programmable Logic Firmware}
 
-The PACMAN Zipline programmable logic (PL) firmware is
-implemented in a hierarchical fashion, with five unit-level modules
-that divide up the PACMAN features as follows:
-\begin{itemize}
-\item {\bf Global}: this unit handles simple board-wide tasks: setting the
-  power and tile enables, configuring the LEDs, reporting the
-  top-level status, and firmware version.
-\item {\bf CDR}: Clock and Data Recovery unit.  This unit reconstructs
-  the $62.5~\rm MHz$ {\tt cdr\_clk} and timestamp.
-\item {\bf TX}: this unit handles the configuration, operation, and monitoring of the 40 UART transmitters.
-\item {\bf RX}: this unit handles the configuration, operation, and monitoring of the 40 UART receivers.
-\item {\bf ATC}: this unit handles the ASIC timing and control signals
-  (clock, reset, sync, and trigger) It produces a timestamp which is
-  used by the RX unit to mark each data.
-\item {\bf ADC}: this unit handles the onboard high-performance ADC available starting with PACMAN 1v5.
-\end{itemize}
-These five unit-level modules may appear to leave out some essential
-PACMAN features, notably control of voltage levels, power monitoring,
-and controlling the onboard multiplexer. These features are
-controlled over I2C by the processor (PS), and are therefore not part
-of the PL design.
-
-The top-level design of the PL firmware is shown in
-Fig.~\ref{fig:pl-top}.  The Vivado corresponding block design (at
-interface level) as presented by the Vivado GUI\footnote{Diagram is an
-example block diagram only, and may not be from latest firmware
-version.}, is shown in Fig.~\ref{fig:vivado-top}
-
-This version of the documentation is synced with firmware version 3.6.
-The latest release of 3.X firmware is available on github at
-\url{https://github.com/mulhearn/pacman-firmware/tree/zipline-2023.2}
-
-The modules are implemented as custom RTL modules written in VHDL.
-They contain submodules which are also written in VHDL.  Every module
-adheres to project design rules\footnote{The design rules worked well
-in practice, with the vast majority of bugs detected during GHDL
-simulation, relatively few remaining bugs detected on a Trenz
-evaluation module, and, nearly zero bugs (none that I can remember)
-detected using the actual hardware.}, most importantly:
-\begin{itemize}
- \item Custom RTL modules do not use any vendor IP.
- \item Each module {\tt xxx.vhd} has a testbench module {\tt tb/xxx\_tb.vhd} which demonstrates functionality to at least the level of initial hardware tests.
- \item Each module can be compiled and simulated using the lightweight open-source ghdl tool, independently of any vendor tools.
-\end{itemize}
-
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[x=1.5cm, y=1cm]
@@ -272,29 +227,6 @@ detected using the actual hardware.}, most importantly:
 \label{fig:pl-top}
 \end{figure}
 
-\noindent
-Both vendor IP and standard interfaces are featured prominently in the design:
-\begin{itemize}
- \item AXI-Lite (relatively slow 32-bit transfers) is used for custom registers.
- \item DMA (high performance direct memory access) is used for high-bandwidth TX and RX transfers.
- \item An AXI Stream FIFO is used to buffer the RX data between the RX unit and the DMA engine.
- \item BRAM (Block RAM) is used by the ADC unit to store the time series of conversion data.
-\end{itemize}
-The AXI interface is widely used throughout the design, and is well
-documented elsewhere.  A critical point for understanding the AXI
-protocol is that data is transferred from a data producer to a data
-consumer when and only when a beat occurs.  {\bf A beat is defined as
-  a clock-cycle during which the data producer asserts its valid
-  signal and the data consumer asserts a busy signal.}
-There are further requirements, but this is sufficient to understand
-basic operation.  For convenience, we use the same valid and ready
-handshake elsewhere in the design, even when we do not implement an
-AXI interface.  The design uses one custom interface: the register bus
-(REGBUS).  Each unit-level module is a secondary on the REGBUS, and is
-guaranteed to respond on the clock cycle immediately following a read
-or write request from the REGBUS primary.  The PS drivers access the
-REGBUS interface via AXI-Lite.
-
 \afterpage{%
 \begin{landscape}
 \begin{figure}[p]
@@ -305,8 +237,90 @@ REGBUS interface via AXI-Lite.
 \end{figure}
 \end{landscape}}
 
+\noindent
+The PACMAN Zipline programmable logic (PL) firmware is
+implemented in a hierarchical fashion, with five unit-level modules
+that divide the PACMAN features as follows:
+\begin{itemize}
+\item {\bf Global}: simple board-wide tasks. Sets the
+  power and tile enables, configures the LEDs, reports the
+  top-level status and firmware version.
+\item {\bf TX}: configures, operates, and monitors the 40 UART transmitters.
+\item {\bf RX}: configures, operates, and monitors the 40 UART receivers.
+\item {\bf ATC}: generation of ASIC timing and control signals
+  (clock, reset, sync, and trigger).  It produces a timestamp which the RX unit uses to record the arrival time of data.
+\item {\bf ADC}: a one-differential-channel digital oscilloscope using the onboard high-performance ADC available starting with PACMAN 1v5.
+\item {\bf LA}: a multi-channel logic analyzer for PISO/POSI/ATC and other signals of interest.
+\item {\bf (CDR)}: clock and data recovery.  Reconstructs
+  the $62.5~\rm MHz$ {\tt cdr\_clk} and timestamp.  This unit is planned for 3.7 but is not included in the 3.6 firmware.
+\end{itemize}
+These seven unit-level modules may appear to leave out some essential
+PACMAN features, notably control of voltage levels, power monitoring,
+and controlling the onboard multiplexer. These features are controlled
+over I2C by the processor (PS), and are therefore not part of the PL
+design. The top-level design of the PL firmware is shown in
+Fig.~\ref{fig:pl-top}.  The Vivado corresponding block design (at
+interface level) as presented by the Vivado GUI, is shown in
+Fig.~\ref{fig:vivado-top} This version of the documentation is synced
+with firmware version 3.6.  The latest release of 3.X firmware is
+available on github at
+\url{https://github.com/mulhearn/pacman-firmware/tree/zipline-2023.2}
+
+The modules are implemented as custom RTL modules written in VHDL.
+They contain submodules which are also written in VHDL.  Every module
+adheres to project design rules, most importantly:
+\begin{itemize}
+ \item Custom RTL modules do not use any vendor IP.
+ \item Each module can be compiled and simulated using the lightweight open-source ghdl tool, independently of any vendor tools.
+ \item Each module {\tt xxx.vhd} has a testbench module {\tt tb/xxx\_tb.vhd} which demonstrates functionality to at least the level of initial hardware tests.
+\end{itemize}
+
+
+\noindent
+Both vendor IP and standard interfaces are featured prominently in the design:
+\begin{itemize}
+ \item AXI-Lite (relatively slow 32-bit transfers) is used for custom registers.
+ \item DMA (high performance direct memory access) is used for high-bandwidth TX and RX transfers.
+ \item An AXI Stream FIFO is used to buffer the TX data between the DMA engine and the TX unit.
+ \item An AXI Stream FIFO is used to buffer the RX data between the RX unit and the DMA engine.
+ \item BRAM (Block RAM) is used by the ADC and LA units to store the time series of conversion data.
+\end{itemize}
+The AXI interface is widely used throughout the design, and is well
+documented elsewhere.  A critical point for understanding the AXI
+protocol is that data is transferred from a data producer to a data
+consumer when and only when a beat occurs.  {\bf A beat is defined as
+  a clock-cycle during which the data producer asserts its valid
+  signal and the data consumer asserts a busy signal.}
+There are further requirements, but this is sufficient to understand
+basic operation.  For conceptual economy, we use the same valid and
+ready handshake elsewhere in the design, even when we do not implement
+an AXI interface.  The design uses one custom interface: the register
+bus (REGBUS).  Each unit-level module is a secondary on the REGBUS,
+and is guaranteed to respond on the clock cycle immediately following
+a read or write request from the REGBUS primary.  The PS drivers
+access the REGBUS interface via AXI-Lite.
+
 \subsection{Clocks}
 
+There are several logical clocks in the PACMAN firmware, which we define as:
+\begin{itemize}
+\item {\tt axi\_clk}: (100 MHz) AXI system clock, generated by the PS,
+  always available.
+\item {\tt cdr\_clk}: (62.5 MHz) generated by Clock and Data Recovery
+  (CDR) subsystem from external fiber-optic input, which might not be
+  present or valid.
+\item {\tt sys\_clk}: (62.5 MHz - 100 MHz) System clock, either from {\tt
+  cdr\_clk} or generated by the PS, always available.
+\end{itemize}
+
+The 3.6 firmware does not include the CDR unit, and so the {\tt
+  cdr\_clk} is not present, and the {\tt sys\_clk} is generated from
+the PS, where it has been configured to 100 MHz.  After the release of
+3.6, a consensus was finally reached that {\tt sys\_clk} would be set
+to operate at 62.5 MHz (direct from {\tt cdr\_clk} or generated by the
+PS), much to the delight of the system designers.  As detailed in the
+ATC unit, the PACMAN firmware treats the UART clock as a signal in the
+{\tt sys\_clk} domain.
 
 \begin{figure}[htbp]
 \centering
@@ -316,7 +330,6 @@ REGBUS interface via AXI-Lite.
 \draw[dashed] (6.0,10.5) -- (6.0,-2.25);
 \node at (4.5,10) {\textbf{axi\_clk} domain};
 \node at (7.5,10) {\textbf{sys\_clk} domain};
-
 
 % Uniform box size
 \def\boxwidth{2.0cm}
@@ -365,7 +378,6 @@ REGBUS interface via AXI-Lite.
 
 \draw[<->, thick] ($(arb.south)+(-1.2cm,0)$) |- ($(global.east)$);
 
-
 % ASIC-side signals, generated and sampled in sys_clk
 \draw[->, thick] (tx.east) -- ++(1.4,0) node[anchor=west, font=\small] {POSI};
 \draw[<-, thick] (rx.east) -- ++(1.4,0) node[anchor=west, font=\small] {PISO};
@@ -389,57 +401,17 @@ REGBUS interface via AXI-Lite.
 \label{fig:domains}
 \end{figure}
 
-
-
-There are several logical clocks in the PACMAN firmware, which we define as:
-\begin{itemize}
-\item {\tt axi\_clk}: (100 MHz) AXI system clock, generated by PS, always available.
-\item {\tt cdr\_clk}: (62.5 MHz) generated by Clock and Data Recovery
-  (CDR) subsystem from external fiber-optic input, which might not be
-  present or valid.
-\item {\tt sys\_clk}: (TBD: 62.5-100 MHz) System clock, derived from either {\tt cdr\_clk} to {\tt axi\_clk},
-  with automatic fallback to the latter when the former is not present or invalid.
-\item {\tt det\_clk}: (TBD: 6.2-10 MHz), derived from {\tt sys\_clk} by a configurable divide factor of $N$ (with nominally $N=10$).
-\end{itemize}
-
 As shown in Fig.\ref{fig:domains} firmware components run in one of
-two clock domains: {\tt axi\_clk} and {\tt sys\_clk}. The PACMAN can
-be configured such that these are the same clock, but the firmware
-consistently treats them as independent, and always uses clock domain
-crossing for signals that pass between these two domains.  A register
-read or write is initiated on the PS in the {\tt axi\_clk} domain.
-The register bus includes a CDC stage to reach all modules in the {\tt
-  sys\_clk} domain.  The TX and RX units are in the {\tt sys\_clk}
-domain, and reach the DMA engine, in the {\tt axi\_clk} domain, via
-FIFOs.  Lastly, the global and CDR units are in the {\tt axi\_clk}
-domain.
-
-If {\tt sys\_clk} is set to the $62.5 \rm MHz$ {\tt cdr\_clk} then the
-timestamps generated by the CDR are in the {\tt sys\_clk} domain.  If
-we insist on deriving {\tt sys\_clk} from {\tt cdr\_clk} via a PLL to
-reach e.g. $100 MHz$, then the timestamps will need to cross from the
-{\tt det\_clk} domain to the {\tt sys\_clk} domain.  The more
-pessimistic scenario is shown in the figure.  If we set {\tt sys\_clk}
-to {\tt cdr\_clk} then the PLL and timestamp CDC module are
-unnecessary.  In this scenario, the only custom RTL needed for CDC is
-for the regbus.
-
-The PACMAN communicates to the ASICs via RX and TX uarts running on
-{\tt det\_clk}.  However, no PACMAN modules run on {\tt det\_clk}
-which from the PACMAN firmware perspective {\tt det\_clk} is a
-waveform in the {\tt sys\_clk} domain, with the falling edge at count
-${\rm int}(N/2)$ and the rising edge $N$.  Since the PACMAN provides
-the UART clock {\tt det\_clk} to the UARTs, the phase relationships
-are fixed, and edge detection and metastability mitigation is
-unnecessary.  Instead, each RX and TX channel registers at a fixed
-phase (from $0 \to N-1$) chosen to keep away from any metastability
-risk.  Experience shows there is a wide plateau, and a global
-configuration suffices, but UART channel specific configuration is
-supported.
-
+two clock domains: {\tt axi\_clk} and {\tt sys\_clk}. The firmware
+handles clock domain crossing for signals that pass between these two
+domains.  A register read or write is initiated on the PS in the {\tt
+  axi\_clk} domain.  The register bus includes a CDC stage to reach
+all modules in the {\tt sys\_clk} domain.  The TX and RX units are in
+the {\tt sys\_clk} domain, and reach the DMA engine, in the {\tt
+  axi\_clk} domain, via FIFOs.  Lastly, the global unit is in the {\tt
+  axi\_clk} domain.
 
 \subsection{Registers}
-
 
 \begin{figure}[htbp]
   \centering
@@ -448,18 +420,18 @@ supported.
 \label{fig:single-write}
 \end{figure}
 
+\noindent
 Access to registers in the PL firmware is done via a simple custom
 register bus (REGBUS).  A REGBUS write request is made by the single
 primary setting the 16-bit write address to that of the register of
 interest, the 32-bits of write data to the desired value, and the
 write update bit high.  The secondary on the bus responsible for that
-register responds on the next clock cycle by setting the write
-acknowledge bit high and performing any other desired effect, such as
-setting a register to the value of the write data.  A single write
-request is illustrated in Fig.~\ref{fig:single-write}.  Command
-registers are implemented by setting a command signal high for one
-clock cycle after a write to the command register address, often
-ignoring the write data entirely.
+register responds by setting the write acknowledge bit high and
+performing any other desired effect, such as setting a register to the
+value of the write data.  A single write request is illustrated in
+Fig.~\ref{fig:single-write}.  Command registers are implemented by
+setting a command signal high for one clock cycle after a write to the
+command register address, sometimes ignoring the write data entirely.
 
 \begin{figure}[htbp]
   \centering
@@ -471,17 +443,31 @@ ignoring the write data entirely.
 A read request on the bus is made by the single primary setting the
 16-bit read address to that of the register of interest and setting
 the read update bit high.  The secondary on the bus responsible for
-that register responds on the next clock cycle by setting the 32-bit
-read data to the value associated with the register of interest, and
-setting the read acknowledge bit high.  A single read request is illustrated in
+that register responds by setting the 32-bit read data to the value
+associated with the register of interest, and setting the read
+acknowledge bit high.  A single read request is illustrated in
 Fig.~\ref{fig:single-read}.
 
-The register bus is implemented by a module ({\tt axil\_to\_regbus.vhd})
+The register bus is implemented by module ({\tt axil\_to\_regbus.vhd})
 which translates AXI-Lite requests from the PS to read and write
 requests on the REGBUS.  Because FPGAs do not have internal tristate
 buffers, the bus implementation also requires a multiplexer {\tt
   regbus\_mux.vhd} to connect the REGBUS primary to multiple
 secondaries.
+
+Within the same clock-domain, REGBUS requests
+are always acknowledged on the next clock-cycle, as shown in the
+Figs.~\ref{fig:single-write} and \ref{fig:single-read}.  However, a
+CDC stage in the register bus {\tt regbus\_cdc} introduces
+synchroninization delays, and so the acknowledgement from units in the
+{\tt sys\_clk} domain is not seen in the {\tt axi\_clk} domain until
+several clock cycles later.  For this reason, the read address, write
+address, and write data are held fixed until the acknowledgement is
+received, or a timeout occurs.  The timeout insures that writing an
+invalid address does not hang the AXI-Lite bus.  Read responses to an
+invalid address return 0xEEEEEEEE.  (Additional error flags for
+invalid addresses are available, but not fully implemented in version
+3.6.)
 
 The 16-bit address space for PACMAN registers is allocated in a
 hierachical fashion, represented as
@@ -548,17 +534,20 @@ VIVADO\_MINOR     & 0xFF54 & RO \\
 \end{table}
 
 \begin{table}
-\caption{\label{tbl:global-bit-fields} Bit fields:  description }
+\caption{\label{tbl:global-bit-fields} Bit fields for registers in the global unit. }
 \begin{center}
 \begin{tabular}{|llll|}
 \hline
-Register & Field             & Bits & Mask       \\
+Register & Field               & Bits & Mask       \\
 \hline
 ENABLES  & TILE\_ENABLES       & 0-9  & 0x000003FF \\
          & TILE\_POWER\_ENABLE &  16  & 0x00010000 \\
 \hline
 LEDS     & LED\_3              & 0    & 0x00000001 \\
          & LED\_4              & 1    & 0x00000002 \\
+\hline
+BUILD\_FLAGS & DIRTY           & 0    & 0x00000001 \\
+             & OFFICIAL        & 1    & 0x00000002 \\
 \hline
 \end{tabular}
 \end{center}
@@ -568,12 +557,19 @@ LEDS     & LED\_3              & 0    & 0x00000001 \\
 \includegraphics[width=0.85\textwidth]{timing_diagrams/global.pdf}
 \end{center}
 
+\noindent
 The global unit handles simple board-wide tasks, and manages the
 registers listed in Table~\ref{tbl:global-reg}.  The bit field
 interpretations for some registers are shown in
-Table~\ref{tbl:global-bit-fields}.  The read-only firmware registers
-can be used to determine the firmware version installed, and the
-read-only hardware registers can be used to check the hardware version
+Table~\ref{tbl:global-bit-fields}.  The read-only registers can be
+used to determine the firmware version installed, the hardware version
+the firmware was configured for, the date and time, git hash, and
+Vivado version used at firmware synthesis.
+
+
+
+
+registers can be used to check the hardware version
 for which the firmware was built.  The FIRMWARE\_BUILD and HARDWARE\_BUILD registers are reserved.
 The read-write scratch registers SCRATCH\_A and SCRATCH\_B
 have no impact beyond storing and retrieving the register value, and
@@ -721,7 +717,9 @@ end of the packet.  The TX buffer will now contain a complete DMA
 packet, and so the TX buffer deasserts stream ready ({\tt tready})
 which halts the stream.  It updates its own output buffer with the
 contents of the DMA packet, and sets the valid bit for each UART
-according to mask received from the stream.  On the next clock cycle, it asserts stream ready, so that the next DMA packet can begin loading in parallel with UART transmission.
+according to mask received from the stream.  On the next clock cycle,
+it asserts stream ready, so that the next DMA packet can begin loading
+in parallel with UART transmission.
 
 The UART transmission is handled by 40 instances of the TX Channel
 sub-module, with one assigned to each UART channel.  Even though this
