@@ -86,6 +86,9 @@ xc7z020): 30\,725 slice LUTs (57.8\%), 50\,712 registers (47.7\%), 45 block RAM 
 39\,788 LUTs (74.8\%), 60\,644 registers (57.0\%) and 99 tiles (70.7\%), the v1.5 1.X line (\br{sync-fix}) 40\,777
 LUTs (76.7\%).  The release still holds a VIO (109 LUTs) and the Vivado debug hub it brings in (449 LUTs).
 
+\paragraph{Clock.}  Agreed at the workshop (2026-11-10):  the firmware runs at the recovered detector clock,
+62.5\,MHz (16\,ns), not PLLed to 100\,MHz.  The UART divider becomes 8 (was 10):  a 128\,ns UART bit.
+
 \section{Releases}
 
 \begin{itemize}
@@ -300,6 +303,27 @@ and scp to the board work by key (sshd allows root by key only).
   maintenance per buffer costs more than it saves;  only hardware coherency (DMA through the ACP) gets the cached rate
   safely.  Under load the uncached copy ran at 69 MB/s (full speed) and 161 MB/s (quarter speed), far below its idle
   272:  contention for the memory bus and the core, not measured for a cached copy.
+\item DMA through the ACP, a demonstration (2026-11-08, the 1v5, finished:  not adopted, Michael 2026-11-08).  A
+  cached copy out of the DMA buffers gains 7\% in delivery:  2854 and 2858 packets/ms to felix, against 2672 and
+  2660 for the same path uncached.  The data server still uses about 200\% CPU (3\% idle), so the gain is more
+  packets for the same CPU, not less CPU.  It is not worth a second firmware and software variant.  The working
+  implementation, kept unpushed in augie's scratch:
+  \begin{itemize}
+  \item Firmware (hw1v5, patch 173, 5569560 on \br{demo-acp-zipline-2023.2}, from 3.6.0):  the AXI DMA's MM2S, S2MM
+    and scatter-gather masters go through \h{axi\_mem\_intercon} into \h{S\_AXI\_ACP} instead of \h{S\_AXI\_HP0}, with
+    the PS7's default ACP user value (AxUSER 11111).  A constant drives AxCACHE 1111 (write-back, read and write
+    allocate) on the interconnect's DMA ports.  Timing met (WNS 0.427 ns), no critical warnings.
+  \item Why 1111:  the AXI DMA (no multi-channel) issues AxCACHE 0011 and offers no software control of it.  Zynq
+    Linux sets the PL310's shared-override bit (aux bit 22), so 0011 is non-cacheable at the L2 and bypasses it.  The
+    SCU keeps L1 coherent, but L2 lines go stale both ways.  On the bench (patch 172, 0011) the first transfers
+    passed, then stale descriptors and data:  scatter-gather internal errors on both engines, and nothing delivered.
+  \item Software (scratch \h{acp/sw} 2ab484b, from 3.6.3):  the DMA region is mapped through \h{/dev/mem} without
+    \h{O\_SYNC} (cached, write-back, shared:  on kernel 6.1 the no-map region is \h{pfn\_valid}), and the registers
+    stay uncached.  A \h{dsb} goes before the DMA register writes (descriptors reach the DMA first), and a \h{dmb}
+    goes between a descriptor's completion and reading its data.  No cache maintenance calls.
+  \item Results on the 173 image:  fwcheck 30 of 30, hwcheck \h{--read\_only} PASS, 0 lost messages, no DMA errors.
+    The official (uncached) apps also pass on the ACP firmware.  Logs in augie's \h{pacman/fw-items/acp-demo}.
+  \end{itemize}
 \item Throughput limits, current (3.6.3, 2026-11-06, the 1v5, a remote client):  the firmware and the data server
   alone sustain 6060 packets/ms (all 40 UARTs, the theoretical maximum).  Delivery to a ZMQ client is CPU-limited:
   2730 packets/ms (66 MB/s, about 18 UARTs at full speed) with the data server's threads pinned (3.6.3), the ZMQ

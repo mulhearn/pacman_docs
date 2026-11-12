@@ -27,8 +27,8 @@
 This note records the LArPix ASIC work on PACMAN with the zipline firmware and software (\h{zipline.tex}): which
 ASICs are on the bench, how they are configured, what they reply, and what is open.  Register numbers are those of
 the LArPix v3 register map in \h{larpix-lib} (\h{config/asics/larpix\_v3.yaml}), which agrees with the LBNL datasheet
-(rev 2.4, not public).  The datasheet has known errors: its bit layouts and defaults are not trusted until they are
-read back from a chip.  The control software, \h{larpix-lib}, has its own record (\h{larpix-lib.tex}).
+(rev 2.4, not public).  The datasheet has known errors, so bit layouts and defaults are checked by reading them
+back from a chip.  The control software, \h{larpix-lib}, has its own record (\h{larpix-lib.tex}).
 
 \section{Bench setup}
 
