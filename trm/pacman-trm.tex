@@ -14,6 +14,11 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc}
 \lstset{basicstyle=\ttfamily,columns=fullflexible}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\newcommand{\hex}[1]{\texttt{0x#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
 
 \begin{document}
 
@@ -481,19 +486,19 @@ The scopes are allocated as shown in Table~\ref{tbl:scope}.
 \begin{table}
 \caption{\label{tbl:scope} The most significant four bits of the register address, referred to as the scope, is allocated as shown.}
 \begin{center}
-\begin{tabular}{|lll|}
-\hline
-Scope      & Hexadecimal & Binary \\
-\hline
-Global     & 0{\rm x}F         & 0b1111 \\
-ATC        & 0{\rm x}E         & 0b1110 \\
-ADC        & 0{\rm x}D         & 0b1101 \\
-TX         & 0{\rm x}0-0{\rm x}3     & 0b00XX \\
-RX         & 0{\rm x}4-0{\rm x}7     & 0b01XX \\
-LA         & 0{\rm x}C         & 0b1100 \\
-(Reserved) & 0{\rm x}8-0{\rm x}B     & 0b1000-0b1011 \\
-\hline
-\end{tabular} \\
+\begin{tabular}{llll}
+\toprule
+Unit      & Scope bits   & Addresses                    & Register field \\
+\midrule
+TX        & \texttt{00XX} & \hex{0000}--\hex{3FFF} & channel (6 bits) and register (8 bits) \\
+RX        & \texttt{01XX} & \hex{4000}--\hex{7FFF} & channel (6 bits) and register (8 bits) \\
+(reserved)& \texttt{1000}--\texttt{1011} & \hex{8000}--\hex{BFFF} & \\
+LA        & \texttt{1100} & \hex{C000}--\hex{CFFF} & register (12 bits) \\
+ADC       & \texttt{1101} & \hex{D000}--\hex{DFFF} & register (12 bits) \\
+Timing    & \texttt{1110} & \hex{E000}--\hex{EFFF} & register (12 bits) \\
+Global    & \texttt{1111} & \hex{F000}--\hex{FFFF} & register (12 bits) \\
+\bottomrule
+\end{tabular}
 \end{center}
 \end{table}
 The RX and TX unit are allocated a range of scopes to more readily
@@ -503,52 +508,52 @@ PACMAN registers is left to the subsections for each unit.
 
 \subsection{Global Unit}
 
-\begin{table}
+\begin{table}[bp]
 \caption{Registers managed by the global unit}
 \label{tbl:global-reg}
-\begin{center}
-\begin{tabular}{|lll|}
-\hline
-Register    & Address & RO/RW \\
-\hline
-STATUS      & 0xF000 & RO \\
-ENABLES     & 0xF010 & RW \\
-LEDS        & 0xF014 & RW \\
-SCRATCH\_A  & 0xF020 & RW \\
-SCRATCH\_B  & 0xF024 & RW \\
-FIRMWARE\_MAJOR   & 0xFF10 & RO \\
-FIRMWARE\_MINOR   & 0xFF14 & RO \\
-FIRMWARE\_PATCH   & 0xFF18 & RO \\
-HARDWARE\_MAJOR   & 0xFF20 & RO \\
-HARDWARE\_MINOR   & 0xFF24 & RO \\
-HARDWARE\_PATCH   & 0xFF28 & RO \\
-SYNTHESIS\_DATE   & 0xFF30 & RO \\
-GIT\_HASH\_UPPER   & 0xFF40 & RO \\
-GIT\_HASH\_LOWER   & 0xFF44 & RO \\
-BUILD\_FLAGS      & 0xFF48 & RO \\
-VIVADO\_MAJOR     & 0xFF50 & RO \\
-VIVADO\_MINOR     & 0xFF54 & RO \\
-\hline
-\end{tabular}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register          & Address     & Access & Contents \\
+\midrule
+STATUS            & \hex{F000} & RO & fixed pattern \hex{0000CAFE} \\
+ENABLES           & \hex{F010} & RW & tile enables and tile power (Table~\ref{tbl:global-bit-fields}) \\
+LEDS              & \hex{F014} & RW & the two LEDs driven by the PL (Table~\ref{tbl:global-bit-fields}) \\
+SCRATCH\_A        & \hex{F020} & RW & no effect: for testing the register path \\
+SCRATCH\_B        & \hex{F024} & RW & no effect: for testing the register path \\
+FIRMWARE\_MAJOR   & \hex{FF10} & RO & firmware version: 3 \\
+FIRMWARE\_MINOR   & \hex{FF14} & RO & firmware version: 6 \\
+FIRMWARE\_PATCH   & \hex{FF18} & RO & firmware version: 0 \\
+HARDWARE\_MAJOR   & \hex{FF20} & RO & hardware version the firmware was built for: 1 \\
+HARDWARE\_MINOR   & \hex{FF24} & RO & hardware version: 5 \\
+HARDWARE\_PATCH   & \hex{FF28} & RO & hardware version: 0 \\
+SYNTHESIS\_DATE   & \hex{FF30} & RO & time of the build, in seconds since 1970 (Unix time) \\
+GIT\_HASH\_UPPER  & \hex{FF40} & RO & short git hash of the build, ASCII, characters 1--4 \\
+GIT\_HASH\_LOWER  & \hex{FF44} & RO & short git hash, ASCII, characters 5--7 and a space \\
+BUILD\_FLAGS      & \hex{FF48} & RO & bit 0 DIRTY, bit 1 OFFICIAL\_RELEASE \\
+VIVADO\_MAJOR     & \hex{FF50} & RO & Vivado version of the build (e.g.\ 2023) \\
+VIVADO\_MINOR     & \hex{FF54} & RO & Vivado version of the build (e.g.\ 2) \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
 \begin{table}
 \caption{\label{tbl:global-bit-fields} Bit fields for registers in the global unit. }
 \begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register & Field               & Bits & Mask       \\
-\hline
-ENABLES  & TILE\_ENABLES       & 0-9  & 0x000003FF \\
-         & TILE\_POWER\_ENABLE &  16  & 0x00010000 \\
-\hline
-LEDS     & LED\_3              & 0    & 0x00000001 \\
-         & LED\_4              & 1    & 0x00000002 \\
-\hline
-BUILD\_FLAGS & DIRTY           & 0    & 0x00000001 \\
-             & OFFICIAL        & 1    & 0x00000002 \\
-\hline
+\begin{tabular}{llll}
+\toprule
+Register & Field               & Bits  & Mask \\
+\midrule
+ENABLES  & TILE\_ENABLES       & 9--0  & \hex{000003FF} \\
+         & TILE\_POWER\_ENABLE & 16    & \hex{00010000} \\
+\midrule
+LEDS     & LED\_3              & 0     & \hex{00000001} \\
+         & LED\_4              & 1     & \hex{00000002} \\
+\midrule
+BUILD\_FLAGS & DIRTY            & 0     & \hex{00000001} \\
+         & OFFICIAL\_RELEASE   & 1     & \hex{00000002} \\
+\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
@@ -666,16 +671,16 @@ the PS using DMA.
 \caption{Contents of the TX DMA packet}
 \label{tbl:tx-dma}
 \begin{center}
-\begin{tabular}{|lll|}
-\hline
-Beat: & Contents: & Description \\
-\hline
-0     & {\tt 0}x{\tt 000000MMMMMMMMMM} & M=UART Mask \\
-1     & {\tt 0}x{\tt DDDDDDDDDDDDDDDD} & D=UART[0]   \\
-2     & {\tt 0}x{\tt DDDDDDDDDDDDDDDD} & D=UART[1]   \\
-      & $\ldots$           &                        \\
-40    & {\tt 0}x{\tt DDDDDDDDDDDDDDDD} & D=UART[39] \\
-\hline
+\begin{tabular}{lll}
+\toprule
+Beat & Contents (64 bits)                    & Description \\
+\midrule
+0    & \texttt{0x000000MMMMMMMMMM}           & M: UART mask, bit $i$ for UART $i$ \\
+1    & \texttt{0xDDDDDDDDDDDDDDDD}           & D: the word for UART 0 \\
+2    & \texttt{0xDDDDDDDDDDDDDDDD}           & the word for UART 1 \\
+     & \ldots                                & \\
+40   & \texttt{0xDDDDDDDDDDDDDDDD}           & the word for UART 39 \\
+\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
@@ -819,42 +824,50 @@ registers, is valid.
 \begin{table}
 \caption{Registers managed by the TX unit}
 \label{tbl:tx-reg}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register    & Address   & RWC & Per UART    \\
-\hline
-UART\_STATUS     & 0x00  & RO  & Per UART   \\
-UART\_CONFIG     & 0x04  & RW  & Per UART   \\
-UART\_STARTS     & 0x20  & RO  & Per UART   \\
-UART\_BEATS      & 0x24  & RO  & Per UART   \\
-LOOK\_SELECT     & 0xA0  & RW  & In Common  \\
-LOOK\_LOWER      & 0xA4  & RO  & In Common  \\
-LOOK\_UPPER      & 0xA8  & RO  & In Common  \\
-BUFFER\_STATUS   & 0xB0  & RO  & In Common  \\
-ZERO\_CNTS       & 0xF8  & CMD & In Common  \\
-\hline
-\end{tabular}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lllcL}
+\toprule
+Register        & $R$        & Channel  & Access & Contents \\
+\midrule
+UART\_STATUS    & \hex{00} & UART & RO  & channel status (Table~\ref{tbl:tx-bit-fields}) \\
+UART\_CONFIG    & \hex{04} & UART & RW & PHASE and DELAY (Table~\ref{tbl:tx-bit-fields}); default \hex{00000006} \\
+UART\_STARTS    & \hex{20} & UART & RO  & counter: frames started (start bits sent) \\
+UART\_BEATS     & \hex{24} & UART & RO  & counter: words taken from the TX buffer (uvalid and uready) \\
+LOOK\_SELECT    & \hex{A0} & common   & RW  & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
+LOOK\_LOWER     & \hex{A4} & common   & RO  & that UART's word in the output buffer, bits 31--0 \\
+LOOK\_UPPER     & \hex{A8} & common   & RO  & that UART's word in the output buffer, bits 63--32 \\
+BUFFER\_STATUS  & \hex{B0} & common   & RO  & TX buffer status (Table~\ref{tbl:tx-bit-fields}) \\
+ZERO\_CNTS      & \hex{F8} & common   & WO  & clear all TX counters (command: any value) \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
 \begin{table}
 \caption{Bit field descriptions for TX register}
 \label{tbl:tx-bit-fields}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register & Field    & Bits & Mask       \\
-\hline
-UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-UART\_CONFIG  & PHASE      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
-              & (Reserved) & 15-8  & {\tt 0}x{\tt 0000FF00}  \\
-              & DELAY      & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
-\hline
-BUFFER\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-\end{tabular}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lllL}
+\toprule
+Register       & Field   & Bits   & Description \\
+\midrule
+UART\_CONFIG   & PHASE   & 7--0   & clock cycles from the BAUD strobe to the bit edges \\
+               & DELAY   & 31--16 & bit periods of idle line between frames \\
+\midrule
+UART\_STATUS   & START   & 0      & a start bit was sent (one clock cycle) \\
+               & TX      & 1      & the POSI line \\
+               & VALID   & 2      & uvalid (a word is waiting for this UART) \\
+               & READY   & 3      & uready (the word is taken; one clock cycle) \\
+               & STATE   & 5--4   & 0 idle, 1 shifting, 2 stop bit, 3 delay \\
+               & BIT     & 6      & the bit-edge strobe (BAUD + PHASE) \\
+\midrule
+BUFFER\_STATUS & TREADY  & 0      & stream tready \\
+               & TVALID  & 1      & stream tvalid \\
+               & RELEASE & 4      & the stream reader is released (one clock cycle) \\
+               & PACKET  & 5      & the stream reader holds a complete packet \\
+               & STATE   & 9--8   & 0 idle, 1 start of transmission, 2 transmitting \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
@@ -1031,31 +1044,42 @@ is available.
 
 
 
+\begin{table}[htbp]
+\caption{\label{tbl:rx-word} An RX stream word: three 64-bit fragments.  For the extra channels (40--43)
+  the header is the HEADER\_A--D register with the PACMAN identifier in bits 15--8, and the data fragment is
+  zero.}
+\begin{center}
+\begin{tabularx}{\textwidth}{llL}
+\toprule
+Fragment   & Bits    & Contents \\
+\midrule
+header     & 7--0    & word type: WORD\_TYPE\_LUT byte chosen by the two least significant data bits \\
+           & 15--8   & PACMAN identifier (PACMAN register, bits 7--0) \\
+           & 31--16  & channel identifier (UART\_CHAN register of the UART; default UART number + 1) \\
+           & 63--32  & zero \\
+timestamp  & 63--0   & timestamp at the completion of the word (Timing unit) \\
+data       & 63--0   & the received UART word \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
 \begin{table}
 \caption{\label{tbl:rx-turns} Turn counter assignments for the RX buffer and default word type character.}
 \begin{center}
-\begin{tabular}{|lll|}
-\hline
-Counter $c$: & Stream word for:  & Word type (ASCII) \\
-\hline
-0x00-0x27    & udata($c$)        & 0x44 (D)\\
-(0-39)       &                   & \\
-\hline
-0x28         & sync heartbeat    & 0x53 (S)\\
-(40)         &                   & \\
-\hline
-0x29         & sync rollover     & 0x53 (S)\\
-(41)         &                   &\\
-\hline
-0x2A         & marker 2          & 0x54 (T)\\
-(42)         &                   &\\
-\hline
-0x2B         & marker 3          & 0x00 \\
-(43)         &                   &\\
-\hline
-(after 43)   & trailer           & 0x4C (L)\\
-\hline
-\end{tabular}
+\begin{tabularx}{\textwidth}{llLl}
+\toprule
+Turn   & Source          & Header (default)                 & Enable \\
+\midrule
+0--39  & UART 0--39      & channel id, PACMAN id, word type & always \\
+40     & heartbeat       & HEADER\_A (\hex{00480053}, type `S') & BUFFER\_ENABLES bit 0 \\
+41     & rollover        & HEADER\_B (\hex{00530053}, type `S') & BUFFER\_ENABLES bit 1 \\
+42     & marker 2        & HEADER\_C (\hex{00000054}, type `T') & BUFFER\_ENABLES bit 2 \\
+43     & marker 3        & HEADER\_D (\hex{00000000})       & BUFFER\_ENABLES bit 3 \\
+\midrule
+trailer & end of packet  & EOP\_HEADER (\hex{0000004C}, type `L'), then the word count, then zero & \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
@@ -1136,77 +1160,87 @@ in Table~\ref{tbl:rx-scope}.
 
 \begin{table}
 \caption{\label{tbl:rx-reg} Registers managed by the RX unit}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register        & Address   & RWC & Per UART \\
-\hline
-UART\_STATUS      & 0x00  & RO  & Per UART   \\
-UART\_CONFIG      & 0x04  & RW  & Per UART   \\
-UART\_CHAN        & 0x08  & RW  & Per UART   \\
-UART\_STARTS      & 0x20  & RO  & Per UART   \\
-UART\_BEATS       & 0x24  & RO  & Per UART   \\
-UART\_UPDATES     & 0x28  & RO  & Per UART   \\
-UART\_LOST        & 0x2C  & RO  & Per UART   \\
-UART\_FRAME\_ERR  & 0x30  & RO  & Per UART   \\
-UART\_NOISE       & 0x34  & RO  & Per UART   \\
-PATTERN\_LOWER    & 0x80  & RW  & In Common  \\
-PATTERN\_UPPER    & 0x84  & RW  & In Common  \\
-PATTERN\_DELAY    & 0x88  & RW  & In Common  \\
-PATTERN\_CONFIG   & 0x8C  & RW  & In Common  \\
-PATTERN\_STATUS   & 0x90  & RO  & In Common  \\
-PATTERN\_STARTS   & 0x94  & RO  & In Common  \\
-PATTERN\_STOPS    & 0x98  & RO  & In Common  \\
-LOOK\_SELECT      & 0xA0  & RW  & In Common  \\
-LOOK\_LOWER       & 0xA4  & RO  & In Common  \\
-LOOK\_UPPER       & 0xA8  & RO  & In Common  \\
-BUFFER\_STATUS    & 0xB0  & RO  & In Common  \\
-BUFFER\_CONFIG    & 0xB4  & RW  & In Common  \\
-BUFFER\_ENABLES   & 0xB8  & RW  & In Common  \\
-PACMAN            & 0xBC  & RW  & In Common  \\
-HEARTBEAT\_CONFIG & 0xC0  & RW  & In Common  \\
-ROLLOVER\_CONFIG  & 0xC4  & RW  & In Common  \\
-WORD\_TYPE\_LUT   & 0xC8  & RW  & In Common  \\
-HEADER\_A         & 0xD0  & RW  & In Common  \\
-HEADER\_B         & 0xD4  & RW  & In Common  \\
-HEADER\_C         & 0xD8  & RW  & In Common  \\
-HEADER\_D         & 0xDC  & RW  & In Common  \\
-EOP\_HEADER       & 0xE0  & RW  & In Common  \\
-FIFO\_CNT         & 0xF0  & RO  & In Common  \\
-FIFO\_MAX         & 0xF4  & RO  & In Common  \\
-ZERO\_CNTS        & 0xF8  & CMD & In Common  \\
-\hline
-\end{tabular}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register          & $R$      & Access & Contents \\
+\midrule
+UART\_STATUS      & \hex{00} & RO & channel status (Table~\ref{tbl:rx-bit-fields}) \\
+UART\_CONFIG      & \hex{04} & RW & Table~\ref{tbl:rx-bit-fields}; default \hex{000A1104} \\
+UART\_CHAN        & \hex{08} & RW & channel identifier in the header (bits 15--0); default UART + 1 \\
+UART\_STARTS      & \hex{20} & RO & counter: start bits received \\
+UART\_BEATS       & \hex{24} & RO & counter: words taken by the RX buffer \\
+UART\_UPDATES     & \hex{28} & RO & counter: frames completed (good stop bit) \\
+UART\_LOST        & \hex{2C} & RO & counter: words lost (previous word not yet taken) \\
+UART\_FRAME\_ERR  & \hex{30} & RO & counter: framing errors (low stop bit) \\
+UART\_NOISE       & \hex{34} & RO & counter: sample points with dissenting samples \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tbl:rx-common} Registers of the RX unit in common (scope \texttt{01}, channel \hex{3F}:
+  addresses \hex{7F00} + $R$).}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register          & $R$      & Access & Contents \\
+\midrule
+PATTERN\_LOWER    & \hex{80} & RW & test pattern word, bits 31--0 \\
+PATTERN\_UPPER    & \hex{84} & RW & test pattern word, bits 63--32 \\
+PATTERN\_DELAY    & \hex{88} & RW & idle bit periods between test frames \\
+PATTERN\_CONFIG   & \hex{8C} & RW & bits 7--0 PHASE, bits 11--8 MODE (1: on) \\
+PATTERN\_STATUS   & \hex{90} & RO & bit 0 start, bit 1 stop, bit 8 the pattern line \\
+PATTERN\_STARTS   & \hex{94} & RO & counter: test frames started \\
+PATTERN\_STOPS    & \hex{98} & RO & counter: test frames completed \\
+LOOK\_SELECT      & \hex{A0} & RW & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
+LOOK\_LOWER       & \hex{A4} & RO & that UART's last word, bits 31--0 \\
+LOOK\_UPPER       & \hex{A8} & RO & that UART's last word, bits 63--32 \\
+BUFFER\_STATUS    & \hex{B0} & RO & RX buffer status (Table~\ref{tbl:rx-bit-fields}) \\
+BUFFER\_CONFIG    & \hex{B4} & RW & bits 31--16 maximum words, bits 15--0 timeout; default \hex{00000001} \\
+BUFFER\_ENABLES   & \hex{B8} & RW & extra channels: bit 0 heartbeat, 1 rollover, 2 marker 2, 3 marker 3 \\
+PACMAN            & \hex{BC} & RW & PACMAN identifier in the header (bits 7--0) \\
+HEARTBEAT\_CONFIG & \hex{C0} & RW & clock cycles between heartbeats; default \hex{3B9ACA00} \\
+ROLLOVER\_CONFIG  & \hex{C4} & RW & timestamp (bits 31--0) of the rollover word; default 1 \\
+WORD\_TYPE\_LUT   & \hex{C8} & RW & word type for data bits 1--0 = 0, 1, 2, 3 (bytes 0--3); default \hex{44444444} \\
+HEADER\_A--D      & \hex{D0}--\hex{DC} & RW & headers of channels 40--43 (Table~\ref{tbl:rx-turns}); bits 15--8 are replaced by the PACMAN identifier in the stream \\
+EOP\_HEADER       & \hex{E0} & RW & header of the trailer, bits 15--8 replaced likewise; default \hex{0000004C} \\
+FIFO\_CNT         & \hex{F0} & RO & words (64 bits) in the RX FIFO \\
+FIFO\_MAX         & \hex{F4} & RO & maximum of FIFO\_CNT since the last clear \\
+ZERO\_CNTS        & \hex{F8} & WO & clear all RX counters and FIFO\_MAX (command: any value) \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
 \begin{table}
 \caption{\label{tbl:rx-bit-fields} Bit field descriptions for RX register}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register & Field      & Bits & Mask       \\
-\hline
-UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-UART\_CONFIG  & PHASE      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
-              & INPUT      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
-              & MODE       & 13-12 & {\tt 0}x{\tt 00003000}  \\
-              & FLAGS      & 15-14 & {\tt 0}x{\tt 0000C000}  \\
-              & PERIOD     & 23-16 & {\tt 0}x{\tt 00FF0000}  \\
-              & (Reserved) & 31-24 & {\tt 0}x{\tt FF000000}  \\
-\hline
-BUFFER\_STATUS & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-BUFFER\_CONFIG  & TIMEOUT    & 15-0  & {\tt 0}x{\tt 0000FFFF}  \\
-              & MAX\_WORDS & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
-\hline
-BUFFER\_ENABLES & HEARTBEAT  & 0     & {\tt 0}x{\tt 00000001}  \\
-              & ROLLOVER   & 1     & {\tt 0}x{\tt 00000002}  \\
-              & MARKER\_2  & 2     & {\tt 0}x{\tt 00000004}  \\
-              & MARKER\_3  & 3     & {\tt 0}x{\tt 00000008}  \\
-\hline
-\end{tabular}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lllL}
+\toprule
+Register       & Field   & Bits   & Description \\
+\midrule
+UART\_CONFIG   & PHASE   & 7--0   & MODE 1: clock cycles from the start-bit edge to the sample point; MODE 2: from the BAUD strobe \\
+               & INPUT   & 11--8  & one-hot: 0 none (line high), 1 PISO, 2 loopback (POSI), 4 test pattern, 8 emulator (held high in this version) \\
+               & MODE    & 13--12 & 0 off, 1 sample point from the start bit, 2 fixed sample point \\
+               & FLAGS   & 15--14 & bit 14: accept a start bit with dissenting samples \\
+               & PERIOD  & 23--16 & the bit period in clock cycles (equal to the Timing unit's CONFIG\_BAUD) \\
+\midrule
+UART\_STATUS   & STATE   & 1--0   & 0 idle, 1 start bit, 2 data, 3 stop bit \\
+               & HANDSHAKE & 3--2 & ready (bit 3) and valid (bit 2) with the RX buffer \\
+               & EVENTS  & 7--4   & frame error, lost, update, start (bits 7--4; one clock cycle each), as counted \\
+               & SAMPLING & 11--8 & dissent, sample point, BAUD, noise (bits 11--8) \\
+               & TAPS    & 15--12 & majority vote (bit 15) and the three-sample history (bits 14--12) \\
+               & INPUTS  & 19--16 & emulator, test pattern, loopback, PISO (bits 19--16) \\
+               & EDGE    & 31--24 & edge phase:  position of the last start-bit edge in the bit period \\
+\midrule
+BUFFER\_STATUS & STATE   & 2--0   & 0 idle, 1 wait, 2 stream, 3 trailer \\
+               & STREAM  & 7--3   & stream writer:  last, write, busy, tready, tvalid (bits 7--3) \\
+               & TURN    & 13--8  & current turn (channel) \\
+               & FRAGMENT & 15--14 & current fragment \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
@@ -1283,6 +1317,82 @@ version.
 \begin{center}
 \includegraphics[width=0.85\textwidth]{timing_diagrams/atc_lemo.pdf}
 \end{center}
+
+\begin{table}[htbp]
+\caption{\label{tbl:atc-reg} Registers of the Timing unit (scope \texttt{1110}).}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register        & Address     & Access & Contents \\
+\midrule
+STATUS          & \hex{E000} & RO & zero (no status bits defined) \\
+TIMESTAMP       & \hex{E004} & RO & timestamp, bits 31--0 \\
+POKE\_A--D      & \hex{E0A0}, \hex{E0B0}, \hex{E0C0}, \hex{E0D0} & WO & poke (command); bits 9--0: the poke's tile mask \\
+CONFIG\_UART    & \hex{E100} & RW & UART (and UCLK) period in clock cycles; default 10 \\
+CONFIG\_BAUD    & \hex{E104} & RW & bit period of the TX and RX channels in clock cycles; default 10 \\
+CONFIG\_INPUT   & \hex{E108} & RW & bit 0: invert LEMO A, bit 1: invert LEMO B \\
+CONFIG\_G       & \hex{E110} & RW & G output buffer: bits 7--0 PHASE, bits 17--8 invert (per tile) \\
+CONFIG\_H       & \hex{E114} & RW & H output buffer: bits 7--0 PHASE, bits 17--8 invert (per tile) \\
+DST\_LEMO\_A, \_B & \hex{E120}, \hex{E124} & RW & destination of LEMO A, B (Table~\ref{tbl:atc-dst}) \\
+DST\_POKE\_A--D & \hex{E128}--\hex{E134} & RW & destination of POKE A--D \\
+DST\_LOGIC\_A, \_B & \hex{E138}, \hex{E13C} & RW & destination of LOGIC A, B (disabled sources) \\
+COUNT\_REQ      & \hex{E200} & WO & counter command (Table~\ref{tbl:atc-cmd}) \\
+COUNT           & \hex{E204} & RO & latched counter: bits 31--16 integral, bits 15--0 edges \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tbl:atc-dst} Bit fields of the destination registers DST\_LEMO\_A to DST\_LOGIC\_B.}
+\begin{center}
+\begin{tabularx}{\textwidth}{llL}
+\toprule
+Field    & Bits    & Description \\
+\midrule
+G        & 0       & send to the G outputs \\
+H        & 1       & send to the H outputs \\
+MARKERS  & 5--2    & send to markers 0--3 (one clock cycle) \\
+TILES    & 15--6   & tile mask for G and H: bit 6 for tile 0, \ldots, bit 15 for tile 9 \\
+DURATION & 31--16  & length of the G and H pulse, in clock cycles \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tbl:atc-cmd} Commands of the counters, written to COUNT\_REQ (bits 7--0).}
+\begin{center}
+\begin{tabularx}{\textwidth}{llL}
+\toprule
+Command & Code (bits 7--4) & Description (bits 3--0: the channel $C$) \\
+\midrule
+NO OP   & 0 & nothing \\
+CLEAR   & 1 & clear all counters \\
+START   & 2 & start all counters (the default after reset) \\
+STOP    & 3 & stop all counters \\
+READ M  & 4 & latch the counter of marker $C$ (0--3) into COUNT \\
+READ G  & 5 & latch the counter of the G signal of tile $C$ (0--9) \\
+READ H  & 6 & latch the counter of the H signal of tile $C$ (0--9) \\
+READ I  & 7 & latch the counter of stimulus $C$: 0 LEMO A, 1 LEMO B, 2--5 POKE A--D \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tab:atc-gh} G and H on each board.}
+\begin{center}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.38\linewidth}>{\raggedright\arraybackslash}p{0.38\linewidth}@{}}
+\toprule
+Board & G & H \\
+\midrule
+hw1v5 & port SYNC\_O\_0; schematic SYNC/RST; v3 ASIC RST & port TRIG\_O\_0; schematic TRIG; v3 ASIC SYNC (and TRIG) \\
+hw1v4 & legacy\_1v4 block, input SYNCN\_I & legacy\_1v4 block, input TRIG\_I \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
 
 \subsection{ADC Unit}
 The ADC unit is responsible for operating the on-board
