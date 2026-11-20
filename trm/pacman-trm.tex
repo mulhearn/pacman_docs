@@ -16,6 +16,7 @@
 \lstset{basicstyle=\ttfamily,columns=fullflexible}
 \usepackage{array}
 \newcommand{\hex}[1]{\texttt{0x#1}}
+\setlength{\emergencystretch}{2em}
 
 \begin{document}
 
@@ -46,9 +47,7 @@ The PACMAN card plays a supporting role in the LArPix system.  It does not face 
 as severe as the cold electronics of the LArPix system and therefore a fundamental design constraint
 is that it in no way limits the performance of the supported system.
 
-\section{Hardware Implementation}
-
-\subsection{Card Overview}
+\section{Hardware Implementation}\label{sec:hardware}
 
 \begin{figure}[htbp]
   \centering
@@ -275,7 +274,7 @@ Table~\ref{tbl:hw-spec} compares the requirements with the 1v5 design.
 \begin{tabular}{l>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{3.2cm}}
 Item                & Requirement               & Design                                   & Status \\
 \hline
-VDDA, VDDD range    & 0--1.8\,V                 & 0.28--2.5\,V (0\,V with the tile off)    & met \\
+VDDA, VDDD range    & 0--1.8\,V                 & 0\,V (tile off), fully adjustable from 0.5\,V to about 2.5\,V & met \\
 VDDA current        & 0.3\,A per tile           & TPS7A94:  1\,A rated, limit 1.2--1.4\,A  & met \\
 VDDD current        & 1.1\,A per tile           & TPS7A94:  1\,A rated, limit 1.2--1.4\,A, 1.14\,A on the bench & above the regulator's rating:  VDDD is pushed \\
 Stability, noise    & 1\,\%, $<$1\,mV           & low-noise LDOs (TPS7A94)                 & not assessed here \\
@@ -293,7 +292,7 @@ Embedded Linux      & Gigabit Ethernet, SD boot, JTAG and UART over one USB & as
 
 
 \newpage
-\section{Programmable Logic Firmware}
+\section{Programmable Logic Firmware}\label{sec:firmware}
 
 \begin{figure}[htbp]
 \centering
@@ -420,7 +419,7 @@ was renamed to START) to the firmware to reduce confusion.  So
 technically, this documentation describes the not yet released 3.6.1
 firmware.}  The latest release of 3.X firmware is available on GitHub
 at
-\url{https://github.com/mulhearn/pacman-firmware/tree/zipline-2023.2}
+\begin{center} \url{https://github.com/mulhearn/pacman-firmware/tree/zipline-2023.2} \end{center}
 
 The modules are implemented as custom RTL modules written in VHDL.
 They contain submodules which are also written in VHDL.  Every module
@@ -629,7 +628,7 @@ several clock cycles later.  For this reason, the read address, write
 address, and write data are held fixed until the acknowledgement is
 received, or a timeout occurs.  The timeout ensures that writing an
 invalid address does not hang the AXI-Lite bus.  Read responses to an
-invalid address return 0xEEEEEEEE.  (Additional error flags for
+invalid address return \hex{EEEEEEEE}.  (Additional error flags for
 invalid addresses are available, but not fully implemented in version
 3.6.)
 
@@ -1703,21 +1702,107 @@ documentation is still under development.
 
 
 \newpage
-\section{PACMAN Server}
-\subsection{DAQ Interface}
+\section{PACMAN Software}
 
-The PACMAN Server interface to the DAQ is a virtual address spaces.
-Virtual addresses refer to specific features, for example, powering
-VDDD of tile 1 to a specific voltage level.  The use of a virtual
-addresses allows for the most consistent support across hardware
-versions.  Direct (non-virtual) interface to the AXI LITE address
-space is provided at upper region of the address space, as well as
-direct access to the I2C bus.
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    layer/.style={
+        draw,
+        rectangle,
+        minimum width=4cm,
+        minimum height=1.0cm,
+        align=center,
+        fill=blue!10
+    },
+    node distance=0.5cm
+]
 
-Each PACMAN message consists of a 24-byte header
-(Table~\ref{tbl:pacman_header_fields} and
-Fig.~\ref{fig:pacman_header_layout}) followed by N bytes:  24-byte
-PACMAN words, or the text of a string reply.
+\node[layer] (hw) {PACMAN Hardware};
+\node[layer, above=of hw] (fw) {Firmware};
+\node[layer, above=of fw] (api) {Drivers / API};
+
+\node[layer, fill=white, minimum width=3cm, above=of api] (data)
+    {\texttt{pacman\_dataserver}};
+\node[layer, fill=white, minimum width=3cm, left=of data] (cmd)
+    {\texttt{pacman\_cmdserver}};
+\node[layer, fill=white, minimum width=3cm, right=of data] (menu)
+    {\texttt{pacman\_menu}};
+
+\node[layer, above=of data, xshift=-2.25cm] (daq) {DAQ};
+
+\draw[->] (hw) -- (fw);
+\draw[->] (fw) -- (api);
+
+\draw[->] (api) -- (data);
+\draw[->] (api) -- (cmd);
+\draw[->] (api) -- (menu);
+
+\draw[->] (data) -- (daq);
+\draw[->] (cmd) -- (daq);
+
+\end{tikzpicture}
+\caption{The PACMAN vertical integration stack.}
+\label{fig:pacman-stack}
+\end{figure}
+
+\noindent
+The Zynq SoC hosts an ARM processor capable of running either Linux (including custom PACMAN
+software) or bare-metal applications.  The software design is centered around Linux, but the project
+fully supports bare-metal applications (avoiding Linux) as a workflow for when a tighter development
+cycle is needed.
+
+The PACMAN vertical integration stack is shown in Fig.~\ref{fig:pacman-stack}.  The hardware and
+firmware were described in Sections~\ref{sec:hardware} and \ref{sec:firmware}.  This documentation
+describes the PACMAN software, based on the 3.6.5 version (not yet released).  The latest PACMAN
+software is available as a GitHub repository:
+\begin{center} \url{https://github.com/mulhearn/pacman-software/tree/zipline-2023.2} \end{center}
+Paths in this section are relative to \texttt{petalinux/pkg/pacman-apps/files/} unless they start
+with \texttt{apps/} (the bare-metal applications at the top of the repository).  {\bf Unlike the
+  hardware and firmware, which are mature and evolving more incrementally and predictably, the
+  PACMAN software layer is still under rapid development, and is still missing some of the crucial
+  features needed for a reliable system.}
+
+The primary role of the PACMAN software is to stand up the interface to the DUNE Data Acquisition
+(DAQ) system, as presented in Section~\ref{sec:daq-interface}.  The implementation of this
+interface, through drivers and software applications running on the ARM processor, is described in
+subsequent sections.  The {\tt pacman\_cmdserver} handles requests to read and write PACMAN
+registers and to transmit packets to the ASICs, while the {\tt pacman\_dataserver} receives and
+publishes packets from the ASICs.  The {\tt pacman\_menu} is an ASCII menu-driven interface for
+expert monitoring, special configurations, and testing.
+
+The {\tt pacman\_util.py} script provides easy access to the PACMAN DAQ interface, either locally (on the
+PACMAN) or remotely with the \texttt{-{}-ip <address>} option.  For example, a lightweight test that the
+command server is running:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# utils/pacman_util.py --ping
+\end{lstlisting}
+a check that the data server is delivering SYNC words (a heartbeat every 10\,s, printed until
+Ctrl-C):
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# utils/pacman_util.py --rx -1 -t -1
+\end{lstlisting}
+and the full list of options:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# utils/pacman_util.py -h
+\end{lstlisting}
+
+\subsection{DAQ Interface}\label{sec:daq-interface}
+
+\begin{table}
+\caption{\label{tbl:sockets} ZMQ sockets of the PACMAN servers.}
+\begin{center}
+\begin{tabular}{lll>{\raggedright\arraybackslash}p{9.6cm}}
+Port & ZMQ type & Server & Use \\
+\hline
+5555 & REP & \texttt{pacman\_cmdserver} & requests and their replies:  one REQUEST (or STRING) message in, one
+  REPLY (or STRING) message out \\
+5554 & PUB & \texttt{pacman\_cmdserver} & echo:  every REQUEST, then its REPLY, as handled (STRING messages are
+  not echoed) \\
+5556 & PUB & \texttt{pacman\_dataserver} & DATA messages:  every word the RX unit delivers \\
+\end{tabular}
+\end{center}
+\end{table}
 
 \begin{table}[htbp]
 \centering\small
@@ -1729,15 +1814,14 @@ Message Type   & M      & 1 & 8  & See Table~\ref{tbl:pacman_msg_types}\\
 PACMAN ID      & P      & 1 & 8  & Default: 0\\
 Major Version  & A      & 1 & 8  & 1 \\
 Minor Version  & B      & 1 & 8  & 1 \\
-Length         & N      & 4 & 32 & bytes following header \\
-Timestamp      & T      & 8 & 64 & time at message creation \\
-Sequence       & S      & 4 & 32 & 0 or message count \\
-Session        & E      & 4 & 32 & 0 or random non-zero value for each new session \\
+Length         & N      & 4 & 32 & Bytes following header \\
+Timestamp      & T      & 8 & 64 & Time at message creation \\
+Sequence       & S      & 4 & 32 & Zero or message count \\
+Session        & E      & 4 & 32 & Zero or random non-zero value for each new session \\
 \hline
 \end{tabular}
 \caption{Fields of the PACMAN message header (24 bytes, 192 bits), by
-  byte position.  Multi-byte fields are little-endian.  The notes
-  describe the 3.6.3 software.}
+  byte position. }
 \label{tbl:pacman_header_fields}
 \end{table}
 
@@ -1747,15 +1831,87 @@ Session        & E      & 4 & 32 & 0 or random non-zero value for each new sessi
 \hline
 Message Type & Char & Use \\
 \hline
-REQUEST & `?' & request to the command server:  PACMAN words \\
-REPLY   & `!' & reply from the command server:  one word per request word \\
-DATA    & `D' & from the data server:  PACMAN words received by the RX unit \\
-STRING  & `S' & high-level command to the command server, or its reply, as text \\
+REQUEST & `?' & Request to the command server containing PACMAN words \\
+REPLY   & `!' & Reply from the command server with one word per request word \\
+DATA    & `D' & PACMAN words received by the RX unit \\
+STRING  & `S' & High-level (text) command to the command server, or a reply\\
 \hline
 \end{tabular}
 \caption{PACMAN message types (field M of the message header).}
 \label{tbl:pacman_msg_types}
 \end{table}
+
+\newcommand{\pacmanWordRect}[1]{%
+  % #1 = y-coordinate of the bottom of the rectangle
+  \def\wh{1}   % height of the rectangle
+  \def\ww{16}   % width of the rectangle
+  \def\bw{\ww/24} % width per byte
+
+  % Draw main rectangle
+  \draw[line width = 2pt] (0,#1) rectangle (\ww, {#1+\wh});
+
+  % Draw dashed lines for each byte, all relative to #1
+  \foreach \i in {1,...,23} {
+    \draw[dashed] ({\i*\bw}, #1) -- ({\i*\bw}, {#1+\wh});
+  }
+}
+
+\newcommand{\pacmanFieldLow}[2]{%
+  % #1 = y-coordinate of the bottom of the rectangle
+  % #2 = byte index (0..23)
+  \def\wh{1}      % height of rectangle
+  \def\ww{16}     % width of rectangle
+  \def\bw{\ww/24} % width per byte
+
+  % Draw solid line at top of byte #2, relative to bottom y-coordinate #1
+  \draw[line width = 2pt] ({#2*\bw}, {#1}) -- ({#2*\bw}, {#1+\wh});
+}
+
+\newcommand{\pacmanByteText}[3]{%
+  % #1 = y-coordinate of bottom of rectangle
+  % #2 = byte index (0–23)
+  % #3 = text to place
+  \def\wh{1}   % height of rectangle (same as pacmanWordRect)
+  \def\ww{16}  % width of rectangle
+  \def\bw{\ww/24} % width per byte
+
+  % Compute center of the byte
+  \pgfmathsetmacro{\xcenter}{#2*\bw + 0.5*\bw}
+  \pgfmathsetmacro{\ycenter}{#1 + 0.5*\wh}
+
+  % Place text centered
+  \node at (\xcenter,\ycenter) {#3};
+}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+    \def\yHDR{0.0}
+    \node at (8,\yHDR - 0.4) {\large Header};
+    \pacmanWordRect{\yHDR}
+    \pacmanByteText{\yHDR}{0}{M}    % message type
+    \pacmanByteText{\yHDR}{1}{P}    % pacman ID
+    \pacmanByteText{\yHDR}{2}{A}    % major version
+    \pacmanByteText{\yHDR}{3}{B}    % minor version
+    \pacmanByteText{\yHDR}{4}{N}    % length (bytes)
+    \pacmanByteText{\yHDR}{8}{T}    % timestamp
+    \pacmanByteText{\yHDR}{16}{S}   % sequence
+    \pacmanByteText{\yHDR}{20}{E}   % session
+    \pacmanFieldLow{\yHDR}{1}
+    \pacmanFieldLow{\yHDR}{2}
+    \pacmanFieldLow{\yHDR}{3}
+    \pacmanFieldLow{\yHDR}{4}
+    \pacmanFieldLow{\yHDR}{8}
+    \pacmanFieldLow{\yHDR}{16}
+    \pacmanFieldLow{\yHDR}{20}
+  \end{tikzpicture}
+  \caption{Layout of the PACMAN message header, showing field
+    locations and sizes, labeled by the single character symbol from
+    Table~\ref{tbl:pacman_header_fields}.  The space between each pair
+    of lines represents one byte, and the header is 24 bytes wide
+    (192 bits), with the least significant byte to the left.}
+\label{fig:pacman_header_layout}
+\end{figure}
 
 \begin{table}[htbp]
 \centering
@@ -1806,80 +1962,6 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
   letter symbol used for each active field is listed.}
 \label{tbl:pacman_word_fields}
 \end{table}
-
-\newcommand{\pacmanWordRect}[1]{%
-  % #1 = y-coordinate of the bottom of the rectangle
-  \def\wh{1}   % height of the rectangle
-  \def\ww{16}   % width of the rectangle
-  \def\bw{\ww/24} % width per byte
-
-  % Draw main rectangle
-  \draw[line width = 2pt] (0,#1) rectangle (\ww, {#1+\wh});
-
-  % Draw dashed lines for each byte, all relative to #1
-  \foreach \i in {1,...,23} {
-    \draw[dashed] ({\i*\bw}, #1) -- ({\i*\bw}, {#1+\wh});
-  }
-}
-
-\newcommand{\pacmanFieldLow}[2]{%
-  % #1 = y-coordinate of the bottom of the rectangle
-  % #2 = byte index (0..23)
-  \def\wh{1}      % height of rectangle
-  \def\ww{16}     % width of rectangle
-  \def\bw{\ww/24} % width per byte
-
-  % Draw solid line at top of byte #2, relative to bottom y-coordinate #1
-  \draw[line width = 2pt] ({#2*\bw}, {#1}) -- ({#2*\bw}, {#1+\wh});
-}
-
-\newcommand{\pacmanByteText}[3]{%
-  % #1 = y-coordinate of bottom of rectangle
-  % #2 = byte index (0–23)
-  % #3 = text to place
-  \def\wh{1}   % height of rectangle (same as pacmanWordRect)
-  \def\ww{16}  % width of rectangle
-  \def\bw{\ww/24} % width per byte
-
-  % Compute center of the byte
-  \pgfmathsetmacro{\xcenter}{#2*\bw + 0.5*\bw}
-  \pgfmathsetmacro{\ycenter}{#1 + 0.5*\wh}
-
-  % Place text centered
-  \node at (\xcenter,\ycenter) {#3};
-}
-
-
-
-\begin{figure}[htbp]
-  \centering
-  \begin{tikzpicture}
-    \def\yHDR{0.0}
-    \node at (8,\yHDR - 0.4) {\large Header};
-    \pacmanWordRect{\yHDR}
-    \pacmanByteText{\yHDR}{0}{M}    % message type
-    \pacmanByteText{\yHDR}{1}{P}    % pacman ID
-    \pacmanByteText{\yHDR}{2}{A}    % major version
-    \pacmanByteText{\yHDR}{3}{B}    % minor version
-    \pacmanByteText{\yHDR}{4}{N}    % length (bytes)
-    \pacmanByteText{\yHDR}{8}{T}    % timestamp
-    \pacmanByteText{\yHDR}{16}{S}   % sequence
-    \pacmanByteText{\yHDR}{20}{E}   % session
-    \pacmanFieldLow{\yHDR}{1}
-    \pacmanFieldLow{\yHDR}{2}
-    \pacmanFieldLow{\yHDR}{3}
-    \pacmanFieldLow{\yHDR}{4}
-    \pacmanFieldLow{\yHDR}{8}
-    \pacmanFieldLow{\yHDR}{16}
-    \pacmanFieldLow{\yHDR}{20}
-  \end{tikzpicture}
-  \caption{Layout of the PACMAN message header, showing field
-    locations and sizes, labeled by the single character symbol from
-    Table~\ref{tbl:pacman_header_fields}.  The space between each pair
-    of lines represents one byte, and the header is 24 bytes wide
-    (192 bits), with the least significant byte to the left.}
-\label{fig:pacman_header_layout}
-\end{figure}
 
 \begin{figure}[htbp]
   \centering
@@ -2009,13 +2091,141 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
 
   \caption{Layout of PACMAN message words by word type, showing field
     locations and sizes, labeled by the single character symbol from
-    Table~ \ref{tbl:pacman_word_fields}.  The space between each pair
+    Table~\ref{tbl:pacman_word_fields}.  The space between each pair
     of lines represents one byte, and each word is 24 bytes wide
-    (192-bits).  The least significant bit is to the left, the
+    (192 bits).  The least significant bit is to the left, the
     least significant byte is a character field used to indicate the
     word type.}
 \label{fig:pacman_word_layouts}
 \end{figure}
+
+\noindent
+The DAQ reaches the PACMAN over Ethernet, through three ZMQ sockets bound by the two servers
+(Table~\ref{tbl:sockets}).  The REP socket serves one request at a time: a client sends a request
+and waits for its reply before the next.  The PUB sockets are fire and forget.  Each ZMQ message
+adheres to the PACMAN message format (version 1.1) consisting of a 24-byte header
+(Table~\ref{tbl:pacman_header_fields} and Fig.~\ref{fig:pacman_header_layout}) followed by $N$ bytes
+holding 24-byte PACMAN words or the text (string) of a high-level command or reply.  The PACMAN
+message format is defined in \texttt{include/pacman\_message.hh} (C++, used by the servers and the
+board tools) and \texttt{pylib/pacman\_message.py} (Python, used by \texttt{utils/pacman\_util.py}
+and by clients).  Multi-byte fields are little-endian.
+
+The sequence and session fields (bytes 16--23, new in version 1.1) are currently used by DATA
+messages only and are zero otherwise.  The session is a random non-zero number drawn when
+\texttt{pacman\_dataserver} starts, and the sequence counts the messages of that session from 0
+(wrapping at $2^{32}$).  A client detects a lost message by a gap in the sequence, and a restart of
+the data server by a new session.  The timestamp of a REPLY is copied from its REQUEST.  A REQUEST
+holds up to 16000 words (\texttt{MAX\_WORDS}).  The command server checks that the message is at
+least a header long, no larger than its buffer, and exactly as long as the header says.  A request
+that fails a check is answered by a REPLY of one ERR word (error code \hex{EEEE}).  Otherwise the
+reply has one word per request word, in the same order.
+
+A primary role of the PACMAN card is delivering configuration packets to the ASICs and returning
+their replies.  The DATA and CFG word types contain ASIC packets as their payloads, and they are
+delivered and received by the PACMAN to and from the ASICs as is.  The PACMAN is largely agnostic
+about the details.  The latest firmware does include a lookup table that allows the PACMAN to
+discern whether a packet is a data or a configuration packet, so that its PACMAN message word type
+can be set to DATA or CFG as appropriate.  As of 3.6.5, all DATA and CFG words are sent to the same
+ZMQ PUB socket, but in the future, CFG words could be sent to a dedicated configuration-only stream.
+
+\begin{table}
+\caption{\label{tbl:regions} Regions of the PACMAN server address space.  Other addresses are
+  reserved.}
+\begin{center}
+\begin{tabular}{ll>{\raggedright\arraybackslash}p{8.2cm}}
+Register    & Address Region                 & Offset decoded as \\
+\hline
+Hardware       & \hex{00000000}--\hex{0000FFFF} & PL register bus address offset (AXI-Lite) \\
+PACMAN Virtual & \hex{00100000}--\hex{0010FFFF} & PACMAN virtual register (Table~\ref{tbl:vregs})\\
+I2C Virtual    & \hex{00200000}--\hex{0020FFFF} & I2C virtual register (Table~\ref{tbl:i2cregs})\\
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}
+\caption{\label{tbl:vregs} PACMAN virtual registers (write only).}
+\begin{center}
+\begin{tabular}{lll}
+Address & Write Value & Effect \\
+\hline
+\hex{00100110} &  Unused          & Disable tile power \\
+\hex{00100114} &  Unused          & Enable tile power \\
+\hex{00100210} &  TILE (0--9)     & Disable tile TILE \\
+\hex{00100214} &  TILE (0--9)     & Enable tile TILE \\
+\hex{001002F0} &  Unused          & Disable all ten tiles \\
+\hex{001002F4} &  Unused          & Enable all ten tiles \\
+\hex{00100310} &  UART (0--39)    & Turn RX for channel UART off \\
+\hex{00100314} &  UART (0--39)    & Turn RX for channel UART on \\
+\hex{001003F0} &  Unused          & Turn RX for all 40 UART channels off \\
+\hex{001003F4} &  Unused          & Turn RX for all 40 UART channels on \\
+\hex{00100410} &  MASK (0--0x3FF) & Send internal reset to ASIC tiles in MASK \\
+\hex{00100420} &  MASK (0--0x3FF) & Send full reset to ASIC tiles in MASK \\
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}
+\caption{\label{tbl:legacy-vregs} Legacy virtual registers (write only).}
+\begin{center}
+\begin{tabular}{lll}
+Address & Write Value & Effect \\
+\hline
+\hex{00100010} & MASK (0--0x3FF)   & Enable/disable tiles from MASK (1=enable)\\
+\hex{00100014} & ENABLE (bit 0)    & Enable/disable tile power from ENABLE (1=enable)\\
+\hex{00101010} & RESET (bit 2)     & Send reset if RESET=1, else do nothing \\
+\hex{00101014} & LENGTH (0--0xFFF) & Set reset pulse length \\
+\hex{0010201C} & MASK (0--0xFFFFFFFF) & Enable/disable RX for UARTs 0--31 (1=disable) \\
+\hex{00102020} & MASK (0--0xFF)    & As above, for UARTs 32--39 \\
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}
+\caption{\label{tbl:i2cregs} Virtual I2C registers.  The low four bits of the address select the tile.  Reads of write-only registers return 0.}
+\begin{center}
+\begin{tabular}{ll>{\raggedright\arraybackslash}p{11cm}}
+Address & Access & Register \\
+\hline
+\hex{00200010}+$t$ & W & SET\_VDDA:  Set VDDA DAC code of tile $t$ (0--9) \\
+\hex{00200020}+$t$ & W & SET\_VDDD:  Set VDDD DAC code of tile $t$ \\
+\hex{00200030}+$t$ & R & MON\_VDDA:  Return measured VDDA of tile $t$, mV \\
+\hex{00200040}+$t$ & R & MON\_VDDD:  Return measured VDDD, mV \\
+\hex{00200050}+$t$ & R & MON\_IDDA:  Return measured VDDA current, mA \\
+\hex{00200060}+$t$ & R & MON\_IDDD:  Return measured VDDD current, mA \\
+\hex{00200070} & W & SET\_MUX\_FRONT\_PANEL:  0--9 tile 1--10, 10 the DAC, otherwise open \\
+\hex{00200080} & W & SET\_MUX\_ADC:  as above, for the ADC \\
+\end{tabular}
+\end{center}
+\end{table}
+
+The READ and WRITE word types refer to a virtual register space that provides both direct and
+indirect access to the PACMAN firmware AXI-Lite register space and I2C peripherals, within the
+regions defined in Table~\ref{tbl:regions}.  The decoding is handled in the software by
+\texttt{pacman\_read} and \texttt{pacman\_write} (\path{src/drivers-linux/pacman_vspace.cc}, with regions defined in \path{include/addr_conf.hh}).  Channels and tiles in virtual register arguments are
+zero-referenced (tile 1 is 0, UART 0 is 0).  The Hardware registers provide direct access to the
+firmware registers of the AXI-Lite register bus interface at base address \hex{40000000}.  For
+example, to read the firmware major version (FIRMWARE\_MAJOR, Table~\ref{tbl:global-reg}), one can
+run, on the PACMAN:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# utils/pacman_util.py --read 0xFF10
+\end{lstlisting}
+which is the same as reading the hardware register directly:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# devmem 0x4000FF10
+\end{lstlisting}
+Virtual registers do not have an equivalent \texttt{devmem} command.  The PACMAN virtual registers are write only, and are used for configuration that is not strictly tied to the firmware registers, following Table~\ref{tbl:vregs}.  For example, to enable the main analog power and then all ten
+tiles (the written value is not used):
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# utils/pacman_util.py --write 0x00100114 0 --write 0x001002F4 0
+\end{lstlisting}
+
+The I2C virtual registers provide read and write access to I2C peripherals, following
+Table~\ref{tbl:i2cregs}.  For example, to read the VDDA voltage (mV) and current (mA) of tile 1:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# utils/pacman_util.py --read 0x00200030 --read 0x00200050
+\end{lstlisting}
+
+{\bf To support the transition from the legacy firmware, the virtual address space includes key addresses from the legacy firmware commonly accessed by \texttt{larpix-control}}, listed in Table~\ref{tbl:legacy-vregs}.
 
 \begin{table}[h]
 \centering
@@ -2051,10 +2261,222 @@ and \texttt{enable\_tile} activates individual tiles.}
 \label{tbl:high-level}
 \end{table}
 
-\newpage
-\section{Developer Workflows}
+The STRING messages refer to an experimental high-level DAQ interface, as shown in
+Table~\ref{tbl:high-level}.  This interface is experimental and evolving rapidly.  It is envisioned as
+the primary mechanism for PACMAN configuration in the future, eventually making PACMAN register read
+and write access obsolete at the DAQ interface layer.
 
 
+
+\subsection{Drivers}\label{sec:drivers}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw, rectangle, align=center, fill=blue!10, font=\footnotesize\ttfamily,
+      minimum height=0.85cm, inner sep=2pt},
+    lyr/.style={align=right, anchor=east, font=\small\bfseries},
+    sep/.style={dashed, gray}
+]
+% platform
+\node[box, minimum width=3.0cm] (hdr) at (10.1,1.4) {hw\_access.h};
+\node[box, minimum width=3.0cm] (lnx) at (7.9,0) {hw\_access.c\\{\rmfamily (Linux)}};
+\node[box, minimum width=3.0cm] (bm)  at (12.3,0) {hw\_access.c\\{\rmfamily (bare metal)}};
+\draw[->] (lnx) -- (hdr);
+\draw[->] (bm) -- (hdr);
+% common drivers (a selection)
+\foreach \n [count=\i] in {global, dma, rxtx, atc, iic, adc, la, asic} {
+  \node[box, minimum width=1.55cm] (c\i) at ({3.0+1.75*\i},3.1) {\n.h\\\n.c};
+}
+% menu layer
+\foreach \n/\i in {rxtx/3, atc/4, iic/5, adc/6, la/7, asic/8} {
+  \node[box, minimum width=1.55cm, fill=white] (m\i) at ({3.0+1.75*\i},4.4) {\n\_\\menu.c};
+}
+\node[box, minimum width=3.3cm, fill=white] at (5.625,4.4) {hwcheck\_menu.c};
+% linux drivers
+\node[box, minimum width=2.3cm] at (4.95,6.1) {pacman.cc};
+\node[box, minimum width=2.3cm] at (7.45,6.1) {pacman\_\\vspace.cc};
+\node[box, minimum width=2.3cm] at (9.95,6.1) {pacman\_\\message.cc};
+\node[box, minimum width=2.3cm] at (12.45,6.1) {tx\_buffer.cc};
+\node[box, minimum width=3.0cm] at (15.3,6.1) {pacman\_highlevel\_\\interface.cc};
+% linux applications
+\node[box, minimum width=2.3cm, fill=white] at (4.95,7.8) {pacman\_\\cmdserver};
+\node[box, minimum width=2.3cm, fill=white] at (7.45,7.8) {pacman\_\\dataserver};
+\node[box, minimum width=2.3cm, fill=white] at (9.95,7.8) {pacman\_menu};
+\node[box, minimum width=2.3cm, fill=white] at (12.45,7.8) {pacman\_\\hwcheck};
+\node[box, minimum width=3.0cm, fill=white] at (15.3,7.8) {pacman\_fwcheck,\\\dots};
+% layer separators and labels
+\foreach \y in {2.3, 5.25, 6.95} { \draw[sep] (0.6,\y) -- (16.9,\y); }
+\node[lyr] at (3.6,0.7) {Platform};
+\node[lyr] at (3.6,3.75) {Common\\drivers};
+\node[lyr] at (3.6,6.1) {Linux\\drivers};
+\node[lyr] at (3.6,7.8) {Linux\\applications};
+\end{tikzpicture}
+\caption{PACMAN software layers (a selection of the files in each).  The platform layer
+  (\texttt{hw\_access.h}) has one implementation for Linux and one for bare metal.  The common
+  drivers (one per firmware unit or board device) and
+  their menus (white) use only the platform layer, so the same source runs on both platforms.  The
+  Linux drivers and applications are built for Linux only.}
+\label{fig:drivers}
+\end{figure}
+
+\noindent
+The PACMAN applications rely on PACMAN-specific user-space drivers, which implement low-level PACMAN
+features such as DMA and AXI-Lite register access.  Bare-metal and Linux applications run on
+fundamentally different platforms. Bare-metal applications access hardware and memory directly at
+their physical addresses, while Linux applications run in virtual memory, so the hardware registers
+and DMA buffers must first be mapped into the application's address space (with \texttt{mmap} of
+\texttt{/dev/mem}).  Linux hardware drivers (such as for I2C) are also different from the
+Xilinx-provided hardware drivers for bare-metal applications.
+
+The PACMAN driver code relies on a platform layer that defines the lowest level interface to the
+hardware, with separate Linux and bare-metal implementations.  The platform layer
+(\path{src/platform/hw_access.h}) declares all access to the hardware: AXI-Lite
+registers, DMA registers and buffers, I2C, PS GPIO, a timer and menu input.  Under Linux it maps the
+hardware from \texttt{/dev/mem} (root required) and uses the kernel's I2C and GPIO drivers.  Bare
+metal uses the Xilinx standalone drivers.
+
+The PACMAN-specific common drivers access the hardware only through this interface, so that the same
+code can be shared between bare-metal and Linux platforms.  The Linux applications and their
+(user-space) drivers are built atop these common drivers.  The hierarchical driver structure is
+illustrated in Fig.~\ref{fig:drivers}.
+
+\subsection{Linux Applications}\label{sec:apps}
+
+\begin{table}
+\caption{\label{tbl:apps} PACMAN Linux applications (installed in \texttt{/usr/bin}) and scripts
+  (installed in \texttt{/home/root/utils}).}
+\begin{center}
+\begin{tabular}{l>{\raggedright\arraybackslash}p{12cm}}
+Application & Role \\
+\hline
+\texttt{pacman\_cmdserver}  & DAQ interface:  register access and transmission to the ASICs (port 5555, echo on 5554) \\
+\texttt{pacman\_dataserver} & DAQ interface:  publishes the words received from the ASICs (port 5556) \\
+\texttt{pacman\_menu}       & ASCII menu access to every driver, for expert monitoring, special configurations and testing \\
+\texttt{pacman\_hwcheck}    & hardware checkout test suite \\
+\texttt{pacman\_fwcheck}    & firmware checkout:  checks of the firmware requirements on the hardware \\
+\texttt{pacman\_capture}    & arms the ADC (scope) or logic analyzer and saves its capture to a file \\
+\texttt{pacman\_counter}    & data server client:  counts packets per channel and checks the message sequence \\
+\texttt{pacman\_push}       & command server client:  sends DATA words at a set rate, for TX tests \\
+\texttt{pacman\_zmqbench}   & ZMQ throughput benchmark on the data server's port, without the DMA \\
+\texttt{pacman\_units}      & unit tests of the message format, TX buffer and ASIC packets, without hardware \\
+\hline
+\texttt{pacman\_server.sh}  & starts, stops or restarts the two servers (also at boot) \\
+\texttt{pacman\_util.py}    & Python client of the servers:  register reads and writes, ASIC words, STRING commands, data and echo dumps \\
+\texttt{pacman\_lnxcheck.sh} & checkout of the Trenz module under Linux (CPU, memory, Ethernet, flash, eMMC, microSD) \\
+\texttt{power\_up\_tile.sh}   & tile power through the command server (with \texttt{power\_down.sh} and
+  \texttt{report\_power.sh}) \\
+\end{tabular}
+\end{center}
+\end{table}
+
+\noindent
+The Linux applications and scripts are listed in Table~\ref{tbl:apps}.  The two servers implement
+the DAQ interface (Section~\ref{sec:daq-interface}) and are started at boot.  The board tools
+(\texttt{pacman\_menu}, \texttt{pacman\_hwcheck}, \texttt{pacman\_fwcheck}) access the same DMA and
+registers as the servers, so the servers are stopped (\texttt{pacman\_server stop}) before they are
+run if they need access to DMA.  The remaining applications are clients and benchmarks for testing
+the DAQ interface, and \texttt{pacman\_util.py} is the simplest way to reach it by hand.
+
+\section{Developer Workflows}\label{sec:workflows}
+
+This section describes common development workflows based on Vivado (and PetaLinux) version 2023.2,
+running under Ubunutu Linux.  Additional documentation is available in each repository under
+\texttt{docs/flow.txt}.  Typical setup of the development tools:
+\begin{lstlisting}[frame=leftline]
+source /tools/Xilinx/Vivado/2023.2/settings64.sh
+source /tools/Xilinx/PetaLinux/2023.2/tool/settings.sh
+\end{lstlisting}
+
+\subsection{Building Firmware and Software from the Repositories}
+
+Firmware, from \texttt{pacman-firmware/}.  The hardware version is chosen at project creation:
+\begin{lstlisting}[frame=leftline]
+cd vivado
+vivado -mode batch -source tcl/create.tcl -tclargs hw1v5
+vivado -mode batch -source tcl/runsib.tcl
+cd ..
+\end{lstlisting}
+The hardware export file is \texttt{products/pacman.xsa}.  Software, from
+\texttt{pacman-software/}:  the hardware export, then the first-stage boot loader, then the
+PetaLinux image:
+\begin{lstlisting}[frame=leftline]
+cp <pacman-firmware>/products/pacman.xsa hardware/
+xsct apps/pacman_fsbl/install.tcl
+cd petalinux
+./scripts/create_full.sh
+cd full
+../scripts/config.sh
+../scripts/build.sh
+../scripts/package.sh
+\end{lstlisting}
+\texttt{BOOT.BIN}, \texttt{image.ub} and \texttt{boot.scr} (in \texttt{images/linux}) go on the
+microSD card's FAT partition, and \texttt{rootfs.tar.gz} is extracted (as root) to its Linux
+partition.
+
+\subsection{Firmware Development}
+
+HDL is developed and validated in \texttt{ghdl/}, without vendor tools.  Every module has a
+testbench, for example for the TX unit:
+\begin{lstlisting}[frame=leftline]
+cd ghdl/tx
+make
+make run-testbenches
+cd ../..
+\end{lstlisting}
+Validated HDL is copied into the Vivado source tree, and the project is created again:
+\begin{lstlisting}[frame=leftline]
+./utils/sync_ghdl.sh
+cd vivado
+rm -fr pacman-fw
+vivado -mode batch -source tcl/create.tcl -tclargs hw1v5
+vivado -mode batch -source tcl/runsib.tcl
+cd ..
+\end{lstlisting}
+The new \texttt{products/pacman.xsa} then goes through the software build above, from
+\texttt{config.sh} on (the PetaLinux project need not be created again).
+
+\subsection{Software Application Development}
+
+For the PACMAN, PetaLinux cross-compiles the \texttt{pacman-apps} package alone, and packages it as a
+tarball (from \texttt{petalinux/full}):
+\begin{lstlisting}[frame=leftline]
+../scripts/build_pacman-apps.sh
+../scripts/package_pacman-apps.sh
+\end{lstlisting}
+which is installed over the running system, on the PACMAN:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~# tar -xzf pacman-apps-v3_6_5-candidate.tar.gz -C /
+root@Trenz:~# /etc/init.d/pacman_server restart
+\end{lstlisting}
+
+For rapid initial development, it can be useful to build the applications natively on the
+development computer (in \path{petalinux/pkg/pacman-apps/files}, with the ZMQ development library
+installed), which checks that they compile and runs the unit tests:
+\begin{lstlisting}[frame=leftline]
+make
+./bin/pacman_units.elf
+make clean
+\end{lstlisting}
+If you are certain that you know what you are doing, \texttt{make simulated-pacman} builds the
+servers with a simulated PACMAN: DATA words sent to the command server return from the data server,
+without hardware, for testing DAQ clients on the development computer.  Register access and the
+board tools are not simulated.
+
+\subsection{Bare-Metal Applications}
+
+Bare-metal applications are built with \texttt{xsct} from \texttt{pacman-software/}, from the same
+hardware export, and run over JTAG.  For example, the menu (on the common drivers,
+Section~\ref{sec:drivers}):
+\begin{lstlisting}[frame=leftline]
+xsct apps/menu/install.tcl
+cd menu
+xsct run.tcl
+cd ..
+\end{lstlisting}
+The console is the UART of the JTAG/UART adapter, for example
+\texttt{busybox microcom -s 115200 /dev/ttyUSB1}.  \texttt{apps/fwcheck} and \texttt{apps/hello}
+build and run the same way.
 
 
 \newpage
@@ -2074,12 +2496,12 @@ relies on several complementary techniques:
 \item {\bf Fault Localization:} Designing for fault localization
   forces a modular design that lends itself to effective QC.  For an
   important example, loopback can be performed in the hardware, or in
-  firmware (just prior to leaving/ entering the device), or in the
+  firmware (just prior to leaving or entering the device), or in the
   CPU, so that the source of a failure can immediately be localized to
   hardware, programmable logic, or software.
 
 \item {\bf Design Review:} The PACMAN design team includes a lead
-  engineer, and a consulting engineer, and a principal investigator.
+  engineer, a consulting engineer, and a principal investigator.
   All three understand the board down to the last net list.  The
   PACMAN design is also periodically subjected to independent review.
 
@@ -2120,32 +2542,33 @@ hardware checkout section.
 
 \item The Front-Panel SMA connectors and MUX are checked by leaving
   them open or connecting a resistor in software and confirming the
-  resistance with a DMM (Not yet in Linux)
+  resistance with a DMM.
 
 \item The Front-Panel LEMO connectors are checked by driving them with
   external TTL signals and checking counters in the software.
 
 \end{itemize}
 
-The PACMAN card hosts a linux system, so a broad spectrum of test
+The PACMAN card hosts a Linux system, so a broad spectrum of test
 software is immediately available to us.  Here we list what we
-consider to the be the most important tests of the Linux host.
+consider to be the most important tests of the Linux host.
 Specific details on performing the relevant tests are discussed in the
 hardware checkout section.
 
 \begin{itemize}
-\item Successful system BOOT, visible via UART.
-\item Successful remote login via ethernet.
-\item Successful transfer of pseudo-random data via ethernet (scp) and the UART terminal (lrzsz).
+\item Successful system boot, visible via UART.
+\item Successful remote login via Ethernet.
+\item Successful transfer of pseudo-random data via Ethernet (scp) and the UART terminal (lrzsz).
 \item Repeated read and write of pseudo-random numbers to the SD card.
 \end{itemize}
 
 Some of the tests described in this section require configuring the
 PACMAN card in ways that are not appropriate for a card installed in
 the production system.  For this reason, the PACMAN card includes an
-expert mode enable two pin jumper.  When a PACMAN card is installed in
-the production system, this jumper is removed, and the software
-refuses to provide inappropriate test configurations.
+ASIC protection jumper (J5).  It is installed whenever the card is in
+the production system or connected to ASICs, and the test software
+then refuses test configurations that are not appropriate
+(\texttt{pacman\_hwcheck} runs only its read-only checks).
 
 \subsection{Requirement Verification}
 
@@ -2185,14 +2608,14 @@ Board Power Only & Tile Power Enabled (jumper)
 The hardware checkout begins with a bare board (no TRENZ module
 installed).  The $3.3\rm V$ digital power (used by PACMAN) is on as
 soon as the board is powered at the DC supply input.  The board also
-includes a jumper ``TILE POWER ENABLE OVERRIDE JUMPER'' which allows
-the 3.3~\rm V tile power to be validated before installing any module.
+includes a jumper (J1, ``TILE POWER ENABLE OVERRIDE JUMPER'') which allows
+the 3.0\,V tile power (T3V0) to be validated before installing any module.
 
 The current should be measured and compared to the nominal expected
 value for the applied voltage, in the range of positive $32~\rm V$ to
-positive $48~\rm V$):
+positive $48~\rm V$:
 \begin{center}
-\begin{tabular}{|l|l|l|l|}
+\begin{tabular}{|l|l|l|}
 \hline
 Voltage (V) & Current (mA)  &  Current (mA) \\
             & (No Jumper)   & (Analog Power Enabled) \\
@@ -2206,214 +2629,6 @@ Voltage (V) & Current (mA)  &  Current (mA) \\
 Using a DMM, verify the supply of 3.3 V (nominal) at TP3 (D3V3) relative to TP4 (GND).
 
 Using a DMM, verify the supply of 3.0 V (nominal) at TP13 (A3V0) relative to TP14 (GND).
-
-\subsection{TRENZ Module and Linux System Checks}
-
-With a TRENZ module installed on the board, insert an SD card with the
-latest hardware checkout firmware, the ethernet cable connected to the
-network, and power the board.
-
-The local network may require customizations to the ROOT filesystem in
-order to bring up the ethernet connection.  Before attempting to bring
-up the network on a headless PACMAN card (no USB JTAG/UART header has
-been installed) consider debugging the network configuration on a
-PACMAN equipped with a USB JTAG/UART header or a Trenz Module ...  Once
-the network is brought up reliably, you can boot a PACMAN with no
-terminal and connect over ethernet.
-
-Login to the pacman card via ethernet.
-
-Run the following Linux diagnostic tools (TBD).
-
-The Linux-based drivers depend the Linux GPIO interface in /sys/class.
-This should be initialized at boot via the gpio\_init script included
-with the hwutil package.  Confirm that this is working properly with:
-\begin{lstlisting}[language=sh,frame=leftline]
-root@Trenz:~# ls /sys/class/gpio/
-export	gpio906  gpio913  gpio918  gpio919  gpiochip906  unexport
-\end{lstlisting}
-
-\subsection{Linux-based Hardware Checkout Application}
-
-The PACMAN Zipline firmware includes a menu interface to the Linux drivers:  pacman\_menu.  It is available from the command line as:
-\begin{lstlisting}[language=sh,frame=leftline]
-root@Trenz:~# pacman_menu
-pacman_menu:  PACMAN Linux driver access via menu, for diagnostics and hardware checkout.
-INFO:  Opening /dev/mem.
-INFO:  Initializing PACMAN AXI-Lite interface.
-INFO:  Running pacman firmware version 3.2 (Build: 0x7fff0000  HW Code:  0x10500)
-INFO:  Opening /dev/mem.
-INFO:  Initializing PACMAN BRAM (AXI-LITE) interface.
-INFO:  Opening /dev/mem.
-INFO:  Initializing DMA contol interface (AXIL).
-INFO:  Initializing DMA TX_BUFFER.
-INFO:  Initializing DMA RX_BUFFER.
-MAIN MENU:  choose an option:
-(1) blink LEDs (2) global registers (3) toggle scratch registers
-(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu
-\end{lstlisting}
-The user selects menu options by typing the number for the option
-followed by enter.  The numbers and arrangement of the menus will
-vary with firmware version as we further develop the tools.  This
-documentation is based on Zipline firmware version 3.6.
-In the future, we will support a turn-key hardware checkout routine as
-a menu option.  However, here we document each individual test
-one-by-one.
-
-\subsubsection{LED checkout}
-
-The pacman\_menu can be used to blink the LEDs as follows:
-\begin{lstlisting}[language=sh,frame=leftline]
-MAIN MENU:  choose an option:
-(1) blink LEDs (2) global registers (3) toggle scratch registers
-(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu
-1
-INFO: selected 1
-INFO: starting LED blink test...
-Blinking RED LED on Trenz Module, via MIO...
-Blinking PACMAN LED-0, via MIO...
-Blinking PACMAN LED-1, via MIO...
-Blinking PACMAN LED-2, via AXIL register...
-Blinking PACMAN LED-3, via AXIL register...
-INFO: done with LED blink test.
-MAIN MENU:  choose an option:
-(1) blink LEDs (2) global registers (3) toggle scratch registers
-(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu
-\end{lstlisting}
-The user should verify that:
-\begin{itemize}
-\item The red LED on the TRENZ module blinks
-\item The four green LEDs on the PACMAN card blink one-by-one.
-\end{itemize}
-This simple test also confirms that the MIO and AXI-Lite register interfaces are both working.
-
-\subsubsection{Board Power}
-Control and monitoring of electrical power provided by the PACMAN is accessible from the power menu:
-\begin{lstlisting}[language=sh,frame=leftline]
-MAIN MENU:  choose an option:
-(1) blink LEDs (2) global registers (3) toggle scratch registers
-(4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu
-4
-INFO: selected 4
-POWER MENU:  choose an option:
-(0) main menu (1) toggle enables (2) toggle power (3) monitor power
-(4) write IV curves to file
-\end{lstlisting}
-
-The ``toggle enables'' feature steps through various combinations of
-the Tile Power Enable\footnote{Also called ``Analog Power Enable'' but
-this is misleading as it provides both digital and analog power to the
-tile cards.} and the ten individual Tile enables.  The accessible settings include:\\[5pt]
-\begin{tabular}{ll}
-Setting & Explanation \\
-\hline
-0x00000000 & Nothing Enabled \\
-0x00010000 & Tile Power enabled, no individual Tiles enabled\\
-0x00010001 & Tile Power enabled, only Tile 1 enabled\\
-0x000103FF & Tile Power enabled, all Tiles enabled\\
-\end{tabular}{ll}\\[5pt]
-The ``monitor power'' feature access the on-board voltage and current monitoring ADCs.  At the moment, we are only concerned with the Board Power monitoring:
-\begin{lstlisting}[language=sh,frame=leftline]
-BOARD POWER SUMMARY:
-Board 3V6:  voltage:   3526 mV  current:   1337 mA
-Board 3V3:  voltage:   3326 mV  current:    813 mA
-Board 3V0:  voltage:   2985 mV  current:      0 mA
-\end{lstlisting}
-The user should verify that:
-\begin{itemize}
-\item As you step through the enables, first the Tile Power Enabled LED lights, then the Tile 1 enable LED lights, then all the Tile enable LEDs light.
-\item The Board 3V0 voltage is near either $3000~\rm mV$ or zero depending on whether the TILE Power is enabled or not.
-\item (The RTD Probe feature can be tested here as well by connecting a resistor at J17)
-\end{itemize}
-
-\subsubsection{VDDD and VDDA}
-
-The ``write IV curves to file'' feature of the Power submenu steps
-through several different DAC settings and steps through the monitored
-values of the voltages VDDA and VDDD along with the corresponding
-currents IDDA and IDDD.  The collected data (saved as a text file) can
-be plotted to show the linearity of the provided voltage with DAC
-setting, and the IV curve for each supplied voltage.
-\begin{center}
-\begin{tabular}{cc}
-\includegraphics[height=0.36\textwidth]{plots/vdda_dac.pdf} &
-\includegraphics[height=0.36\textwidth]{plots/idda_vdda.pdf} \\
-\end{tabular}
-\end{center}
-Here the VDDA has been loaded with a resistor to ground at the
-loopback card.
-
-\subsubsection{POSI/PISO Loopback Testing with Random Numbers}
-
-One of the most important checks is the RX and TX capabilities for the
-POSI and PISO signals between the PACMAN and the LArPix ASICs.  We
-test these with loopback at twice the nominal ASIC clock rate.  We
-transmit known random values out of the PACMAN, physically loop them
-back in as inputs.  We check each received word against the random
-value that was sent.  This test is available through the RX/TX
-submenu, but requires a few steps:
-\begin{itemize}
-\item Set the global RX configuration to 0x00000001.  This disables heartbeat, sync, and trigger words which could confuse the test.  It also only includes a single cycle in each transmitted DMA buffer.
-\item Set RX configuration to 0x00001001. This sets the mode to 1 (normal operation) and full speed (clock divisor 1).
-\item Set TX configuration to 0x00001601. This sets the mode to 1 (normal operation), phase to 0x60, and full speed (clock divisor 1).
-\item Stop pacman\_server (both the data server and command server) via:
-\begin{lstlisting}[language=sh,frame=leftline]
-root@Trenz:~# pacman_server stop
-Stopping command server...
-Stopping dataserver...
-\end{lstlisting}
-It is most convenient if you wait to do this until after the global RX configuration has been set to disables heartbeat, sync, and trigger words.  That way, the pacman\_cmdserver drains the FIFO.
-\item Stopping pacman\_cmdserver leaves a pending DMA read request, so either reset DMA, or sent a single RX.  When ready for the test, a single TX leaves the fifo size at 37 (40 + 1 128 bit words minus four words buffered by the vendor supplied DMA engine) which should be read by a single RX, leaving the fifo size at 0.
-\end{itemize}
-Once preparations are complete, the test is easily run:
-\begin{lstlisting}[language=sh,frame=leftline]
-RX/TX MENU:  choose an option:
-(0) main menu (1) zero counts (2) toggle TX config (3) toggle RX config (4) toggle RX global config
-(5) TX status  (6) TX look   (7) single TX
-(8) RX status  (9) RX look   (10) single RX
-(11) benchmark TX  (12) benchmark RX/TX loopback (13) random RX/TX loopback
-(14) DMA status (15) reset DMA
-(16) set DMA TX to RUN
-(17) set DMA RX to RUN (18) clear DMA RX (19) start DMA RX (20) resume RX
-13
-INFO: selected 13
-INFO:  Setting DMA TX To RUN.
-INFO:  DMA TX has left the HALTED state successfully. (timeout=100)
-INFO:  Setting DMA RX To RUN.
-INFO:  DMA RX has left the HALTED state successfully. (timeout=100)
-SUMMARY: Found 0 discrepancies in 40000 uart packets
-\end{lstlisting}
-
-The user should verify that:
-\begin{itemize}
-\item The test can be run several times with zero discrepancies detected.
-\end{itemize}
-Note that to help distinguish hardware failures from software
-failures, you can configure internal loopback mode (so that loopback
-occurs in software not hardware).
-
-\subsubsection{Clock and Reset/Sync/Trigger Signals}
-
-To test the Clock and Reset/Sync/Trigger signals, these are routed
-back to PACMAN via loopback into the analog monitoring signals.  These
-can be directed to the ADC, which acts as a digital oscilloscope to
-record the waveforms:
-\begin{center}
-\includegraphics[height=0.36\textwidth]{plots/clock.pdf}\\
-\end{center}
-
-\begin{center}
-\includegraphics[height=0.36\textwidth]{plots/timing.pdf}\\
-\end{center}
-
-
-\subsubsection{Front Panel Checkout}
-\begin{itemize}
-\item (the MUX can be adjusted to provide a 100 Ohm resistance, or open
- circuit, between the two SMA connectors, which can be verified with a
- DMM.)
-\item (the TTL pulses can be fed into the LEMO connectors, which are counted by the timing unit, with counts available from the timing sub-menu.)
-\end{itemize}
 
 \appendix
 
