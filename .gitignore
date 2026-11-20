@@ -6,5 +6,6 @@
 *.aux
 *.log
 *.toc
+*.out
 BROKEN
 Icon?
