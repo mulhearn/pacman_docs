@@ -1,0 +1,345 @@
+\documentclass[11pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.8in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\br}[1]{\texttt{#1}}
+\newcommand{\h}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{PACMAN Zipline Firmware and Software (3.X)\\[2pt]
+  \large Branches, builds, boards and status}
+\author{Maintained by the PACMAN agents (augie)}
+\date{2026-11-04}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+Zipline (3.X) is the current PACMAN firmware and software, for the 1v5 board (also built for the 1v4), after the
+legacy (1.X) and hijinks (2.X) generations (companion notes \h{legacy.tex}, \h{hijinks.tex}).  This note records
+where zipline stands: the branches, what was built from which commit, which build is on which board, the results,
+and what is open.  The firmware itself (registers, units, timing) is described in \h{firmware.tex}; the checkout
+tools in \h{qaqc.tex}.  Digests are SHA-256, first eight hex digits.
+
+\section{Repositories}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llL@{}}
+\toprule
+Repository & Branch & State \\
+\midrule
+\h{mulhearn/pacman-firmware} & \br{zipline-2023.2} & tag \br{v3.6} (a85681c, the release); branch at aaa46c1
+  (bump to 3.7, candidate), also \br{working-on-3.7-zipline-2023.2} \\
+\h{mulhearn/pacman-software} & \br{zipline-2023.2} & tags \br{v3.6.0} (94e3f01), \br{v3.6.1} (90d4e19),
+  \br{v3.6.2} (2c079c8) and \br{v3.6.3} (e9b21cf); branch at 54fee11 (bump to 3.6.4, candidate), also
+  \br{working-on-v3.6.4-zipline-2023.2} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{itemize}
+\item Toolchain: Vivado 2023.2 (firmware), PetaLinux 2023.2 (images and the Linux applications), Vitis 2023.2 (bare
+  metal).
+\item Firmware simulation: GHDL, \h{ghdl/} (test benches) and \h{ghdl/agents} (\h{make check} against
+  \h{docs/requirements.txt}); \h{vivado/src/hdl} is kept in step with \h{ghdl/} in each commit.
+\item Software: the Linux applications in \h{petalinux/pkg/pacman-apps} (\h{pacman\_cmdserver},
+  \h{pacman\_dataserver}, \h{pacman\_menu}, \h{pacman\_hwcheck}, \h{pacman\_fwcheck}, \h{pacman\_lnxcheck}), one
+  copy of the drivers (\h{drivers-common}) shared with the bare-metal menu (\h{apps/menu}).
+\end{itemize}
+
+\section{Firmware 3.6}
+
+3.6 adds to 3.5: the ADC unit, the logic analyzer with ADC capture and cross triggers, the \h{\_UPPER}/\h{\_LOWER}
+register names, the RX packet timeout in units of 256 cycles, and the RX sweep that resumes at the next channel after
+a packet closed by its maximum.  Released 2026-11-02 as 3.6 (a85681c, \h{BUILD\_RELEASE}; tag \br{v3.6}); the
+next commit bumps the version to 3.7 (candidate).
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule
+Commit & Date & Build & Result \\
+\midrule
+650dea6 & 2026-10-26 & hw1v5 & bit 82c2be63, BOOT.BIN c43b1340; timing met (WNS +0.115\,ns, WHS +0.049\,ns);
+  \h{pacman\_fwcheck} PASS (30 of 30 requirements, twice) \\
+ae71967 & 2026-10-29 & --- & on hw1v4, a reset on tiles 1--8 asserts the single legacy reset (was 1--10) \\
+928fcf0 & 2026-10-30 & hw1v4 & bit 2755aa4c; timing met (WNS +0.185\,ns, WHS +0.011\,ns) \\
+a85681c & 2026-11-02 & hw1v5 & the release, from a fresh clone: bit 6d84be5d, official (DIRTY 0); timing met
+  (WNS +0.117\,ns, WHS +0.014\,ns), no critical warnings \\
+a85681c & 2026-11-02 & hw1v4 & the release: bit aa06b896, official; timing met (WNS +0.075\,ns, WHS +0.025\,ns);
+  one critical warning (ADC inputs unconnected in the hw1v4 block design, open) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent The release bitstreams are in the release images.  Utilization of the release (hw1v5, post-place,
+xc7z020): 30\,725 slice LUTs (57.8\%), 50\,712 registers (47.7\%), 45 block RAM tiles (32.1\%); hijinks 2.8 used
+39\,788 LUTs (74.8\%), 60\,644 registers (57.0\%) and 99 tiles (70.7\%), the v1.5 1.X line (\br{sync-fix}) 40\,777
+LUTs (76.7\%).  The release still holds a VIO (109 LUTs) and the Vivado debug hub it brings in (449 LUTs).
+
+\paragraph{Clock.}  Agreed at the workshop (2026-11-10):  the firmware runs at the recovered detector clock,
+62.5\,MHz (16\,ns), not PLLed to 100\,MHz.  The UART divider becomes 8 (was 10):  a 128\,ns UART bit.
+
+\section{Releases}
+
+\begin{itemize}
+\item A release is a dedicated commit that sets only the release flag (firmware \h{BUILD\_RELEASE},
+  software \h{PACMAN\_SOFTWARE\_RELEASE}~1); the next commit bumps the version and clears the flag, nothing else.
+  Builds of the release commit report ``official'', all others ``candidate''.
+\item Software 3.6.0 (94e3f01, 2026-11-03): Michael's production build, with the official site overlay, on the 1v5:
+  \h{pacman\_lnxcheck} 23 of 23, \h{pacman\_fwcheck} 30 of 30, \h{pacman\_hwcheck} all PASS, loopback 0 errors in
+  5.1\,Mbit; LArPix v3 configured by larpix-lib through the servers (\h{larpix-lib.tex}).
+\item Software 3.6.1 (90d4e19, 2026-11-03): the ASIC power scripts (\h{power\_up\_tile.sh}, \h{power\_down.sh},
+  \h{report\_power.sh}) ported to zipline, through the command server at the \h{pacman\_menu} nominal values;
+  package scripts for the \h{pacman-apps} tarball (software-only updates, untarred at \h{/}) and the
+  \h{firmware-dev} kit (the \h{BOOT.BIN} inputs and a \h{bootgen.bif}, for firmware developers).
+\item Software 3.6.2 candidate (1aef052, 2026-11-05), validated on the 1v5:  \h{pacman-apps-v3\_6\_2-candidate.tar.gz}
+  (b73a03ca, built in the cowork full project) untarred at \h{/}, reboot, servers from the init script.
+  \h{pacman\_lnxcheck --sd\_write} 23 of 23, \h{pacman\_fwcheck} 30 of 30 (servers stopped), \h{pacman\_hwcheck}
+  as for 3.6.0:  read-only PASS, ADC and I2C stress PASS (8 of 8), power and loopback on tiles 6 and 7 (18 pass, 0 fail),
+  ATC on tile 9 (11 pass, 0 fail);  read-backs 4 of 4 and 64 of 64 (message version 1.1);  \h{pacman\_push} and
+  \h{pacman\_counter} on internal loopback, from felix and on the board:  420000 words each, 0 lost.
+\item Software 3.6.2 (2c079c8, release commit), Michael's production build in his release area:
+  \h{pacman-apps-v3\_6\_2.tar.gz} cfffc412, root filesystem ac8ac3ef, \h{firmware-dev-v3\_6\_2} 8c0ab6b1 (byte-identical
+  to v3\_6\_1);  \h{BOOT.BIN} 801a5711, \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12 as for 3.6.0.  Installed on the 1v5
+  (tarball at \h{/}, reboot):  ``PACMAN software 3.6.2 official'';  read-backs 4 of 4 and 64 of 64.  3.6.1 retired.
+\item Software 3.6.3 candidate (294027b on \br{working-on-v3.6.3-zipline-2023.2}, after the bump 7906243), a
+  \h{pacman\_cmdserver} fix found through larpix-lib (2026-11-05):  the main loop moved at most 100 TX buffers (one
+  word per UART each) to the DMA per request handled, then blocked for the next request, so words beyond 100 per
+  UART waited for a later request and their ASIC replies arrived late.  Now the TX buffer drains between requests
+  (\h{zmq\_poll}, 1~ms while words remain), a word waits for buffer space (\h{tx\_buffer\_free}, at most 100~ms
+  per request), word counts are 32 bits (wrapped above 2730 words) and the channel 16 bits (257 reached UART 0);
+  every word not accepted gets ERR 0xEEEE, the cause in the log:  channels outside 1--40, no buffer space in time,
+  requests too short, too large (over \h{MAX\_WORDS}, 16000) or not the size their header gives (these crashed or
+  stopped the server).  The repeat and broadcast channels are removed;  \h{tx\_buffer\_count} off by one fixed;
+  the reset comment in \h{pacman\_vspace.cc} corrected (0x00100410 internal, 0x00100420 full).  On the 1v5 (the
+  new server from \h{/tmp}, then the candidate tarball \h{pacman-apps-v3\_6\_3-candidate.tar.gz} 82fd5296
+  installed at \h{/} and rebooted):  256, 2000 and 16000 reads in one request exact, refusals answered with ERR,
+  the server up after each;  the TX timeout path not exercised.
+\item Software 3.6.3 (e9b21cf, release commit, 2026-11-07):  the command server TX path above, data server threads
+  pinned (main on cpu0, ZMQ I/O on cpu1, by inheritance), \h{pacman\_zmqbench}, \h{pacman\_boot} (address at boot in
+  \h{last-boot.txt}), the logic analyzer and ADC capture setups in the menus, the test-DAC sawtooth in
+  \h{pacman\_hwcheck -{}-adc} and \h{pacman\_capture}.  Michael's production build:  \h{pacman-apps-v3\_6\_3.tar.gz}
+  a162f6c6, root filesystem ee45ef7a, \h{firmware-dev-v3\_6\_3} 8c0ab6b1;  the 3.6.0 images unchanged.  Bundle
+  \h{bundle-v3.6.0} with 3.6.3;  migration notes with a single-chip section (tested on the 5x5, chip 11 alone).
+\item Point releases confined to \h{pacman-apps} ship only its tarball, no new images.  The bundle
+  (Michael's \h{bundle-v3.6.0}) is named for the firmware: the 3.6.0 images (\h{BOOT.BIN} 801a5711,
+  \h{boot.scr} 3b9b939d, \h{image.ub} 8094cb12), the 3.6.1 root filesystem 48e50939, \h{pacman-apps-v3\_6\_1}
+  2a67b0a4, \h{firmware-dev-v3\_6\_1} 8c0ab6b1.  The 3.6.1 images match 3.6.0 bit for bit except the root filesystem.
+\end{itemize}
+
+\section{Software and images}
+
+Recent changes (pacman-software):
+\begin{itemize}
+\item 3d77617 to f516bc7 (2026-10-30): support for the ADC and logic analyzer; \h{pacman\_hwcheck} as a test suite
+  and \h{pacman\_fwcheck}; the I2C overhaul (sticky status, bus recovery, MUX refusals as returns); one copy of the
+  drivers; the I2C stress test.
+\item 2026-10-31: I2C at 100\,kHz by default (640a124, needed on a hw1v4 card); ASIC TX at full drive in the
+  configuration root (6d2ad8e); \h{-{}-sma} tolerance 20\% (41c6e00); the I2C device skip removed (3c9b2d0).
+\item 2026-11-01: the \h{pacman\_hwcheck} tests as a submenu of both main menus (da113dc); one menu input on both
+  platforms, a letter then Enter in every menu, a clean end at the end of input; one copy of the RX/TX and ADC menus for both platforms, the power menu folded
+  into the I2C menu, a 16-BD ring for the menus (671a3dd);  on the 1v4 since 2026-11-01.
+\item 2026-11-01 (290979d, which replaces 671a3dd with the changes below added): one RX/TX loopback core, which uses the configuration and ring as it finds them; in the
+  RX/TX menu the ring size (16 to 512 BDs, default 512, set up by \h{m}), the loopback length, the RXTX UART mask
+  (including tiles 2+3) and a BER check; \h{pacman\_hwcheck -{}-loopback} per tile, then all the masked tiles at
+  once; the RX config and RX buffer config words built by functions.  On the 1v4 since 2026-11-01.
+\item 2026-11-01 evening (4e9164c, 9a36407, 9e30354): \h{pacman\_lnxcheck} memory limits 700--800\,MB (1\,GB less
+  the DMA buffer); menu presets for the bench cards on tiles 6+7 and 9; the ramdisk and device tree loaded below the
+  DMA buffer (U-Boot placed the ramdisk inside it, so the buffer's reservation failed); no PXE tries in the TFTP
+  fall-through, and \h{boot.scr.uimg} copied into \h{images/linux}; the Python library on Python's path in every
+  context (\h{pacman.pth}; \h{pacman\_setup.sh} removed); root may log in over ssh with a password, once one is set;
+  a site overlay: the untracked \h{petalinux/site} (files copied over the root filesystem, then an optional
+  \h{post.sh} for edits such as the root password hash) applied by the in-place builds, with \h{petalinux/site.example}
+  as the template.  Tested on the 1v5.
+\end{itemize}
+
+\noindent The PetaLinux projects (\h{petalinux/ramdisk}, \h{petalinux/full}) are built in place, incrementally,
+after each software or firmware change:
+
+\begin{center}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Software & Date & Image & \h{BOOT.BIN} & \h{image.ub} \\
+\midrule
+f516bc7 & 2026-10-30 & ramdisk & 41851385 & 7d452b37 \\
+3c9b2d0 & 2026-10-31 & ramdisk & 12813299 & d7761858 \\
+3c9b2d0 & 2026-10-31 & full & 4c1d3a0e & 8094cb12 \\
+671a3dd & 2026-11-01 & ramdisk & cec3182c & c4bd61b8 \\
+671a3dd & 2026-11-01 & full & 96d3faca & 8094cb12 \\
+290979d & 2026-11-01 & ramdisk & 5bf59506 & 73368917 \\
+290979d & 2026-11-01 & full & 348baf8a & 8094cb12 \\
+9e30354 & 2026-11-01 & ramdisk & 31e01844 & 7b229452 \\
+9e30354 & 2026-11-01 & full & 8998d25c & 8094cb12 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Boards}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule
+Board & Firmware & Image & Results \\
+\midrule
+1v5 (PACMAN 51 UCD) & a85681c & 3.6.0 (SD) & Full SD image of the 3.6.0 release (root on p2), \h{pacman-apps}
+  3.6.1 installed by tarball.  2026-11-03, 3.6.1: ASIC configuration via \h{pacman\_menu}; tile power and monitoring via
+  \h{pacman\_menu} and the power scripts (tile 1: VDDA 2365\,mV, VDDD 1301\,mV, matching the menu); SYNC words;
+  \h{pacman\_units}; RX/TX internal loopback from \h{pacman\_cmdserver} to \h{pacman\_dataserver}
+  (\h{pacman\_push}, \h{pacman\_counter}, e.g.\ \h{-w 400 -n 100 -d 0}); RX test patterns at full speed on all 40
+  UARTs, 6060 packets/ms sustained (the theoretical maximum: 100\,MHz / (10 clocks $\times$ 66 bits) $\times$ 40) with
+  no loss, \h{pacman\_dataserver} at 70\% CPU.  Earlier (650dea6, 290979d): 2026-10-30, f516bc7:
+  \h{pacman\_hwcheck}, every test PASS on the tiles carrying the test cards, except \h{-{}-ana\_mon} on tile 4 (a weak
+  TESTP leg, set aside).  2026-11-01, 290979d: \h{pacman\_lnxcheck} 23 of 23 PASS (memory limits 700--800\,MB,
+  4e9164c), \h{pacman\_fwcheck} 30 of 30 PASS, \h{pacman\_hwcheck} PASS on tiles 6+7 (loopback card), 9 (ATC card)
+  and the board-wide tests; the production SD boot with TFTP fall-through PASS; LArPix v3 on tile 1 replies and
+  passes the ASIC loopback (\h{larpix.tex}).  Bare-metal menu (4e9164c): boot, versions, I2C, hwcheck read-only,
+  ADC, I2C stress and the ASIC hello PASS; the RX/TX and ASIC loopbacks lose words (open) \\
+1v4 & 928fcf0 & 290979d (TFTP) & 2026-11-01: the new menus work (letters and Enter, a clean end at the end of
+  input, the hwcheck submenu: read only as expected, I2C stress PASS); the LArPix v3 on tile 1 does not reply
+  (UART 0 streams junk; it replied exactly on 2026-10-31 with 3c9b2d0): the configuration sent right after the full
+  reset is lost, and a 0.2\,s pause fixes it.  2026-11-01, 290979d: a 16-BD ring set up from the menu, the ASIC hello
+  exact twice, and the BER loopback on tiles 2+3 (internal loopback): 80000 of 80000 words, 0 bit errors in
+  5.12\,Mbit \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent The 1v4 has no SD card: it boots by JTAG and TFTP; it is off the bench since 2026-11-01.  On the 1v5, ssh
+and scp to the board work by key (sshd allows root by key only).
+
+\section{Open}
+
+\begin{itemize}
+\item ZMQ, for 3.6.2 (Michael 2026-11-04;  on \br{working-on-v3.6.2-zipline-2023.2}):  the cause found and fixed.
+  The data server's PUB socket (high-water mark 1, send timeout 0) dropped messages silently while
+  \h{zmq\_msg\_send} succeeded:  of four ASIC read replies in a row, the data server sent 4 (4 messages), felix
+  received 2.  High-water mark 1000 (6591987):  read-backs 4 of 4 and 64 of 64;  \h{pacman\_push -w 40 -n 500 -d 1000}
+  on internal loopback, 20000 sent, 20000 counted (with 1:  6680).  Message version 1.1:  the data
+  message header carries \h{seq} (from 0, wraps) and \h{session} (random at each data server start, never 0);
+  \h{pacman\_counter} counts lost messages, restarts and unnumbered messages, prints its message count and a final
+  report on exit, and closes oversize messages (ad1a58a;  larpix-lib 0d43f7f).  On the 1v5:  60000 words in 599 messages,
+  0 lost;  a server restart during a run:  1 restart, 0 lost;  a stand-in publisher with known gaps:  all counted.
+  \h{pacman\_counter} and \h{pacman\_push} take the PACMAN address (\h{-i}, default localhost;  uncommitted, for
+  review):  run from felix against the 1v5, 60000 words in 600 messages, 0 lost.
+\item A stalled subscriber stops the data server (2026-11-04, the 1v5, tested):  a felix SUB that connects and never
+  reads, while \h{pacman\_push -w 400 -n 1000 -d 0} runs on internal loopback:  the data server aborts (``timeout
+  waiting on msg\_ready'', its 1~s limit);  \h{pacman\_counter} on the board receives 5 messages (7600 words) of 400000.
+  Without the stalled subscriber:  400000 words, 1000 messages, 0 lost.  The data server hands ZMQ its own buffer
+  and waits until the message is sent;  one stalled peer holds it.  Afterwards the RX path holds broken transfers
+  (new data servers abort on the RX trailer assertions);  only a reboot cleared it.  Same in 3.6.1.  By design
+  (Michael 2026-11-04):  no backpressure from ZMQ into the DMA, zero copy kept;  a slow peer ends the run.
+  Why a reboot was needed:  the DMA reset (by the command server) resets only the DMA core;  the RX buffer and the
+  stream FIFO before the DMA are reset only at boot.  A reset in the middle of a packet leaves its tail in the firmware,
+  and the new ring's first transfer is that tail (not a whole number of words:  the RX assertions).  Fix (pacman.cc,
+  for review):  a transfer is used only if it is a whole packet (words, then a trailer counting them);
+  otherwise it is discarded as an incomplete packet, with a warning, and counted (\h{pacman\_rx\_incomplete\_packets};
+  the data server reports it).  Tested twice:  abort, restart of both servers, one 944-byte tail
+  discarded, then read-backs 4 of 4 and 64 of 64;  normal running (420000 words, 1500 messages):  no discards.
+\item ZMQ throughput (2026-11-05, the 1v5, 3.6.2 official, RX test pattern on all 40 UARTs;  UART losses from the
+  firmware lost counters, zeroed first:  they are 16-bit and saturate).  Without a subscriber the data server receives
+  the full input (3030.4 and 6060.9 packets/ms;  at full speed the RX ring peaks at 510 of 512).  With
+  \h{pacman\_counter}:  quarter speed (1515) delivered whole, on the board and from felix, 0 lost, CPU 27--28\% idle;
+  half speed:  2589 per ms on the board (both cores full;  72 UART losses per ms), 2165 from felix (22\% idle;  1237
+  UART losses per ms);  full speed on the board:  2564 per ms, UART losses over 2621 per ms.  No message lost
+  (\h{seq}) in any run:  the losses are at the UARTs, while the data server waits on ZMQ.  Delivery tops out near
+  50--60 MB/s (2200--2600 packets/ms) whether the client is local or remote:  the TCP send path, not the wire
+  (refined 2026-11-06, below and in the summary).
+\item Delivery ceiling, by thread (2026-11-06, the 1v5, 3.6.3 candidate;  \h{threads.sh}, \h{pubbench.py},
+  \h{subcount.py} in augie's \h{pacman/hwcheck/dev}).  Half speed, a felix subscriber:  2350 packets/ms (56 MB/s);  ZMQ's
+  I/O thread at 100\% system time on cpu0 (cpu0:  75\% system, 24\% softirq, 0\% idle), the data server's main thread
+  (ring polling and copy) 48\% user on cpu1 (cpu1 47\% idle).  The limit is one thread:  ZMQ's I/O thread in the
+  kernel's TCP send, sharing its core with the network softirq.  A plain ZMQ PUB of prebuilt 64000-word messages (no
+  DMA, no copy;  zero copy, one message in flight as in the data server) to a felix subscriber:  3492 packets/ms
+  (84 MB/s), the I/O thread again at 99\% system time, now with the softirq mostly on the other core (cpu0 55\%
+  softirq, cpu1 75\% system).  Without the data server's work the ceiling is about 50\% higher, still set by the TCP
+  send;  the gain may come from where the threads and the softirq run rather than from CPU time freed (cpu1 had
+  47\% idle), not yet separated.  Free-running sends (no wait) delivered 2596 packets/ms:  the sending thread
+  competes with the I/O thread.
+\item Core pinning (2026-11-06, the 1v5;  \h{pin.sh}:  \h{taskset} and the Ethernet IRQ's \h{smp\_affinity}), half
+  speed, a felix subscriber.  Unpinned:  2307 packets/ms (55 MB/s), the I/O thread at 101\% system time on the core
+  that takes the network softirq, the other core 47\% idle.  The I/O thread alone on one core, the main thread and the
+  IRQ on the other:  2600 (62 MB/s);  mirrored:  2663 (64 MB/s);  about 15\% more.  The I/O thread then runs at 82\%
+  (its core 16--17\% idle);  the other core is full (main thread about 40\% user, softirq 52--54\%).  So the work is
+  I/O thread (one core), softirq (half a core) and the data server's main thread (0.4 core), nearly both cores:
+  with pinning the main thread's work is what limits, and removing it (the prebuilt-message benchmark, 3492) leaves
+  the TCP send as the limit again.
+\item \h{pacman\_zmqbench} (2026-11-06, for the 3.6.3 candidate, unstaged):  publishes prebuilt data messages (64000
+  words, real header with \h{seq} and \h{session}) on 5556 with no DMA and no copy;  \h{pacman\_counter} counts them
+  unchanged.  Options \h{-w} (words per message), \h{-t} (seconds), \h{-q} (messages in flight, 1 as in the data
+  server);  refuses while the data server holds the port;  ends the run when its subscriber leaves (with none, ZMQ
+  drops messages and the send rate means nothing).  On the 1v5:  the counter on the board 3695 packets/ms
+  (89 MB/s);  on felix 2913--3637 (70--87 MB/s) over five runs, the Python benchmark 3417 on the same boot;  0 lost
+  messages in every run, sessions matching.
+\item Core pinning in \h{pacman\_zmqbench} and \h{pacman\_dataserver} (2026-11-06, unstaged on the 3.6.3 candidate):
+  ZMQ's I/O thread on cpu1 (\h{ZMQ\_THREAD\_AFFINITY\_CPU\_ADD}), the main thread on cpu0, where the Ethernet interrupts
+  land (all of them in every run);  the IRQ itself unchanged.  \h{pacman\_zmqbench} pinned by default (\h{-u}
+  unpinned), with the interrupt split and a warning if they left cpu0.  On the 1v5, to felix:
+  \h{pacman\_zmqbench} pinned 3617--3635 packets/ms (five runs), unpinned four near 3630 and one 2908.  The data
+  server at full speed (6060 in):  pinned 2727--2737 (three runs, 65.5 MB/s), unpinned 2737, 2736, 2248;  at half
+  speed both deliver the full 3030.  Pinned data server with the servers restarted in order:  \h{hello\_asic} 14 of 14,
+  \h{dump\_registers} 256 of 256.
+\item The data server's main thread, profiled (2026-11-06, the 1v5;  a test build with timers in \h{pacman\_poll\_rx},
+  never committed;  pinned, felix subscriber).  Full speed (2699 packets/ms delivered, 64.8 MB/s):  the main thread
+  spends 99.5\% of its wall time in \h{pacman\_poll\_rx}, 93\% in its \h{memcpy} out of the DMA buffers, which runs at
+  69 MB/s;  the rest of the RX handling 6\%.  Quarter speed (1515):  \h{memcpy} at 161 MB/s, 23\% of the time.  The
+  DMA buffers are mapped through \h{/dev/mem} with \h{O\_SYNC}:  uncached, so each word is a separate read from
+  DRAM, slower still while the network interrupts share the core.  At the ceiling the data server is the uncached
+  copy, not the ring handling.
+\item \h{memcpy} in 16 KB blocks (one RX buffer) over 16 MB, the 1v5 idle (servers stopped;  a scratch test, never
+  committed):  from the DMA region through \h{/dev/mem} with \h{O\_SYNC} (as the drivers map it) 272 MB/s;  without
+  \h{O\_SYNC} (cached) 426--438 MB/s;  from \h{malloc} memory 412 MB/s;  cached with the ARM \h{cacheflush} call on
+  each block first 199--206 MB/s.  (That call cleans rather than invalidates;  a stand-in for the cost of software
+  cache maintenance, not the exact operation.)  So a cached copy is 1.6 times faster at idle, but software cache
+  maintenance per buffer costs more than it saves;  only hardware coherency (DMA through the ACP) gets the cached rate
+  safely.  Under load the uncached copy ran at 69 MB/s (full speed) and 161 MB/s (quarter speed), far below its idle
+  272:  contention for the memory bus and the core, not measured for a cached copy.
+\item DMA through the ACP, a demonstration (2026-11-08, the 1v5, finished:  not adopted, Michael 2026-11-08).  A
+  cached copy out of the DMA buffers gains 7\% in delivery:  2854 and 2858 packets/ms to felix, against 2672 and
+  2660 for the same path uncached.  The data server still uses about 200\% CPU (3\% idle), so the gain is more
+  packets for the same CPU, not less CPU.  It is not worth a second firmware and software variant.  The working
+  implementation, kept unpushed in augie's scratch:
+  \begin{itemize}
+  \item Firmware (hw1v5, patch 173, 5569560 on \br{demo-acp-zipline-2023.2}, from 3.6.0):  the AXI DMA's MM2S, S2MM
+    and scatter-gather masters go through \h{axi\_mem\_intercon} into \h{S\_AXI\_ACP} instead of \h{S\_AXI\_HP0}, with
+    the PS7's default ACP user value (AxUSER 11111).  A constant drives AxCACHE 1111 (write-back, read and write
+    allocate) on the interconnect's DMA ports.  Timing met (WNS 0.427 ns), no critical warnings.
+  \item Why 1111:  the AXI DMA (no multi-channel) issues AxCACHE 0011 and offers no software control of it.  Zynq
+    Linux sets the PL310's shared-override bit (aux bit 22), so 0011 is non-cacheable at the L2 and bypasses it.  The
+    SCU keeps L1 coherent, but L2 lines go stale both ways.  On the bench (patch 172, 0011) the first transfers
+    passed, then stale descriptors and data:  scatter-gather internal errors on both engines, and nothing delivered.
+  \item Software (scratch \h{acp/sw} 2ab484b, from 3.6.3):  the DMA region is mapped through \h{/dev/mem} without
+    \h{O\_SYNC} (cached, write-back, shared:  on kernel 6.1 the no-map region is \h{pfn\_valid}), and the registers
+    stay uncached.  A \h{dsb} goes before the DMA register writes (descriptors reach the DMA first), and a \h{dmb}
+    goes between a descriptor's completion and reading its data.  No cache maintenance calls.
+  \item Results on the 173 image:  fwcheck 30 of 30, hwcheck \h{--read\_only} PASS, 0 lost messages, no DMA errors.
+    The official (uncached) apps also pass on the ACP firmware.  Logs in augie's \h{pacman/fw-items/acp-demo}.
+  \end{itemize}
+\item Throughput limits, current (3.6.3, 2026-11-06, the 1v5, a remote client):  the firmware and the data server
+  alone sustain 6060 packets/ms (all 40 UARTs, the theoretical maximum).  Delivery to a ZMQ client is CPU-limited:
+  2730 packets/ms (66 MB/s, about 18 UARTs at full speed) with the data server's threads pinned (3.6.3), the ZMQ
+  I/O thread taking one core for the TCP send and the main thread sharing the other with the network interrupts;
+  its uncached copy out of the DMA buffers is most of the main thread's time.  The ZMQ/TCP path alone
+  (\h{pacman\_zmqbench}) reaches 3630 packets/ms (87 MB/s).  Beyond the delivery limit, words are dropped at the
+  UARTs and counted;  no ZMQ message is lost.
+\item The VIO in the release (in discussion for 3.7).
+\item \h{pacman\_menu} test patterns: the payload is written after the enable, so the first frame carries the old
+  payload; \h{0x89ABDCDF} is probably meant as \h{0x89ABCDEF}.
+\item Bare metal: a small DMA ring (16 BDs) loses words in the loopback tests (Linux copes); the default 512 is fine.
+\item Planned for 3.7: registers for communication between processes (an I2C error flag, stalling the dataserver,
+  lost-packet reports, the DMA race), polling for the end of a reset, more robust I2C (a termination option, a richer
+  simulation), the \h{pattern.vhd} start-up.
+\item Robustness of the Vivado build: \h{create.tcl} adds the HDL from the repository, so HDL edited after the
+  project was created partly enters a rebuild; release bitstreams are built from a fresh clone.
+\end{itemize}
+
+\end{document}
