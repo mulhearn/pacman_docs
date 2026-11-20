@@ -14,11 +14,8 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc}
 \lstset{basicstyle=\ttfamily,columns=fullflexible}
-\usepackage{booktabs}
-\usepackage{tabularx}
 \usepackage{array}
 \newcommand{\hex}[1]{\texttt{0x#1}}
-\newcolumntype{L}{>{\raggedright\arraybackslash}X}
 
 \begin{document}
 
@@ -36,116 +33,266 @@
 
 \section{Overview}
 
-The Pixel Array Control Monitor and Network (PACMAN) card is the warm
-electronics (located outside of the cryostat) for the pixellated
-liquid argon (LAr) time projection chamber (TPC) based on the LArPix
-ASIC.  The PACMAN card provides power and digital I/O to arrays of
-LArPix ASICs hosted on pixel tile cards located within the cryostat.
-In the production system, each PACMAN card handles up to ten pixel
-tile cards.  The PACMAN card provides analog test and monitor signals
-as well as digital control signals for clock, external trigger,
-reset, and sync.  The PACMAN card serves as a timing system endpoint,
-hosts a Linux CPU, and is connected to the data acquisition system via
+The Pixel Array Control Monitor and Network (PACMAN) card is the warm electronics (located outside
+of the cryostat) for the pixellated liquid argon (LAr) time projection chamber (TPC) based on the
+LArPix ASIC.  The PACMAN card provides power and digital I/O to arrays of LArPix ASICs hosted on
+pixel tile cards located within the cryostat.  In the production system, each PACMAN card handles up
+to ten pixel tile cards.  The PACMAN card provides analog test and monitor signals as well as
+digital control signals for clock, external trigger, reset, and sync.  The PACMAN card serves as a
+timing system endpoint, hosts a Linux CPU, and is connected to the data acquisition system via
 Ethernet.
 
-The PACMAN card plays a supporting role in the LArPix system.  It does
-not face technical challenges as severe as the cold electronics of the
-LArPix system and therefore a fundamental design constraint is that it
-in no way limits the performance of the supported system.
+The PACMAN card plays a supporting role in the LArPix system.  It does not face technical challenges
+as severe as the cold electronics of the LArPix system and therefore a fundamental design constraint
+is that it in no way limits the performance of the supported system.
 
 \section{Hardware Implementation}
-\subsection{Package Pin to Schematic Netlist}
 
-\begin{tabular}{|ll||ll|}
-\hline
-Netlist & Package Pin   &   Netlist & Package Pin   \\
-\hline
-ADC\_CLK        & J15   & SYNC[0]         & D18   \\
-ADC\_D[0]       & F19   & SYNC[1]         & J17   \\
-ADC\_D[10]      & AA17  & SYNC[2]         & L17   \\
-ADC\_D[11]      & AB17  & SYNC[3]         & M17   \\
-ADC\_D[1]       & G19   & SYNC[4]         & N17   \\
-ADC\_D[2]       & H20   & SYNC[5]         & N18   \\
-ADC\_D[3]       & H19   & SYNC[6]         & J21   \\
-ADC\_D[4]       & R6    & SYNC[7]         & J22   \\
-ADC\_D[5]       & T6    & SYNC[8]         & J20   \\
-ADC\_D[6]       & U6    & SYNC[9]         & K21   \\
-ADC\_D[7]       & U5    & SYNC\_ISO       & K18   \\
-ADC\_D[8]       & Y18   & TEST\_OUT[0]    & AB2   \\
-ADC\_D[9]       & AA18  & TEST\_OUT[1]    & AB1   \\
-ADC\_EN         & AB16  & TILE\_EN[0]     & G21   \\
-ADC\_OF         & AA16  & TILE\_EN[1]     & P18   \\
-ANALOG\_PWR\_EN & J16   & TILE\_EN[2]     & P17   \\
-CDR\_CLK\_N     & W18   & TILE\_EN[3]     & K15   \\
-CDR\_CLK\_P     & W17   & TILE\_EN[4]     & L21   \\
-CDR\_DATA\_N    & Y16   & TILE\_EN[5]     & P21   \\
-CDR\_DATA\_P    & W16   & TILE\_EN[6]     & P20   \\
-CDR\_LOL        & V5    & TILE\_EN[7]     & L22   \\
-CDR\_LOS        & V4    & TILE\_EN[8]     & M19   \\
-GLOBAL\_CLK     & C19   & TILE\_EN[9]     & M20   \\
-ISO\_SIGNAL0    & L18   & TRIG[0]         & G20   \\
-ISO\_SIGNAL1    & L19   & TRIG[1]         & R21   \\
-LED-2           & R19   & TRIG[2]         & R20   \\
-LED-3           & T19   & TRIG[3]         & T17   \\
-SFP\_DISABLE    & AA19  & TRIG[4]         & R18   \\
-SFP\_FAULT      & AA21  & TRIG[5]         & M22   \\
-SFP\_LOS        & AB21  & TRIG[6]         & M21   \\
-SFP\_MOD        & Y19   & TRIG[7]         & T18   \\
-SFP\_TCLK\_N    & AB22  & TRIG[8]         & N19   \\
-SFP\_TCLK\_P    & AA22  & TRIG[9]         & N20   \\
-SFP\_TDATA\_N   & W21   & TRIG\_ISO       & J18   \\
-SFP\_TDATA\_P   & W20   &                 &       \\
-\hline
-\end{tabular}
+\subsection{Card Overview}
 
-\begin{tabular}{|ll||ll|}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\textwidth]{photos/bare_two_led.jpeg}
+  \caption{\label{fig:pacman-1v5} The PACMAN 1v5 (Rev5) card without its Trenz module.  Left: the
+    tile connector and the ten tile channels, five TILE power sections over five TILE LVDS sections
+    (on both sides).  Center: the Trenz module socket, with the tile DC-DC converter above and the
+    digital DC-DC converter below.  Right: the 48\,V input, the SFP cage, Ethernet, and the
+    front-panel LEMO and SMA jacks.}
+\end{figure}
+
+\noindent
+The PACMAN card (hardware version 1v5 described here) hosts a Trenz TE0720 module with a Xilinx
+Zynq-7020 SoC (XC7Z020), which provides the processor (PS), the programmable logic (PL), the
+Ethernet PHY, and memory.  The FPGA package pins of the PL signals are listed in
+Appendix~\ref{sec:pins}.  The card features:
+\begin{itemize}
+\item Power input (J9):  48\,VDC, 2\,A, with a 2.5\,A fuse, reverse-polarity diode and a
+  60\,V TVS.
+
+\item Tile connector (J7):  a Samtec 400-position high-density connector (SEAFP) carrying power, LVDS I/O, and differential monitoring channels for the ten pixel tiles.
+
+
+\item Ethernet (RJ45, from the PHY on the Trenz module), microSD card, and USB JTAG (TE0790 header).
+
+\item Front panel:  two LEMO inputs (TRIGGER and PPS SYNC) and four U.FL jacks (TEST1/2 outputs,
+  ISO-SIG0/1 inputs), all through digital isolators, and two SMA analog I/O jacks connected to the analog
+  monitor multiplexers.
+
+\item SFP cage with a clock and data recovery chip (ADN2814) for a timing system endpoint.
+
+\item A 12-bit, 105\,Msps ADC (LTC2252) read by the PL (the ADC unit).
+
+\item Monitoring and control over I2C from the PS:  two 16-channel DACs (AD5677R) setting VDDA and VDDD of
+  each tile, six 4-channel power monitors (PAC1944), and two analog multiplexers (MAX14661).
+
+\end{itemize}
+
+\subsection{Power}
+
+\begin{table}[htbp]
+\caption{\label{tbl:hw-power} Power supplies of the PACMAN 1v5.  T2V7, VDDA and VDDD are per tile.}
+\begin{center}
+\begin{tabular}{llll}
+Rail   & Part                 & Rating   & Notes \\
 \hline
- Netlist & Package Pin   &   Netlist & Package Pin   \\
-\hline
-PISO[0]  & C20  & POSI[0]  & D21  \\
-PISO[1]  & D20  & POSI[1]  & E21  \\
-PISO[2]  & G16  & POSI[2]  & B20  \\
-PISO[3]  & G15  & POSI[3]  & B19  \\
-PISO[4]  & V10  & POSI[4]  & U12  \\
-PISO[5]  & V9   & POSI[5]  & U11  \\
-PISO[6]  & Y9   & POSI[6]  & U10  \\
-PISO[7]  & Y8   & POSI[7]  & U9   \\
-PISO[8]  & V12  & POSI[8]  & AA7  \\
-PISO[9]  & W12  & POSI[9]  & AA6  \\
-PISO[10] & W11  & POSI[10] & Y6   \\
-PISO[11] & W10  & POSI[11] & Y5   \\
-PISO[12] & B22  & POSI[12] & C22  \\
-PISO[13] & B21  & POSI[13] & D22  \\
-PISO[14] & A22  & POSI[14] & G22  \\
-PISO[15] & A21  & POSI[15] & H22  \\
-PISO[16] & AB9  & POSI[16] & AB11 \\
-PISO[17] & AB10 & POSI[17] & AA11 \\
-PISO[18] & AA8  & POSI[18] & AB12 \\
-PISO[19] & AA9  & POSI[19] & AA12 \\
-PISO[20] & C18  & POSI[20] & B17  \\
-PISO[21] & C17  & POSI[21] & B16  \\
-PISO[22] & F22  & POSI[22] & E20  \\
-PISO[23] & F21  & POSI[23] & E19  \\
-PISO[24] & B15  & POSI[24] & A19  \\
-PISO[25] & C15  & POSI[25] & A18  \\
-PISO[26] & D17  & POSI[26] & A17  \\
-PISO[27] & D16  & POSI[27] & A16  \\
-PISO[28] & AA4  & POSI[28] & AB6  \\
-PISO[29] & Y4   & POSI[29] & AB7  \\
-PISO[30] & AB4  & POSI[30] & U4   \\
-PISO[31] & AB5  & POSI[31] & T4   \\
-PISO[32] & F17  & POSI[32] & E18  \\
-PISO[33] & G17  & POSI[33] & F18  \\
-PISO[34] & E16  & POSI[34] & D15  \\
-PISO[35] & F16  & POSI[35] & E15  \\
-PISO[36] & V7   & POSI[36] & Y11  \\
-PISO[37] & W7   & POSI[37] & Y10  \\
-PISO[38] & W6   & POSI[38] & V8   \\
-PISO[39] & W5   & POSI[39] & W8   \\
-\hline
+VIN    & Phoenix 5444660      & 2\,A           & 2.5\,A fuse, reverse-polarity diode, 60\,V TVS.\\
+       & Sense pins           &                & Fused at 0.5\,A \\
+D3V6   & CCG30-48-03S         & 6.4\,A, 23\,W  & Input 18--76\,V \\
+       & MCP9510              &                & Switches off above about 60\,$^\circ$C\\
+D3V3   & TPS7A57              & 5\,A           & \\
+T3V0   & PKU5510S             & 16.6\,A, 50\,W & input 18--75\,V.  13.3\,A, 40\,W for input below 36\,V.   \\
+T2V7   & TPS7A52-Q1           & 2\,A           & current limit 2.7--4.0\,A (3.3 typ.)\\
+       &                      &                & Dropout about 0.25\,V at 2\,A.\\
+VDDA   & TPS7A94              & 1\,A           & current limit 1.2--1.4\,A (1.3 typ.) \\
+       &                      &                & Dropout 150\,mV typ., 240\,mV max.\ at 1\,A \\
+VDDD   & TPS7A94              & 1\,A           & (Same as VDDA) \\
 \end{tabular}
+\end{center}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[>={Stealth[length=2mm]}, rail/.style={draw, thick, minimum width=1.4cm, minimum height=0.7cm}]
+    \node[rail] (vin)  at (0,0)    {VIN};
+    \node[rail] (d3v6) at (2.5,0.6)  {D3V6};
+    \node[rail] (d3v3) at (5.0,0.6)  {D3V3};
+    \node[rail] (t3v0) at (2.5,-0.6) {T3V0};
+    \node[rail] (t2v7) at (5.0,-0.6) {T2V7};
+    \node[rail] (vdda) at (7.5,0.0)  {VDDA};
+    \node[rail] (vddd) at (7.5,-1.2) {VDDD};
+    \draw[->, thick] (vin) -- (d3v6);
+    \draw[->, thick] (vin) -- (t3v0);
+    \draw[->, thick] (d3v6) -- (d3v3);
+    \draw[->, thick] (t3v0) -- (t2v7);
+    \draw[->, thick] (t2v7) -- (vdda);
+    \draw[->, thick] (t2v7) -- (vddd);
+  \end{tikzpicture}
+  \caption{\label{fig:hw-rails} The power rails and their dependencies.  T2V7, VDDA and VDDD are per tile.}
+\end{figure}
+
+\noindent
+The PACMAN is powered from a single 48\,V input VIN (J9).  The rails derived from it are listed in
+Table~\ref{tbl:hw-power} with their ratings and limits (schematic and datasheet values), and their
+dependencies are shown in Fig.~\ref{fig:hw-rails}.  The two primary DC-DC converters, D3V6 and T3V0, are
+powered directly from VIN.  The Trenz module is powered directly by D3V6.  The 3.3\,V I/O banks of the
+Trenz, the LVDS drivers and receivers, the DACs, the power monitors and MUXes are all powered by
+D3V3.  Each tile has its own T2V7 LDO, powering its own VDDA and VDDD LDOs with their output
+voltages set by DAC channels at their NR/SS pins.
+
+D3V6 is on when VIN is on, unless switched off by its over-temperature shutoff.  T3V0 is turned on
+by ANALOG\_PWR\_EN, better called TILE\_POWER\_ENABLE, or by jumper J1.  Each tile's T2V7 is turned on
+by its TILE\_ENABLE.  So a tile's power (VDDD and VDDA) requires both TILE\_POWER\_ENABLE and its own
+TILE\_ENABLE.  Each VDDA and VDDD rail passes a 20\,m$\Omega$ shunt read by a power monitor, then a
+common-mode choke, in series to the tile connector.
+
+A single tile can draw up to 1\,A on VDDA and 1\,A on VDDD, and 2\,A in total, the rating of T2V7.
+With all ten tiles powered from the 48\,V input, T3V0 allows 16.6\,A, an average of 1.66\,A per tile
+for VDDA and VDDD together.  The highest VDDA or VDDD setting is limited by the dropout of its LDO
+below T2V7: about 2.55\,V typical (2.46\,V worst case) at 1\,A.
+
+The VDDA and VDDD outputs are set by the DACs (AD5677R, internal 2.5\,V reference, gain 1).  Each TPS7A94
+sources a precise current, $I_{\rm NR/SS} = 150\,\mu$A, out of its NR/SS pin, through 1\,k$\Omega$ into the
+DAC output, and regulates its output to the NR/SS voltage.  For a DAC code $D$ (16 bits):
+$$ V_{\rm DD} = 2.5\,{\rm V} \times \frac{D}{65536} + 150\,\mu{\rm A} \times 1\,{\rm k}\Omega
+             = 2.5\,{\rm V} \times \frac{D}{65536} + 0.150\,{\rm V}, $$
+             that is, 156\,mV per \hex{1000}.
+The TPS7A94 output is reliable above 0.4\,V (codes from about \hex{1A00}).  The highest useful setting is set by the dropout, as above.
+
+\subsection{LVDS Signals}
+
+Each tile has two LVDS quad drivers (SN65LVDS047, 3.3\,V) and one quad comparator (MAX964) as
+receiver, all enabled by the tile's TILE\_ENABLE signal from the PL.  One LVDS driver sends the four
+POSI lines, and the other LVDS driver sends the CLK and two additional ASIC control signals, which
+we agnostically call G and H.  In the PACMAN schematics, G is called RST\_SYNC and H is called
+TRIG, but when routed to a v3 ASIC G controls RESET and H muxes SYNC and TRIG.
+
+The SN65LVDS047 is a current-mode driver: 2.5--4.5\,mA (3.1 typical), which gives its specified
+swing of 250--450\,mV (310 typical) into 100\,$\Omega$, at a common mode of 1.17\,V.  On the board,
+each driver output pair is loaded by a network of 36\,$\Omega$ from each line to a common node
+(72\,$\Omega$ differential), and each line then passes an EMI filter (EMI7208, 100\,$\Omega$ series
+with 8.5\,pF on each side) to the connector.  Each received pair passes the same EMI filter and is
+terminated by 120\,$\Omega$ at the comparator.
+
+In a physical loopback (POSI connected to PISO at the tile connector), the driver current divides between
+the local 72\,$\Omega$ and the far path, $2 \times 100\,\Omega$ of filters and the 120\,$\Omega$ termination
+(320\,$\Omega$):
+\begin{align*}
+  V_{\rm driver} &= I \times (72\,\Omega \parallel 320\,\Omega) = 3.1\,{\rm mA} \times 58.8\,\Omega \approx 180\,{\rm mV}, \\
+  V_{\rm receiver} &= V_{\rm driver} \times \frac{120\,\Omega}{320\,\Omega} \approx 70\,{\rm mV}
+\end{align*}
+differential at the comparator (55--100\,mV over the driver's 2.5--4.5\,mA).
+
+In normal operation the far end is the tile.  For reference, on the single-ASIC test card, each pair
+into the ASIC (the four POSI, CLK, RESET and TRIG) is terminated by 100\,$\Omega$, and the POSI
+pairs also see the ASIC's internal termination (1.25\,k$\Omega$ by default), about 93\,$\Omega$ in
+all.  The pairs out of the ASIC (PISO) are not terminated on the card: their only termination is the
+120\,$\Omega$ at the PACMAN comparator.  Table~\ref{tbl:hw-lvds} lists the resulting swings.
+
+The LArPix-v3 PISO driver is also current-mode.  Its loop current is set by the ASIC configuration (the
+number of transmit slices, tx\_slices, and the current per slice, i\_tx\_diff):  72\,$\mu$A with the default
+settings, and at most 675\,$\mu$A.  Since the source is a current, the series filters do not reduce the
+swing, which is the loop current times 120\,$\Omega$.  The MAX964 switches at input-referred trip points of
+$\pm$2.0\,mV typical and so the margin of the PISO link is set by the ASIC's loop current
+(Table~\ref{tbl:hw-lvds}).
+
+\begin{table}[htbp]
+\caption{\label{tbl:hw-lvds} Differential swings of the LVDS links (typical driver current, 3.1\,mA, with
+  the range for 2.5--4.5\,mA in parentheses).  The tile side is that of the single-ASIC test card.}
+\begin{center}
+\begin{tabular}{llll}
+Link                      & Load seen by the source                                  & Swing at the receiver  & Margin \\
+\hline
+POSI loopback (PACMAN)    & 72\,$\Omega$ $\parallel$ (200\,$\Omega$ + 120\,$\Omega$)  & 70\,mV (55--100)       & 35$\times$ \\
+POSI into the ASIC        & 72\,$\Omega$ $\parallel$ (200\,$\Omega$ + 93\,$\Omega$)   & 57\,mV (46--83)        & set by the ASIC \\
+CLK, RESET, TRIG          & 72\,$\Omega$ $\parallel$ (200\,$\Omega$ + 100\,$\Omega$)  & 60\,mV (48--87)        & set by the ASIC \\
+PISO, ASIC default        & 72\,$\mu$A into 120\,$\Omega$                             & 8.6\,mV                & 4.3$\times$ \\
+PISO, ASIC maximum        & 675\,$\mu$A into 120\,$\Omega$                            & 81\,mV                 & 40$\times$ \\
+\end{tabular}
+\end{center}
+\end{table}
+The margin is the swing over the typical MAX964 trip point (2.0\,mV), for links received by the PACMAN.
+With the default ASIC settings the PISO margin is about a factor of four.
+
+\subsection{Monitoring}
+
+Six four-channel power monitors (PAC1944) measure the voltage and the current of every supply except VIN and T2V7, through shunt
+resistors (Table~\ref{tbl:hw-monitor}).  Each channel measures the bus voltage on a 9\,V full scale, and the
+shunt voltage on a 100\,mV full scale, both as 16-bit values.  The temperature probe (an optional RTD on
+header J17) is read as the fourth channel of the board monitor.
+
+\begin{table}[htbp]
+\caption{\label{tbl:hw-monitor} Power monitors and their shunts.  The tile monitors at \hex{10}--\hex{14}
+  serve tiles $2n+1$ and $2n+2$ for $n = 0$--4 (U11, U20, U21, U23, U94).}
+\begin{center}
+\begin{tabular}{lllll}
+Monitor                  & Channel & Rail                     & Shunt           & Current full scale \\
+\hline
+tiles (\hex{10}--\hex{14}) & 0     & VDDA, tile $2n+1$        & 20\,m$\Omega$   & 5\,A \\
+                         & 1       & VDDD, tile $2n+1$        & 20\,m$\Omega$   & 5\,A \\
+                         & 2       & VDDA, tile $2n+2$        & 20\,m$\Omega$   & 5\,A \\
+                         & 3       & VDDD, tile $2n+2$        & 20\,m$\Omega$   & 5\,A \\
+\hline
+board (\hex{15}, U105)   & 0       & D3V6                     & 5\,m$\Omega$    & 20\,A \\
+                         & 1       & D3V3                     & 5\,m$\Omega$    & 20\,A \\
+                         & 2       & T3V0                     & 2\,m$\Omega$    & 50\,A \\
+                         & 3       & temperature probe (J17)  &                 & \\
+\end{tabular}
+\end{center}
+\end{table}
+
+At the rated currents the shunt voltages stay well inside the full scale:  20\,mV at 1\,A for a tile rail,
+32\,mV at 6.4\,A on D3V6, and 33\,mV at 16.6\,A on T3V0.
+
+\subsection{I2C Devices}
+
+All monitoring and control devices of the card are on one I2C bus of the PS (Table~\ref{tbl:hw-i2c}).
+
+\begin{table}[htbp]
+\caption{\label{tbl:hw-i2c} I2C devices of the PACMAN 1v5 (7-bit addresses).}
+\begin{center}
+\begin{tabular}{lll}
+Address                  & Part      & Function \\
+\hline
+\hex{0C} (0001100)       & AD5677R   & 16-channel DAC:  VDDA of tiles 1--10, test DAC (+) \\
+\hex{0D} (0001101)       & AD5677R   & 16-channel DAC:  VDDD of tiles 1--10, test DAC ($-$) \\
+\hex{10}--\hex{14}       & PAC1944   & Power monitors:  VDDA and VDDD of tiles 1+2, \ldots, 9+10 \\
+\hex{15} (0010101)       & PAC1944   & Power monitor:  D3V6, D3V3, T3V0, temperature \\
+\hex{4C} (1001100)       & MAX14661  & 16:2 analog MUX, positive side \\
+\hex{4D} (1001101)       & MAX14661  & 16:2 analog MUX, negative side \\
+\hex{50}, \hex{51}       & SFP       & SFP module (primary and secondary addresses) \\
+\hex{60} (1100000)       & ADN2814   & Clock and data recovery for the SFP \\
+\end{tabular}
+\end{center}
+\end{table}
+
+\subsection{Specifications and Design}
+
+Table~\ref{tbl:hw-spec} compares the requirements with the 1v5 design.
+
+\begin{table}[htbp]
+\caption{\label{tbl:hw-spec} Requirements and the 1v5 design.}
+\begin{center}
+\begin{tabular}{l>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{3.2cm}}
+Item                & Requirement               & Design                                   & Status \\
+\hline
+VDDA, VDDD range    & 0--1.8\,V                 & 0.28--2.5\,V (0\,V with the tile off)    & met \\
+VDDA current        & 0.3\,A per tile           & TPS7A94:  1\,A rated, limit 1.2--1.4\,A  & met \\
+VDDD current        & 1.1\,A per tile           & TPS7A94:  1\,A rated, limit 1.2--1.4\,A, 1.14\,A on the bench & above the regulator's rating:  VDDD is pushed \\
+Stability, noise    & 1\,\%, $<$1\,mV           & low-noise LDOs (TPS7A94)                 & not assessed here \\
+Tile power          & 42\,W at 3\,V             & PKU5510S:  50\,W at 3.0\,V (at 48\,V input)              & met \\
+Input               & 48\,V, 2\,A, fuse 2.5\,A, 60\,V protection & as required             & met \\
+Signals per tile    & 4 POSI, 4 PISO, CLK, TRIG, SYNC & as required                        & met \\
+Clock               & 10\,MHz                   & 10\,MHz (UCLK, CONFIG\_UART = 10)        & met \\
+Front panel:  LEMO  & 2:  trigger, sync          & 2, isolated, 49.9\,$\Omega$             & met \\
+LEDs                & 4                          & 4:  2 PL, 2 PS                          & met \\
+Timing endpoint     & one fiber link             & SFP and CDR fitted                      & hardware only\\
+Embedded Linux      & Gigabit Ethernet, SD boot, JTAG and UART over one USB & as required  & met \\
+\end{tabular}
+\end{center}
+\end{table}
+
+
 \newpage
-
 \section{Programmable Logic Firmware}
 
 \begin{figure}[htbp]
@@ -499,9 +646,8 @@ The scopes are allocated as shown in Table~\ref{tbl:scope}.
 \caption{\label{tbl:scope} The most significant four bits of the register address, referred to as the scope, are allocated as shown.}
 \begin{center}
 \begin{tabular}{lll}
-\toprule
 Unit      & Scope bits   & Addresses                    \\
-\midrule
+\hline
 TX        & \texttt{00XX} & \hex{0000}--\hex{3FFF} \\
 RX        & \texttt{01XX} & \hex{4000}--\hex{7FFF} \\
 (reserved)& \texttt{1000}--\texttt{1011} & \hex{8000}--\hex{BFFF} \\
@@ -509,7 +655,6 @@ LA        & \texttt{1100} & \hex{C000}--\hex{CFFF} \\
 ADC       & \texttt{1101} & \hex{D000}--\hex{DFFF} \\
 Timing    & \texttt{1110} & \hex{E000}--\hex{EFFF} \\
 Global    & \texttt{1111} & \hex{F000}--\hex{FFFF} \\
-\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
@@ -523,11 +668,10 @@ PACMAN registers is left to the subsections for each unit.
 \begin{table}[bp]
 \caption{Registers managed by the global unit}
 \label{tbl:global-reg}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{llcL}
-\toprule
+\begin{center}
+\begin{tabular}{llc>{\raggedright\arraybackslash}p{9.2cm}}
 Register          & Address     & Access & Contents \\
-\midrule
+\hline
 STATUS            & \hex{F000} & RO & fixed pattern \hex{0000CAFE} \\
 ENABLES           & \hex{F010} & RW & tile enables and tile power (Table~\ref{tbl:global-bit-fields}) \\
 LEDS              & \hex{F014} & RW & the two LEDs driven by the PL (Table~\ref{tbl:global-bit-fields}) \\
@@ -545,8 +689,7 @@ GIT\_HASH\_LOWER  & \hex{FF44} & RO & short git hash, ASCII, characters 5--7 and
 BUILD\_FLAGS      & \hex{FF48} & RO & bit 0 DIRTY, bit 1 OFFICIAL\_RELEASE \\
 VIVADO\_MAJOR     & \hex{FF50} & RO & Vivado version of the build (e.g.\ 2023) \\
 VIVADO\_MINOR     & \hex{FF54} & RO & Vivado version of the build (e.g.\ 2) \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
@@ -554,18 +697,16 @@ VIVADO\_MINOR     & \hex{FF54} & RO & Vivado version of the build (e.g.\ 2) \\
 \caption{\label{tbl:global-bit-fields} Bit fields for registers in the global unit. }
 \begin{center}
 \begin{tabular}{llll}
-\toprule
 Register & Field               & Bits  & Mask \\
-\midrule
+\hline
 ENABLES  & TILE\_ENABLES       & 9--0  & \hex{000003FF} \\
          & TILE\_POWER\_ENABLE & 16    & \hex{00010000} \\
-\midrule
+\hline
 LEDS     & LED-2               & 0     & \hex{00000001} \\
          & LED-3               & 1     & \hex{00000002} \\
-\midrule
+\hline
 BUILD\_FLAGS & DIRTY            & 0     & \hex{00000001} \\
          & OFFICIAL\_RELEASE   & 1     & \hex{00000002} \\
-\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
@@ -712,11 +853,10 @@ The stimuli can be configured to generate signals at the available outputs:
 
 \begin{table}[htbp]
 \caption{\label{tbl:atc-reg} Registers of the Timing unit (scope \texttt{1110}).}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{llcL}
-\toprule
+\begin{center}
+\begin{tabular}{llc>{\raggedright\arraybackslash}p{10.2cm}}
 Register        & Address     & Access & Contents \\
-\midrule
+\hline
 STATUS          & \hex{E000} & RO & ATC status register \\
 TIMESTAMP       & \hex{E004} & RO & Timestamp, bits 31--0 \\
 POKE\_A         & \hex{E0A0} & WO & Poke A command with tile mask \\
@@ -738,29 +878,27 @@ DST\_POKE\_D    & \hex{E134} & RW & Destination of POKE D (Table~\ref{tbl:atc-bi
 %DST\_LOGIC\_B   & \hex{E13C} & RW & Destination of LOGIC B (Table~\ref{tbl:atc-bit-fields}) \\
 COUNT\_REQ      & \hex{E200} & WO & Counter command (Table~\ref{tbl:atc-cmd}) \\
 COUNT           & \hex{E204} & RO & Latched count and integral \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
 \begin{table}[htbp]
 \caption{\label{tbl:atc-bit-fields} Bit fields of the Timing unit registers.  DST\_* is each destination
   register, DST\_LEMO\_A to DST\_POKE\_D.}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{lllL}
-\toprule
+\begin{center}
+\begin{tabular}{lll>{\raggedright\arraybackslash}p{8.3cm}}
 Register        & Field          & Bits   & Description \\
-\midrule
+\hline
 STATUS          & RESERVED       & 31--0  & Reads 0, no status bits in this version \\
-\midrule
+\hline
 POKE\_*         & TILES          & 9--0   & Tile mask of the poke \\
-\midrule
+\hline
 CONFIG\_INPUT   & INVERT\_LEMO\_A & 0     & Invert LEMO A (detect falling edge) \\
                 & INVERT\_LEMO\_B & 1     & Invert LEMO B (detect falling edge) \\
-\midrule
+\hline
 CONFIG\_G, \_H  & PHASE          & 7--0   & Output changes PHASE + 2 clock cycles after the UART strobe \\
                 & INVERT         & 17--8  & Invert output of tile $n$ in bit $8 + n$ \\
-\midrule
+\hline
 DST\_*          & G              & 0      & Send to the G outputs for DURATION \\
                 & H              & 1      & Send to the H outputs for DURATION\\
                 & MARKER\_0      & 2      & Send to marker 0 / sync for one clock cycle \\
@@ -769,24 +907,22 @@ DST\_*          & G              & 0      & Send to the G outputs for DURATION \
                 & MARKER\_3      & 5      & Send to marker 3 for one clock cycle \\
                 & TILES          & 15--6  & Tile mask for G and H \\
                 & DURATION       & 31--16 & Length of the G and H pulse in clock cycles\\
-\midrule
+\hline
 COUNT\_REQ      & CHANNEL        & 3--0   & Channel $C$ of the command \\
                 & COMMAND        & 7--4   & Command (Table~\ref{tbl:atc-cmd}) \\
-\midrule
+\hline
 COUNT           & EDGES          & 15--0  & Rising edge count \\
                 & INTEGRAL       & 31--16 & Integral (count of high clock cycles) \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
 \begin{table}[htbp]
 \caption{\label{tbl:atc-cmd} Commands of the counters, written to COUNT\_REQ (bits 7--0).}
 \begin{center}
-\begin{tabularx}{\textwidth}{llL}
-\toprule
+\begin{tabular}{ll>{\raggedright\arraybackslash}p{11.6cm}}
 Command & Code (bits 7--4) & Description (bits 3--0: the channel $C$) \\
-\midrule
+\hline
 NO OP   & 0 & Nothing \\
 CLEAR   & 1 & Clear all counters \\
 START   & 2 & Start all counters \\
@@ -795,8 +931,7 @@ READ M  & 4 & Latch the count of marker $C$ (0--3) into COUNT \\
 READ G  & 5 & Latch the count of the G signal of tile $C$ (0--9) \\
 READ H  & 6 & Latch the count of the H signal of tile $C$ (0--9) \\
 READ I  & 7 & Latch the count of stimulus $C$: 0--1 LEMO A--B, 2--5 POKE A--D \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
@@ -878,15 +1013,13 @@ being held constant.
 \label{tbl:tx-dma}
 \begin{center}
 \begin{tabular}{lll}
-\toprule
 Beat & Contents (64 bits)                    & Description \\
-\midrule
+\hline
 0    & \texttt{0x000000MMMMMMMMMM}           & M: UART mask, bit $i$ for UART $i$ \\
 1    & \texttt{0xDDDDDDDDDDDDDDDD}           & D: the word for UART 0 \\
 2    & \texttt{0xDDDDDDDDDDDDDDDD}           & the word for UART 1 \\
      & \ldots                                & \\
 40   & \texttt{0xDDDDDDDDDDDDDDDD}           & the word for UART 39 \\
-\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
@@ -914,7 +1047,7 @@ from inactive UARTs are simply not used.
     asserted, at the first clock cycle of the start bit (labeled
     Start).  The width of each transmitted bit is set by the
     configurable {\tt baud} signal.  The relative phase is set to zero
-    here, for clarity, but is configurable as well.} 
+    here, for clarity, but is configurable as well.}
 \label{fig:tx-stream}
 \end{figure}
 
@@ -1025,62 +1158,56 @@ In Common    & 0{\rm x}3F            & 0{\rm x}3FXX              \\
 
 \begin{table}
 \caption{\label{tbl:tx-reg} UART registers of the TX unit.}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{llcL}
-\toprule
+\begin{center}
+\begin{tabular}{llc>{\raggedright\arraybackslash}p{10.5cm}}
 Register        & $R$      & Access & Contents \\
-\midrule
+\hline
 UART\_STATUS    & \hex{00} & RO & channel status (Table~\ref{tbl:tx-bit-fields}) \\
 UART\_CONFIG    & \hex{04} & RW & PHASE and DELAY (Table~\ref{tbl:tx-bit-fields}); default \hex{00000006} \\
 UART\_STARTS    & \hex{20} & RO & counter: frames started (start bits sent) \\
 UART\_BEATS     & \hex{24} & RO & counter: words taken from the TX buffer (uvalid and uready) \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
 \begin{table}
 \caption{\label{tbl:tx-common} In-common registers of the TX unit.}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{llcL}
-\toprule
+\begin{center}
+\begin{tabular}{llc>{\raggedright\arraybackslash}p{10.5cm}}
 Register        & $R$      & Access & Contents \\
-\midrule
+\hline
 LOOK\_SELECT    & \hex{A0} & RW & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
 LOOK\_LOWER     & \hex{A4} & RO & that UART's word in the output buffer, bits 31--0 \\
 LOOK\_UPPER     & \hex{A8} & RO & that UART's word in the output buffer, bits 63--32 \\
 BUFFER\_STATUS  & \hex{B0} & RO & TX buffer status (Table~\ref{tbl:tx-bit-fields}) \\
 ZERO\_CNTS      & \hex{F8} & WO & clear all TX counters (command: any value) \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
 \begin{table}
 \caption{Bit field descriptions for TX registers}
 \label{tbl:tx-bit-fields}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{lllL}
-\toprule
+\begin{center}
+\begin{tabular}{lll>{\raggedright\arraybackslash}p{9.0cm}}
 Register       & Field   & Bits   & Description \\
-\midrule
+\hline
 UART\_CONFIG   & PHASE   & 7--0   & tx strobe at PHASE+1 clock cycles after baud strobe\\
                & DELAY   & 31--16 & bit periods of idle line between frames \\
-\midrule
+\hline
 UART\_STATUS   & START      & 0    & a start bit was sent (pulse) \\
                & TX         & 1    & the POSI line \\
                & VALID      & 2    & uvalid (a word is waiting for this UART) \\
                & READY      & 3    & uready (the word is taken; one clock cycle) \\
                & STATE      & 5--4 & 0 idle, 1 shifting, 2 stop, 3 delay.  \\
                & TX\_STROBE & 6    & the bit strobe:  the line changes on the next clock cycle \\
-\midrule
+\hline
 BUFFER\_STATUS & TREADY  & 0      & stream tready \\
                & TVALID  & 1      & stream tvalid \\
                & RELEASE & 4      & stream reader is released (one clock cycle) \\
                & PACKET  & 5      & stream reader holds a complete packet \\
                & STATE   & 9--8   & 0 idle, 1 start of transmission, 2 transmitting \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
@@ -1144,7 +1271,7 @@ occurred (it need not be selected ahead of time).
 
 \node at (0,3) {\large\textellipsis};
 
-\node at (2,3) {\large\textellipsis};  
+\node at (2,3) {\large\textellipsis};
 
 \coordinate (aa) at ($(a.east)+(0,0.75)$);
 \coordinate (ab) at ($(a.east)+(0,0.00)$);
@@ -1215,7 +1342,7 @@ DMA engine writes the packets to memory accessible from the PS.
     \draw[{Stealth[length=5pt]}-] (12.65, 14.5) -- (12.35, 14.5) node[left] {Glitch};
     \draw (15.0, 14.5) node[right] {Bit 2};
   \end{tikzpicture}
-  
+
   \caption{\label{fig:rx-chan} An RX channel receiving the start of a
     frame, with a glitch occurring during bit 1.}
 \end{figure}
@@ -1246,7 +1373,7 @@ point the PISO signal should be sampled per bit) is determined.
     \draw[{Stealth[length=5pt]}-] (9.9, 9.5) -- (10.5, 9.0) node[right] {Low stop bit};
     \draw[{Stealth[length=5pt]}-] (15.3, 5.7) -- (14.7, 6.2) node[left] {RX buffer stalls};
   \end{tikzpicture}
-  
+
   \caption{\label{fig:rx-chan-frames} An RX channel receiving four
     frames back to back, with an input glitch causing noisy flag to
     assert, a low stop bit causing the frame error flag to assert, and
@@ -1411,11 +1538,10 @@ Table~\ref{tbl:rx-scope} for a summary.
 
 \begin{table}
   \caption{\label{tbl:rx-reg} UART registers of the RX unit.}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{llcL}
-\toprule
+\begin{center}
+\begin{tabular}{llc>{\raggedright\arraybackslash}p{10.0cm}}
 Register          & $R$      & Access & Contents \\
-\midrule
+\hline
 UART\_STATUS      & \hex{00} & RO & channel status (Table~\ref{tbl:rx-bit-fields}) \\
 UART\_CONFIG      & \hex{04} & RW & Table~\ref{tbl:rx-bit-fields}; default \hex{000A1104} \\
 UART\_CHAN        & \hex{08} & RW & channel identifier in the header (bits 15--0); default UART + 1 \\
@@ -1425,18 +1551,16 @@ UART\_UPDATES     & \hex{28} & RO & counter: frames completed (good stop bit) \\
 UART\_LOST        & \hex{2C} & RO & counter: words lost (previous word not yet taken) \\
 UART\_FRAME\_ERR  & \hex{30} & RO & counter: framing errors (low stop bit) \\
 UART\_NOISE       & \hex{34} & RO & counter: sample points with dissenting samples \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
 \begin{table}[htbp]
 \caption{\label{tbl:rx-common} In-common registers of the RX unit.}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{llcL}
-\toprule
+\begin{center}
+\begin{tabular}{llc>{\raggedright\arraybackslash}p{9.5cm}}
 Register          & $R$      & Access & Contents \\
-\midrule
+\hline
 PATTERN\_LOWER    & \hex{80} & RW & test pattern word, bits 31--0 \\
 PATTERN\_UPPER    & \hex{84} & RW & test pattern word, bits 63--32 \\
 PATTERN\_DELAY    & \hex{88} & RW & idle bit periods between test frames \\
@@ -1447,8 +1571,8 @@ PATTERN\_STOPS    & \hex{98} & RO & counter: test frames completed \\
 LOOK\_SELECT      & \hex{A0} & RW & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
 LOOK\_LOWER       & \hex{A4} & RO & that UART's last word, bits 31--0 \\
 LOOK\_UPPER       & \hex{A8} & RO & that UART's last word, bits 63--32 \\
-BUFFER\_STATUS    & \hex{B0} & RO & RX buffer status (Table~\ref{tbl:rx-bit-fields}) \\
-BUFFER\_CONFIG    & \hex{B4} & RW & Buffer config (see Table~\ref{tbl:rx-bit-fields}) default \hex{00000001} \\
+BUFFER\_STATUS    & \hex{B0} & RO & RX buffer status (Table~\ref{tbl:rx-buffer-bit-fields}) \\
+BUFFER\_CONFIG    & \hex{B4} & RW & Buffer config (see Table~\ref{tbl:rx-buffer-bit-fields}) default \hex{00000001} \\
 BUFFER\_ENABLES   & \hex{B8} & RW & enables heartbeat (LSB), rollover,  marker 2, marker 3. \\
 PACMAN            & \hex{BC} & RW & PACMAN identifier in the header (bits 7--0) \\
 HEARTBEAT\_CONFIG & \hex{C0} & RW & clock cycles between heartbeats; default \hex{3B9ACA00} \\
@@ -1462,18 +1586,16 @@ EOP\_HEADER       & \hex{E0} & RW & header template for trailer \\
 FIFO\_CNT         & \hex{F0} & RO & words (64 bits) in the RX FIFO \\
 FIFO\_MAX         & \hex{F4} & RO & maximum of FIFO\_CNT since the last clear \\
 ZERO\_CNTS        & \hex{F8} & WO & clear all RX counters and FIFO\_MAX \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
 \begin{table}
 \caption{\label{tbl:rx-bit-fields} Bit field descriptions for RX registers.  A pulse lasts one clock cycle.  START, UPDATE, LOST, FRAME\_ERR and NOISE are the events counted in UART\_STARTS, UART\_UPDATES, UART\_LOST, UART\_FRAME\_ERR and UART\_NOISE.}
-\begin{center}\small
-\begin{tabularx}{\textwidth}{lllL}
-\toprule
+\begin{center}
+\begin{tabular}{lll>{\raggedright\arraybackslash}p{7.7cm}}
 Register       & Field   & Bits   & Description \\
-\midrule
+\hline
 UART\_CONFIG   & PHASE    & 7--0  & phase parameter for sample strobe \\
                & PISO     & 8     & set input to PISO line \\
                & LOOPBACK & 9     & set input to POSI (loopback) \\
@@ -1483,7 +1605,7 @@ UART\_CONFIG   & PHASE    & 7--0  & phase parameter for sample strobe \\
                & ACCEPT\_DISSENT & 14 & accept a start bit despite dissent \\
                & RESERVED & 15     & \\
                & PERIOD  & 23--16 & bit period, equal to CONFIG\_BAUD (wraps the edge-detect sample point) \\
-\midrule
+\hline
 UART\_STATUS   & STATE   & 1--0   & 0 idle, 1 start bit, 2 data, 3 stop bit \\
                & VALID   & 2      & a word is waiting for the RX buffer \\
                & READY   & 3      & the RX buffer is ready to take the word \\
@@ -1502,10 +1624,19 @@ UART\_STATUS   & STATE   & 1--0   & 0 idle, 1 start bit, 2 data, 3 stop bit \\
                & PATTERN & 18     & the test pattern line \\
                & EMULATOR & 19    & the emulator line \\
                & EDGE    & 31--24 & edge phase of the last start bit in the bit period \\
-\midrule
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tbl:rx-buffer-bit-fields} Bit field descriptions for the RX buffer registers.}
+\begin{center}
+\begin{tabular}{lll>{\raggedright\arraybackslash}p{7.7cm}}
+Register       & Field   & Bits   & Description \\
+\hline
 BUFFER\_CONFIG & TIMEOUT & 15--0  & packet timeout in 256 cycles (0: no timeout)\\
                & MAX\_WORDS & 31--16 & words per packet before the trailer (0: none) \\
-\midrule
+\hline
 BUFFER\_STATUS & STATE   & 2--0   & 0 idle, 1 wait, 2 stream, 3 trailer \\
                & TVALID  & 3      & stream tvalid \\
                & TREADY  & 4      & stream tready \\
@@ -1514,13 +1645,12 @@ BUFFER\_STATUS & STATE   & 2--0   & 0 idle, 1 wait, 2 stream, 3 trailer \\
                & LAST    & 7      & stream tlast \\
                & TURN    & 13--8  & current turn (channel) \\
                & FRAGMENT & 15--14 & current fragment \\
-\bottomrule
-\end{tabularx}
+\end{tabular}
 \end{center}
 \end{table}
 
 The registers of the RX unit are listed in Tables~\ref{tbl:rx-reg} and~\ref{tbl:rx-common}, and bit
-fields in Table~\ref{tbl:rx-bit-fields}.  The configuration of each UART (via UART\_CONFIG) holds
+fields in Tables~\ref{tbl:rx-bit-fields} and~\ref{tbl:rx-buffer-bit-fields}.  The configuration of each UART (via UART\_CONFIG) holds
 the PHASE, MODE, and PERIOD parameters, the input select bits, and the ACCEPT\_DISSENT flag.  If no
 input (or more than one input) is specified, the line is set high, disabling the UART.  The BAUD
 signal is provided by the ATC unit and configured there.
@@ -1773,7 +1903,7 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
     \node at (8,\ySYNC  - 0.4) {\large Sync};
     \node at (8,\yTRIG  - 0.4) {\large Trigger};
     \node at (8,\yERR   - 0.4) {\large Error};
-    
+
     \pacmanWordRect{\yPING}
     \pacmanByteText{\yPING}{0}{`P'}
     \pacmanFieldLow{\yPING}{1}
@@ -1816,7 +1946,7 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
     \pacmanFieldLow{\yDATA}{0}
     \pacmanFieldLow{\yDATA}{1}
     \pacmanFieldLow{\yDATA}{2}
-    \pacmanFieldLow{\yDATA}{4}    
+    \pacmanFieldLow{\yDATA}{4}
     \pacmanFieldLow{\yDATA}{8}
     \pacmanFieldLow{\yDATA}{16}
 
@@ -1830,7 +1960,7 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
     \pacmanFieldLow{\yCFG}{0}
     \pacmanFieldLow{\yCFG}{1}
     \pacmanFieldLow{\yCFG}{2}
-    \pacmanFieldLow{\yCFG}{4}    
+    \pacmanFieldLow{\yCFG}{4}
     \pacmanFieldLow{\yCFG}{8}
     \pacmanFieldLow{\yCFG}{16}
 
@@ -1842,39 +1972,39 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
     \pacmanByteText{\ySYNC}{3}{C}  % clock_source
     \pacmanByteText{\ySYNC}{8}{T}  % timestamp
     \pacmanByteText{\ySYNC}{16}{S} % status
-    \pacmanFieldLow{\ySYNC}{1}   
-    \pacmanFieldLow{\ySYNC}{2}   
-    \pacmanFieldLow{\ySYNC}{3}   
-    \pacmanFieldLow{\ySYNC}{4}   
-    \pacmanFieldLow{\ySYNC}{8}   
-    \pacmanFieldLow{\ySYNC}{16}  
-    \pacmanFieldLow{\ySYNC}{20}  
+    \pacmanFieldLow{\ySYNC}{1}
+    \pacmanFieldLow{\ySYNC}{2}
+    \pacmanFieldLow{\ySYNC}{3}
+    \pacmanFieldLow{\ySYNC}{4}
+    \pacmanFieldLow{\ySYNC}{8}
+    \pacmanFieldLow{\ySYNC}{16}
+    \pacmanFieldLow{\ySYNC}{20}
 
     % TRIG word
     \pacmanWordRect{\yTRIG}
     \pacmanByteText{\yTRIG}{0}{`T'}  % word type
     \pacmanByteText{\yTRIG}{1}{P}  % pacman
-    \pacmanByteText{\yTRIG}{2}{G}  % trigger type 
-    \pacmanByteText{\yTRIG}{3}{I}  % trigger source 
-    \pacmanByteText{\yTRIG}{8}{T}  % timestamp    
-    \pacmanFieldLow{\yTRIG}{1}   
-    \pacmanFieldLow{\yTRIG}{2}   
-    \pacmanFieldLow{\yTRIG}{3}   
-    \pacmanFieldLow{\yTRIG}{4}   
-    \pacmanFieldLow{\yTRIG}{8}   
-    \pacmanFieldLow{\yTRIG}{16}  
+    \pacmanByteText{\yTRIG}{2}{G}  % trigger type
+    \pacmanByteText{\yTRIG}{3}{I}  % trigger source
+    \pacmanByteText{\yTRIG}{8}{T}  % timestamp
+    \pacmanFieldLow{\yTRIG}{1}
+    \pacmanFieldLow{\yTRIG}{2}
+    \pacmanFieldLow{\yTRIG}{3}
+    \pacmanFieldLow{\yTRIG}{4}
+    \pacmanFieldLow{\yTRIG}{8}
+    \pacmanFieldLow{\yTRIG}{16}
 
     % ERR word
     \pacmanWordRect{\yERR}
     \pacmanByteText{\yERR}{0}{`E'}  % word type
     \pacmanByteText{\yERR}{1}{P}    % pacman
     \pacmanByteText{\yERR}{8}{T}    % timestamp
-    \pacmanByteText{\yERR}{16}{O}   % error code    
-    \pacmanFieldLow{\yERR}{1}   
-    \pacmanFieldLow{\yERR}{2}   
-    \pacmanFieldLow{\yERR}{8}   
-    \pacmanFieldLow{\yERR}{16}  
-    \pacmanFieldLow{\yERR}{20}  
+    \pacmanByteText{\yERR}{16}{O}   % error code
+    \pacmanFieldLow{\yERR}{1}
+    \pacmanFieldLow{\yERR}{2}
+    \pacmanFieldLow{\yERR}{8}
+    \pacmanFieldLow{\yERR}{16}
+    \pacmanFieldLow{\yERR}{20}
   \end{tikzpicture}
 
   \caption{Layout of PACMAN message words by word type, showing field
@@ -2287,139 +2417,110 @@ record the waveforms:
 
 \appendix
 
-\section{Specifications for the PACMAN Card}
-
-\subsection{Overview}
-
-Each PACMAN card provides power, digital I/O, and analog test and
-monitoring signals to up to ten pixel tile cards.  Each pixel tile
-card will consist of 160 ASICs (CONFIRM).
-
-\subsection{Power}
-
-The PACMAN card provides digital and analog power to up to ten pixel
-tile cards.  The digital voltage level (VDDD) and analog voltage level
-(VDDA) are digitally controlled independently for each pixel tile
-card, within the limits and at the stability specified below.
-
-The power requirements of the PACMAN are based on scaling the measured
-power consumption of the 100 ASIC pixel tile cards to 160 ASIC pixel
-tile cards of the production system, a scale factor of 1.6.  An
-additional (minimum) safety factor of $10\%$ is added to these
-extrapolated power requirements to derive the following
-specifications:
-\captionof{table}{Digital and Analog Power Requirements (per tile card)}
-\begin{center}
-\begin{tabular}{llllll}
-      & Stability & Min (V) & Max (V) & Max Current (A) & Max Power (W) \\
-VDDA  & $1\%$ & 0 & 1.8 & 0.3 & 0.7\\
-VDDD  & $1\%$ & 0 & 1.8 & 1.1 & 2.2\\
-\end{tabular}
-\end{center}
-
-Reaching a $1\%$ stability on VDDA and VDDD requires linear regulation
-and so the power requirements at the input of the PACMAN are derived
-from a higher voltage level of $3~\rm V$.  This implies that the
-initial switching voltage requirement must provide at least 42 W at
-$3~\rm V$.
-
-The PACMAN power is provided by a single nominal 48~V 2~A DC input.
-The power connection is the four position terminal connector (Phoenix
-Contact P/N 5444660).  The inner two pins provide power and the outer
-two are for sense: \captionof{table}{Input Power Connections}
-\begin{tabular}{ll}
-pin & function \\
-1 & V+ sense  \\
-2 & V+ \\
-3 & V- \\
-4 & V- sense \\
-\end{tabular}\\
-The connector is rated for 8 A and 300 V.  The PACMAN is fused at 2.5
-A and has over voltage protection at 60 V.  The sense pins are fused
-at 0.5 A.
-
-\subsection{Digital Signals}
-
-The LArPix-v2 ASIC uses a bit-serial protocol to transmit and receive
-data.  The PACMAN is the primary and the LARPix ASIC the secondary, so
-that the PACMAN transmits POSI and receives PISO signals.
-
-The PACMAN shall provide the following digital IO signals to each
-pixel tile card:
-\captionof{table}{Digital Signals (per pixel tile card)}
-\begin{center}
-\begin{tabular}{llllll}
-Signal & Quantity & Description \\
-  POSI & 4 & Bit serial transmission to pixel tile \\
-  PISO & 4 & Bit serial reception from pixel tile \\
-  CLK  & 1 & Clock \\
-  TRIG & 1 & Trigger \\
-  SYNC & 1 & Multiplexed Synchronization and Reset \\
-\end{tabular}
-\end{center}
-
-Each POSI signal is received by a single ASIC, but the clock, trigger,
-and sync signals are fanned out to every ASIC on the tile card.  The
-PACMAN must be capable of driving the resulting capacitive load.
-
-The nominal clock rate is $10~\rm MHz$ with a maximum of $40~\rm MHz$.
-The LArPix ASIC uses an LVDS signal with custom voltage level which
-the PACMAN is capable of transmitting and receiving.
-
-\subsection{Noise}
-
-The noise injected into the pixel tile from the controller is less than $1~\rm mV$.
-
-\subsection{Pixel Tile Interface}
-
-A single PACMAN card drive up to ten pixel tile cards through a single
-flange card.  The interface to the eight-tile flange card is through a
-6 row by 50 pin high-density SAMTEC connector {\tt
-  SEAF-50-01-L-06-1-RA-K-TR} on the PACMAN card.
-
-The PACMAN card shall provide a footprint for an optional 2x17
-connector to drive a pixel card directly without the use of flange
-card.
-
-\subsection{Front Panel Interface}
-
-The PACMAN card implements the front-panel interfaces listed below in
-the specified quantity with specified routing.  When routing to
-programmable logic (PL) is specified, the specified purpose is nominal
-and can be repurposed through firmware changes.
-
-\captionof{table}{Required Front Panel Interface}
-\begin{center}
-\begin{tabular}{lll}
-Interface   & Quantity & Routing \\
-SMA Jack    & 1 & Multiplexed to eight tile analog monitor \\
-SMA Jack    & 1 & Multiplexed to eight tile adc test \\
-Lemo Jack   & 2 & PL: Trigger and Sync \\
-Push Button & 1 & Reset \\
-LED         & 4 & PL: General Purpose
-\end{tabular}
-\end{center}
-
-
-\subsection{Timing System Endpoint}
-
-The PACMAN card implement a ProtoDUNE-SP timing system
-endpoint\footnote{DUNE-doc-1651-v3} of a single fiber-optic link.
-
-\subsection{Embedded Linux}
-
-The PACMAN is an embedded Linux system and supports several standard embedded Linux interfaces:\\
-\begin{tabular}{lll}
-Interface & P/N & Notes \\
-Ethernet & & Gigabit \\
-SD Card & & Bootable from SD card\\
-JTAG & & SoC Configuration\\
-UART & & Linux Terminal\\
-\end{tabular}\\
-The JTAG and UART interface are multiplexed to provide a linux terminal and firmware configuration over a single USB port.
-
-
 \newpage
+\section{FPGA Package Pins}\label{sec:pins}
+
+Tables~\ref{tbl:pins-board} and~\ref{tbl:pins-tile} list the Zynq package pin of each PL signal of the PACMAN 1v5,
+by its top-level port name (checked against the hw1v5 constraints).
+
+\begin{table}[htbp]
+\caption{\label{tbl:pins-board} FPGA package pins of the board signals (PACMAN 1v5, top-level port names).}
+\begin{center}
+\begin{tabular}[t]{lll}
+Group & Port & Pin \\
+\hline
+ADC & ADC\_CLK & J15 \\
+ & ADC\_D[0] & F19 \\
+ & ADC\_D[1] & G19 \\
+ & ADC\_D[2] & H20 \\
+ & ADC\_D[3] & H19 \\
+ & ADC\_D[4] & R6 \\
+ & ADC\_D[5] & T6 \\
+ & ADC\_D[6] & U6 \\
+ & ADC\_D[7] & U5 \\
+ & ADC\_D[8] & Y18 \\
+ & ADC\_D[9] & AA18 \\
+ & ADC\_D[10] & AA17 \\
+ & ADC\_D[11] & AB17 \\
+ & ADC\_EN & AB16 \\
+ & ADC\_OF & AA16 \\
+\hline
+Board & GLOBAL\_CLK & C19 \\
+ & ANALOG\_PWR\_EN & J16 \\
+ & LED-2 & R19 \\
+ & LED-3 & T19 \\
+\end{tabular}
+\hspace{2em}
+\begin{tabular}[t]{lll}
+Group & Port & Pin \\
+\hline
+Timing & SFP\_TDATA\_P & W20 \\
+ & SFP\_TDATA\_N & W21 \\
+ & SFP\_TCLK\_P & AA22 \\
+ & SFP\_TCLK\_N & AB22 \\
+ & SFP\_DISABLE & AA19 \\
+ & SFP\_FAULT & AA21 \\
+ & SFP\_LOS & AB21 \\
+ & SFP\_MOD & Y19 \\
+ & CDR\_CLK\_P & W17 \\
+ & CDR\_CLK\_N & W18 \\
+ & CDR\_DATA\_P & W16 \\
+ & CDR\_DATA\_N & Y16 \\
+ & CDR\_LOL & V5 \\
+ & CDR\_LOS & V4 \\
+\hline
+Front panel & TRIG\_ISO & J18 \\
+ & SYNC\_ISO & K18 \\
+ & ISO\_SIGNAL0 & L18 \\
+ & ISO\_SIGNAL1 & L19 \\
+ & TEST\_OUT[0] & AB2 \\
+ & TEST\_OUT[1] & AB1 \\
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tbl:pins-tile} FPGA package pins of the tile signals (PACMAN 1v5).  Tile $n$ = 1--10 uses
+  index $n-1$ of TILE\_EN, SYNC and TRIG (the schematic names of the G and H outputs), and UARTs $4(n-1)$ to $4n-1$.}
+\begin{center}
+\begin{tabular}{rlll@{\hspace{2em}}rllrll}
+Tile & TILE\_EN & SYNC & TRIG & UART & PISO & POSI & UART & PISO & POSI \\
+\hline
+1 & G21 & D18 & G20 & 0 & C20 & D21 & 1 & D20 & E21 \\
+ & & & & 2 & G16 & B20 & 3 & G15 & B19 \\
+\hline
+2 & P18 & J17 & R21 & 4 & V10 & U12 & 5 & V9 & U11 \\
+ & & & & 6 & Y9 & U10 & 7 & Y8 & U9 \\
+\hline
+3 & P17 & L17 & R20 & 8 & V12 & AA7 & 9 & W12 & AA6 \\
+ & & & & 10 & W11 & Y6 & 11 & W10 & Y5 \\
+\hline
+4 & K15 & M17 & T17 & 12 & B22 & C22 & 13 & B21 & D22 \\
+ & & & & 14 & A22 & G22 & 15 & A21 & H22 \\
+\hline
+5 & L21 & N17 & R18 & 16 & AB9 & AB11 & 17 & AB10 & AA11 \\
+ & & & & 18 & AA8 & AB12 & 19 & AA9 & AA12 \\
+\hline
+6 & P21 & N18 & M22 & 20 & C18 & B17 & 21 & C17 & B16 \\
+ & & & & 22 & F22 & E20 & 23 & F21 & E19 \\
+\hline
+7 & P20 & J21 & M21 & 24 & B15 & A19 & 25 & C15 & A18 \\
+ & & & & 26 & D17 & A17 & 27 & D16 & A16 \\
+\hline
+8 & L22 & J22 & T18 & 28 & AA4 & AB6 & 29 & Y4 & AB7 \\
+ & & & & 30 & AB4 & U4 & 31 & AB5 & T4 \\
+\hline
+9 & M19 & J20 & N19 & 32 & F17 & E18 & 33 & G17 & F18 \\
+ & & & & 34 & E16 & D15 & 35 & F16 & E15 \\
+\hline
+10 & M20 & K21 & N20 & 36 & V7 & Y11 & 37 & W7 & Y10 \\
+ & & & & 38 & W6 & V8 & 39 & W5 & W8 \\
+\end{tabular}
+\end{center}
+\end{table}
+
+\clearpage
+
 \section{PACMAN Version History}
 
 \captionof{table}{PACMAN Evolution}
@@ -2433,40 +2534,8 @@ PACMAN 1v2  & Karcher        & July 2020 & Single-tile capable (Not Supported) \
 PACMAN 1v3  & Berns/Karcher  & Jan 2021  & Eight-tile capable - Module 0\\
 PACMAN 1v4  & Berns/Karcher  & Feb 2022  & LArPix-v2b, Power, TX\\
 PACMAN 1v5  & Berns/Karcher  & Aug 2024  & Ten-tile capable \\
-PACMAN 1v5b & Berns/Karcher  & TBD 2025  & Interchangeable w/ 1v5\\
+PACMAN 1v5b & Berns/Karcher  & 2026      & Interchangeable w/ 1v5\\
 \end{tabular}
 \end{center}
-
-\section{Prototype Results}
-
-Many of the specifications for the PACMAN are driven by measurements,
-using prototype devices, as described in this section.
-
-The Intrinsic RMS noise on the LArPix ASIC was
-benchtested\footnote{Reported 6 Mar 2020, Brooke} at $~\sim 3~\rm mV$.
-
-The PACMAN card provides digital (VDDD) and analog (VDDA) power for
-the LArPix ASICs.  The ASIC power draw during power up was
-measured\footnote{Reported 13 Feb 2020, Brooke} as follows:
-\captionof{table}{ASIC Current Draw at Power-up}
-\begin{center}
-\begin{tabular}{lllll}
-   & Voltage (V) & Current (mA) & Power (mW) & Power ($\rm \mu W / chan$)\\
-VDDA  & 1.8 & 1.4  & 2.5  & 39\\
-VDDD  & 1.8 & 6.92 & 12.5 & 195\\
-\end{tabular}
-\end{center}
-
-\newpage
-The 10x10 pixel-tile power draw was measured \footnote{Reported 14 Jan 2021, Brooke} as follows:
-\captionof{table}{10x10 Power Draw}
-\begin{center}
-\begin{tabular}{llll}
-   & Voltage (V) & Current (mA) & Power (W) \\
-VDDA  & 1.8 & 166  & 0.3  \\
-VDDD  & 1.8 & 611  & 1.1  \\
-\end{tabular}
-\end{center}
-
 
 \end{document}
