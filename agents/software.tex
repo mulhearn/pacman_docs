@@ -1,0 +1,494 @@
+\documentclass[12pt]{article}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.75in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\newcommand{\hex}[1]{\texttt{0x#1}}
+\newcommand{\f}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{PACMAN Software 3.6.5\\[2pt]
+  \large DAQ interface, drivers, servers and applications}
+\author{Draft maintained by the PACMAN agents (augie); reference for the TRM}
+\date{2026-11-20 (updated with the TRM)}
+
+\begin{document}
+\maketitle
+\sloppy
+
+\section{Purpose and scope}
+
+This note describes the PACMAN software that runs on the ARM processor (PS) of the Zynq SoC, as a
+source for the PACMAN Software section of the TRM.  It follows the outline of that section:
+\begin{enumerate}
+\item the DAQ interface:  ZMQ and the PACMAN message format, the PACMAN registers and the virtual
+  address space, the ASIC registers (Section~\ref{sec:daq});
+\item the drivers:  the platform layer, the common drivers and the menu layer
+  (Section~\ref{sec:drivers});
+\item the PACMAN servers, \f{pacman\_cmdserver} and \f{pacman\_dataserver}, together
+  (Section~\ref{sec:servers});
+\item the PACMAN applications (Section~\ref{sec:apps}).
+\end{enumerate}
+The software described is 3.6.5 (not yet released), as in the TRM:  \f{pacman-software} branch
+\f{working-on-v3.6.4-zipline-2023.2} at \f{54fee11} (3.6.4, identical in function to the 3.6.3
+release) with the fixes queued for 3.6.5 (Section~\ref{sec:open}), with firmware 3.6.0.  The text
+assumes those fixes:  each one matches this text and the TRM, or both are updated with it.
+Paths are relative to \f{petalinux/pkg/pacman-apps/files/} unless they start with \f{apps/} (the
+bare-metal applications at the top of the repository).  The firmware registers named here are
+described in \f{firmware.tex}.  The differences from 3.6.4 are listed in Section~\ref{sec:open}.
+
+\section{DAQ interface}\label{sec:daq}
+
+\subsection{ZMQ sockets}\label{sec:zmq}
+
+The DAQ reaches the PACMAN over Ethernet, through three ZMQ sockets bound by the two servers on all
+interfaces of the board (Table~\ref{tbl:sockets}).  ZMQ carries each PACMAN message as one ZMQ
+message, so the transport delivers whole messages and the message format needs no framing of its
+own.
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{lllL}
+\toprule
+Port & ZMQ type & Server & Use \\
+\midrule
+5555 & REP & \f{pacman\_cmdserver} & requests and their replies:  one REQUEST (or STRING) message in, one
+  REPLY (or STRING) message out \\
+5554 & PUB & \f{pacman\_cmdserver} & echo:  every REQUEST, then its REPLY, as handled (STRING messages are
+  not echoed) \\
+5556 & PUB & \f{pacman\_dataserver} & DATA messages:  every word the RX unit delivers \\
+\bottomrule
+\end{tabularx}
+\caption{ZMQ sockets of the PACMAN servers.  A client connects REQ to 5555 and SUB to 5554 and 5556
+  (subscribing to everything).}
+\label{tbl:sockets}
+\end{table}
+
+The REP socket serves one request at a time:  a client sends a request and waits for its reply
+before the next.  The PUB sockets are fire and forget:  a subscriber that connects late, or falls
+behind, misses messages, with no notice to the server.  ZMQ subscriptions are registered
+asynchronously, so a client that subscribes and at once sends a request may miss the start of the
+data it causes.
+
+\subsection{PACMAN messages}\label{sec:messages}
+
+The message format (version 1.1) is that of the TRM tables:  a 24-byte header, then N bytes, either
+24-byte PACMAN words or the text of a STRING message.  It is defined in \f{include/pacman\_message.hh}
+(C++, used by the servers and the board tools) and \f{pylib/pacman\_message.py} (Python, used by
+\f{utils/pacman\_util.py} and by clients).  Multi-byte fields are little-endian.
+
+\paragraph{Header.}  The sequence and session fields (bytes 16--23, new in version 1.1) are used by
+DATA messages only and are zero otherwise.  The session is a random non-zero number drawn when
+\f{pacman\_dataserver} starts, and the sequence counts the messages of that session from 0 (wrapping
+at $2^{32}$).  A client detects a lost message by a gap in the sequence, and a restart of the data
+server by a new session.  The timestamp of a REPLY is copied from its REQUEST.
+
+\paragraph{Requests and replies.}  A REQUEST holds up to 16000 words (\f{MAX\_WORDS}).  The command
+server checks that the message is at least a header long, no larger than its buffer, and exactly as
+long as the header says.  A request that fails a check is answered by a REPLY of one ERR word (error
+code \hex{EEEE}).  Otherwise the reply has one word per request word, in the same order:
+\begin{itemize}
+\item PING:  a PING word.
+\item READ:  a READ word with the address and the value read.
+\item WRITE:  a WRITE word with the address and the value written.
+\item DATA:  the same DATA word, once the payload is in the TX buffer of its channel
+  (Section~\ref{sec:asic-regs}), or an ERR word if it was refused.
+\item any other word type:  an ERR word.
+\end{itemize}
+READ, WRITE and DATA reply words carry the PACMAN ID (set by the \f{set\_pacman\_id} string command).
+Words are handled in order, so a request can mix register writes and ASIC words, and their effects
+follow the order of the request.
+
+\paragraph{STRING messages.}  A STRING request carries one text command (the TRM table of high-level
+commands) and is answered by a STRING reply with the text result.  The same operations are also
+available as virtual registers (Section~\ref{sec:vspace}).  The STRING interface is experimental:
+it is meant to become the main configuration interface, replacing register access at the DAQ
+interface.
+
+\paragraph{DATA messages.}  The data server publishes the words of the RX unit as they arrive:  DATA
+words (ASIC packets, with the channel and the timestamp of their reception, or CFG words for
+configuration packets when the RX unit's WORD\_TYPE\_LUT is configured for it) and the SYNC, TRIG
+(markers) and heartbeat words the RX unit is configured to insert (\f{firmware.tex}, RX unit).  A
+DATA message holds between 1 and 64000 words, as many as were available when it was sent
+(Section~\ref{sec:dataserver}).  Clients must not assume a fixed message size.
+
+\subsection{PACMAN registers and the virtual address space}\label{sec:vspace}
+
+READ and WRITE words address a 32-bit address space of the PACMAN server, decoded by
+\f{pacman\_read} and \f{pacman\_write} (\f{src/drivers-linux/pacman\_vspace.cc}, regions in
+\f{include/addr\_conf.hh}).  It has three documented regions (Table~\ref{tbl:regions}).
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{llL}
+\toprule
+Region & Addresses & Decoded as \\
+\midrule
+Hardware registers & \hex{00000000}--\hex{0000FFFF} & the PL register bus (AXI-Lite at
+  \hex{40000000}):  the address is the register offset, read and written as is \\
+Virtual registers & \hex{00100000}--\hex{0010FFFF} & operations on the hardware
+  (Table~\ref{tbl:vregs}), written only \\
+Virtual I2C registers & \hex{00200000}--\hex{0020FFFF} & tile power and monitoring, through the I2C
+  devices (Table~\ref{tbl:i2cregs}) \\
+\bottomrule
+\end{tabularx}
+\caption{Regions of the PACMAN server address space.  Other addresses are reserved.}
+\label{tbl:regions}
+\end{table}
+
+The virtual registers are operations, not storage:  writing one acts on the hardware (usually a
+read-modify-write of a hardware register), with the value as its argument.  They give a client one
+interface across hardware versions, as the server maps each operation to the hardware it runs on.
+Channels and tiles in virtual register arguments are zero-referenced (tile 1 is 0, UART 0 is 0).
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{llL}
+\toprule
+Address & Name & Write value and effect \\
+\midrule
+\hex{00100110} & DISABLE\_GLOBAL\_TILE\_POWER & any:  clear the main analog power enable (GLOBAL
+  ENABLES bit 16) \\
+\hex{00100114} & ENABLE\_GLOBAL\_TILE\_POWER & any:  set it \\
+\hex{00100210} & DISABLE\_SINGLE\_TILE & tile (0--9):  clear its enable (GLOBAL ENABLES bit tile) \\
+\hex{00100214} & ENABLE\_SINGLE\_TILE & tile (0--9):  set it \\
+\hex{001002F0} & DISABLE\_ALL\_TILE & any:  clear all ten tile enables \\
+\hex{001002F4} & ENABLE\_ALL\_TILE & any:  set all ten \\
+\hex{00100310} & DISABLE\_SINGLE\_UART\_RX & UART (0--39):  turn its RX channel off \\
+\hex{00100314} & ENABLE\_SINGLE\_UART\_RX & UART (0--39):  turn it on (input from the pin) \\
+\hex{001003F0} & DISABLE\_ALL\_UART\_RX & any:  all 40 RX channels off \\
+\hex{001003F4} & ENABLE\_ALL\_UART\_RX & any:  all 40 on \\
+\hex{00100410} & SEND\_INTERNAL\_RESET & tile mask:  poke C (internal reset) to those tiles \\
+\hex{00100420} & SEND\_FULL\_RESET & tile mask:  poke D (full reset) to those tiles \\
+\bottomrule
+\end{tabularx}
+\caption{Virtual registers (write only).  Out-of-range arguments are ignored.  The pokes are those of
+  the default Timing unit configuration (\f{set\_atc\_default\_config}).}
+\label{tbl:vregs}
+\end{table}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{llL}
+\toprule
+Address & Write value & Effect \\
+\midrule
+\hex{00100010} & mask (0--\hex{3FF}) & tile enables:  bits 9--0 replace GLOBAL ENABLES bits 9--0 \\
+\hex{00100014} & bit 0 & main analog power enable \\
+\hex{00101010} & bit 2 & set:  poke C (internal reset) to all ten tiles \\
+\hex{00101014} & length (0--\hex{FFF}) & reset pulse length:  the poke C pulse length, in clock cycles \\
+\hex{0010201C} & mask (0--\hex{FFFFFFFF}) & RX for UARTs 0--31:  bit set turns the channel off, clear turns it on \\
+\hex{00102020} & mask (0--\hex{FF}) & RX for UARTs 32--39, as above \\
+\bottomrule
+\end{tabularx}
+\caption{Legacy virtual registers (write only):  addresses of the legacy firmware commonly used by
+  \f{larpix-control}, kept for existing clients.}
+\label{tbl:legacy-vregs}
+\end{table}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{llL}
+\toprule
+Address & Access & Register \\
+\midrule
+\hex{00200010}+$t$ & W & SET\_VDDA:  VDDA DAC code of tile $t$ (0--9) \\
+\hex{00200020}+$t$ & W & SET\_VDDD:  VDDD DAC code of tile $t$ \\
+\hex{00200030}+$t$ & R & MON\_VDDA:  measured VDDA of tile $t$, mV \\
+\hex{00200040}+$t$ & R & MON\_VDDD:  measured VDDD, mV \\
+\hex{00200050}+$t$ & R & MON\_IDDA:  measured VDDA current, mA \\
+\hex{00200060}+$t$ & R & MON\_IDDD:  measured VDDD current, mA \\
+\hex{00200070} & W & SET\_MUX\_FRONT\_PANEL:  0--9 tile 1--10, 10 the DAC, otherwise open \\
+\hex{00200080} & W & SET\_MUX\_ADC:  as above, for the ADC \\
+\bottomrule
+\end{tabularx}
+\caption{Virtual I2C registers.  The low four bits of the address select the tile.  Reads of
+  write-only registers return 0.}
+\label{tbl:i2cregs}
+\end{table}
+
+The hardware region gives a client every PL register (Global, TX, RX, Timing, ADC units) by its
+offset, for example \hex{0000F010} for GLOBAL ENABLES.  It is the interface of choice for anything
+the virtual registers do not cover, at the cost of depending on the firmware's register map.  A
+client that changes the RX or TX configuration through it shares that configuration with the
+servers, which set it at their start (Section~\ref{sec:servers}).
+
+\subsection{ASIC registers}\label{sec:asic-regs}
+
+The server does not address ASIC registers itself:  ASIC configuration travels as LArPix packets.
+A client builds each 64-bit packet (configuration write or read, with its chip ID, register address,
+value and parity) and sends it in a DATA word of a REQUEST, with the channel set to the UART number
+plus one (1--40).  The command server places the payload in the TX buffer of that channel, and the
+TX unit sends it to the ASICs on that UART's POSI line.  The DATA word in the REPLY means only that
+the packet was accepted for transmission.
+
+Replies from the ASICs (configuration read replies) arrive
+through the RX unit like any other ASIC packet:  as DATA words on the data server's socket, with the
+channel and timestamp of their reception.  A configuration read is therefore asynchronous:  the
+client sends the read through the command server and finds the reply in the data stream, matching it
+by channel, chip ID and register address.
+
+\paragraph{TX buffering and flow.}  The command server keeps a software TX buffer of 1024 packets
+per channel (\f{src/drivers-linux/tx\_buffer.cc}), drained into DMA packets of one 64-bit payload
+slot per channel (328 bytes), so the 40 UARTs transmit in parallel.  When a channel's buffer is full,
+the server moves packets to the DMA while it waits, for up to 100~ms per request.  If the wait
+expires, that DATA word and every later one on a full channel in the same request are refused (ERR
+words in the reply).  Between requests the server keeps draining the buffer.  At start-up
+\f{pacman\_init} limits the TX bandwidth (TX broadcast register \hex{3B04}).
+
+\paragraph{Packet layout.}  The common driver \f{src/drivers-common/asic.c} holds the packet
+helpers for LArPix v3 used by the board tools:  \f{asic\_config\_write} and \f{asic\_config\_read}
+place the packet type (bits 1--0:  2 write, 3 read), chip ID (bits 9--2), register address (bits
+17--10) and value (bits 25--18), and set the parity bit (bit 63) for odd parity.  DAQ clients
+(\f{larpix-control}, \f{larpix-lib}) build packets with their own encoders, from the register map
+of each ASIC version.
+
+\section{Drivers}\label{sec:drivers}
+
+The PACMAN applications rely on PACMAN-specific user-space drivers (a library linked into each
+application, not kernel modules), which implement low-level features such as DMA and AXI-Lite
+register access.  The drivers are layered so that one body of driver code runs both under Linux and bare metal
+(Table~\ref{tbl:layers}).  The Linux build (\f{Makefile}) compiles the platform layer, the common
+drivers and the Linux drivers into one library, \f{libdrivers.a}, linked into every application.  The
+bare-metal build (\f{apps/menu/install.tcl}) copies the common drivers and \f{hw\_access.h} into a
+Vitis standalone application, with the bare-metal platform layer \f{apps/menu/src/hw\_access.c}.
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{l>{\raggedright\arraybackslash}p{7cm}L}
+\toprule
+Layer & Sources & Role \\
+\midrule
+Platform & \f{src/platform/hw\_access.h}, \f{hw\_access.c} (Linux), \f{apps/menu/src/hw\_access.c}
+  (bare metal) & access to the hardware:  one interface, two implementations \\
+Common drivers & \f{src/drivers-common/*.c} (C) & the PL units and board devices, on the platform layer
+  only:  the same source on both platforms \\
+Menu layer & \f{src/drivers-common/*\_menu.c} & interactive menus on the common drivers, for
+  \f{pacman\_menu} and the bare-metal menu \\
+Linux drivers & \f{src/drivers-linux/*.cc} (C++) & the server side:  address space, messages, TX
+  buffer, high-level commands \\
+\bottomrule
+\end{tabularx}
+\caption{Driver layers.}
+\label{tbl:layers}
+\end{table}
+
+\subsection{Platform layer}
+
+\f{hw\_access.h} declares the hardware access every driver uses:  AXI-Lite register read and write
+(by offset from the register bus base), the timing endpoint's registers, the DMA registers and DMA
+buffer memory, I2C transactions, PS GPIO (MIO) pins, a microsecond timer, and menu input
+(\f{input\_choice}).  Each group has an \f{init}, \f{close}, \f{status} and \f{clear\_status} call.
+Differences between the platforms stay inside the layer:
+\begin{itemize}
+\item Linux:  registers and DMA memory mapped from \f{/dev/mem} (root required), I2C through the
+  kernel's I2C device, GPIO through sysfs.  The cache macros (\f{HW\_FLUSH\_DCACHE},
+  \f{HW\_INVALIDATE\_DCACHE}) are empty, as the DMA buffers are mapped uncached.
+\item Bare metal:  the Xilinx standalone drivers (\f{Xil\_In32}/\f{Xil\_Out32}, XIicPs, XGpioPs), base
+  addresses from \f{xparameters.h}, and real cache maintenance on the DMA buffers.
+\end{itemize}
+The I2C status is sticky:  the first failed transaction sets it (with its device and register), and
+later transactions do nothing (reads return zero) until \f{iic\_platform\_reset}.  A sequence of I2C
+operations is checked once, at its end.
+
+\subsection{Common drivers}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+Driver & Covers \\
+\midrule
+\f{global} & Global unit:  status, version and build information, tile and power enables, scratch
+  registers \\
+\f{version} & the software version string \\
+\f{led}, \f{jumper} & board LEDs (MIO and PL), jumper status \\
+\f{rxtx} & TX and RX units:  UART configuration, counters, RX buffer and stream settings, test
+  pattern \\
+\f{dma} & the AXI DMA core:  descriptor rings for TX (MM2S) and RX (S2MM), resets, polling \\
+\f{atc} & Timing unit (ASIC timing and control):  default configuration, pokes, routing,
+  counters \\
+\f{asic} & LArPix packet helpers (Section~\ref{sec:asic-regs}) \\
+\f{iic}, \f{iic\_devices}, \f{iic\_hw1v4}, \f{iic\_hw1v5}, \f{iic\_sim} & I2C devices (DACs, ADCs,
+  MUXes) per hardware version, selected from the Global unit's hardware version, and a simulation
+  for tests without hardware \\
+\f{adc}, \f{la}, \f{capture} & ADC unit (scope) and logic analyzer configuration and readout \\
+\f{check} & verdicts and output format of the check tools \\
+\bottomrule
+\end{tabularx}
+\caption{Common drivers (\f{src/drivers-common}).}
+\label{tbl:common}
+\end{table}
+
+\subsection{Menu layer}
+
+Each \f{*\_menu.c} driver (I2C, RX/TX, ATC, ADC, ASIC, logic analyzer, hardware check) is an
+interactive menu over its driver:  one letter chooses an option, and options set parameters through
+the driver's setters or toggle between presets (a menu never asks the user to type a value).  The
+main menu (\f{src/apps/pacman\_menu/main.cc} on Linux, \f{apps/menu/src/menu.c} bare metal) links
+them.  The hardware check menu runs the same tests as \f{pacman\_hwcheck}.
+
+\subsection{Linux drivers}
+
+\begin{itemize}
+\item \f{pacman.cc}:  the server entry points:  \f{pacman\_init} (hardware defaults), \f{pacman\_init\_tx},
+  \f{pacman\_init\_rx}, and the polling of the DMA (\f{pacman\_poll\_tx}, \f{pacman\_poll\_rx}).
+\item \f{pacman\_vspace.cc}:  the server address space (Section~\ref{sec:vspace}).
+\item \f{pacman\_message.cc}:  building and printing PACMAN messages.
+\item \f{tx\_buffer.cc}:  the per-channel TX buffer (Section~\ref{sec:asic-regs}).
+\item \f{pacman\_highlevel\_interface.cc}:  the STRING commands.
+\item \f{pacman\_simulated.cc}:  a replacement for \f{pacman.cc} (build target
+  \f{simulated-pacman}):  DATA words sent to the command server return from the data server, without
+  hardware, for testing DAQ clients on the development computer.  Register access and the board tools
+  are not simulated.
+\end{itemize}
+
+\section{PACMAN servers}\label{sec:servers}
+
+\f{pacman\_cmdserver} and \f{pacman\_dataserver} are started by \f{utils/pacman\_server.sh}
+(\f{start}, \f{stop}, \f{restart}), command server first:  at boot as the init script
+\f{/etc/init.d/pacman\_server}, by hand as \f{pacman\_server}.  Both write
+their output to \f{/dev/null}.
+
+\paragraph{Start-up and the shared DMA.}  The TX and RX units share one AXI DMA core, and a reset of
+its S2MM (RX) channel also halts MM2S (TX).  The command server therefore owns both resets:  it
+initializes the hardware defaults (\f{pacman\_init}), resets both DMA channels and sets up the TX
+descriptor ring (512 descriptors).  The data server waits 100~ms, checks that the TX channel runs,
+and exits otherwise (``must initialize TX before starting RX''), then sets up the RX ring (512
+descriptors) without a reset.  Restarting the command server therefore stops RX until the data server
+is restarted too.  The hardware defaults set by \f{pacman\_init}:
+\begin{itemize}
+\item RX buffer:  DMA packets of up to \hex{260} words or 1~ms (\f{RX\_BUFFER\_CONFIG\_DAQ}).
+\item RX buffer enables \hex{3}:  heartbeat and rollover words on.
+\item every RX channel:  the default configuration (\f{RX\_CONFIG\_DEFAULT}:  PISO from the pin, edge
+  mode).
+\item TX bandwidth limit (broadcast register \hex{3B04} = \hex{00C60006}).
+\item Timing unit:  its default configuration (\f{set\_atc\_default\_config}).
+\item I2C:  the devices of the hardware version the firmware was built for.
+\end{itemize}
+The board tools (\f{pacman\_menu}, \f{pacman\_hwcheck}, \f{pacman\_fwcheck}) use the same DMA and
+registers, so the servers are stopped before running them.
+
+\subsection{Command server}\label{sec:cmdserver}
+
+\f{pacman\_cmdserver} (\f{src/apps/pacman\_cmdserver/main.cc}) is a single loop:  move pending TX
+packets to the DMA, wait for a request (polling every 1~ms while TX packets are pending), handle its
+words in order (Section~\ref{sec:messages}), publish the request and then the reply on the echo
+socket, and send the reply.  Messages are sent zero-copy, and the server waits for ZMQ to release
+each one before going on.  The echo socket gives a passive observer the complete record of control
+traffic.
+
+\subsection{Data server}\label{sec:dataserver}
+
+\f{pacman\_dataserver} (\f{src/apps/pacman\_dataserver/main.cc}) moves RX DMA packets into DATA
+messages.  It keeps two message buffers of 64000 words:  one fills while the other is in flight.
+Each pass of its loop copies every complete RX DMA packet into the filling buffer (dropping the
+192-bit trailer the RX unit appends), and as soon as the previous message has been released by ZMQ,
+sends the filling buffer as one message, with the next sequence number.  The message size thus adapts
+to the load:  small messages at low rates, larger ones when sending is the bottleneck.  When nothing
+arrives, the loop sleeps 100~$\mu$s.
+
+\begin{itemize}
+\item Zero copy:  each message is sent from its buffer with no copy, and released by ZMQ's free
+  callback.
+\item No backpressure into the DMA:  if a message is not released within about 1~s (a stalled
+  subscriber holding the TCP send), the server aborts rather than stall the RX DMA.
+\item Incomplete RX packets (cut short by a DMA reset) are discarded and counted.
+\item Cores:  ZMQ's I/O thread (the TCP send) runs on CPU 1 and the main thread on CPU 0.
+\item Every 10~s the server reports received and sent packets, sent messages, incomplete packets,
+  idle and stall time, and the session and next sequence number (to standard output).
+\end{itemize}
+The delivery ceiling of 3.6.3 is about 2700 packets/ms to a host on the network, limited by the CPU:
+the ZMQ send and the copy out of the uncached DMA buffers fill both cores.
+
+\section{PACMAN applications}\label{sec:apps}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+Application & Use \\
+\midrule
+\f{pacman\_cmdserver}, \f{pacman\_dataserver} & the DAQ interface (Section~\ref{sec:servers}) \\
+\f{pacman\_menu} & interactive access to every driver, for diagnostics and hardware checkout
+  (Section~\ref{sec:drivers}) \\
+\f{pacman\_hwcheck} & hardware test suite:  read-only status, power, loopback, ATC outputs, LEMO
+  inputs, analog monitor, ADC, LEDs, SMA.  One verdict line per item, exit code 0 PASS, 1 FAIL, 2
+  INCOMPLETE \\
+\f{pacman\_fwcheck} & hardware checks of the firmware requirements (registers, TX to RX loopback in
+  the firmware), the same source as the bare-metal \f{apps/fwcheck} \\
+\f{pacman\_capture} & arm the ADC (scope) or logic analyzer and save its capture to a file, with the
+  configuration already in the hardware \\
+\f{pacman\_counter} & data server client:  counts packets per channel and checks the message sequence
+  (on the board or on a remote host) \\
+\f{pacman\_push} & command server client:  sends DATA words at a set rate, for TX and throughput
+  tests \\
+\f{pacman\_zmqbench} & ZMQ-only throughput benchmark on the data server's port (no DMA), counted by
+  \f{pacman\_counter} \\
+\f{pacman\_units} & unit tests of the message format, the TX buffer and the ASIC packet helpers, without
+  hardware \\
+\bottomrule
+\end{tabularx}
+\caption{Applications built by the PetaLinux package (\f{bin/*.elf}, installed in \f{/usr/bin}).}
+\label{tbl:apps}
+\end{table}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{lL}
+\toprule
+Script & Use \\
+\midrule
+\f{pacman\_server.sh} & start, stop or restart the servers \\
+\f{pacman\_boot.sh} & end of boot:  records the MAC and IP address in \f{last-boot.txt} on the SD
+  card's boot partition \\
+\f{pacman\_gpio\_init.sh} & PS GPIO (MIO) pins to their initial states \\
+\f{pacman\_lnxcheck.sh} & checkout of the Trenz module under Linux:  CPU and memory, XADC, Ethernet,
+  QSPI flash, eMMC, microSD \\
+\f{pacman\_util.py} & standalone Python client of the servers:  register reads and writes, ASIC
+  words, STRING commands, data and echo dumps \\
+\f{power\_up\_tile.sh}, \f{power\_down.sh}, \f{report\_power.sh} & tile power through the command
+  server (with \f{pacman\_util.py}) \\
+\bottomrule
+\end{tabularx}
+\caption{Scripts (\f{utils/}).}
+\label{tbl:scripts}
+\end{table}
+
+The bare-metal applications at the top of the repository, built with the Xilinx tools (\f{xsct}),
+are:  \f{apps/menu} (the menu, on the common drivers), \f{apps/fwcheck}, \f{apps/hello},
+\f{apps/jtag\_boot} (boot over JTAG, also from TFTP) and \f{apps/pacman\_fsbl} (the first-stage
+boot loader for the PetaLinux images).  The workflows are in \f{docs/flow.txt}.
+
+\section{Changes from 3.6.4}\label{sec:open}
+
+The text describes 3.6.5 with these fixes (queued, found while writing the TRM).  In 3.6.4:
+\begin{itemize}
+\item The hardware region ends at \hex{0000FFFE}:  \hex{0000FFFF} itself is not decoded.
+\item The STRING command \f{send\_sync\_timestamp} fires poke D (the full reset);
+  \f{send\_full\_reset} writes \hex{E118} (no Timing register in 3.6) and 0 to \hex{E100}
+  (CONFIG\_UART, not restored), then fires poke C (the internal reset).  The legacy virtual register
+  \hex{00101014} writes \hex{E118} too, with no effect.
+\item STRING replies are sent with the size of their request:  a reply longer than its request is
+  cut, a shorter one padded.
+\item \f{set\_vddd}, \f{set\_vdda}, \f{read\_vddd}, \f{read\_vdda} and \f{read\_enables} reply ``not
+  yet implemented'', \f{report\_version\_details} replies ``experimental''.
+\item \f{make simulated-pacman} fails to link \f{pacman\_dataserver} (\f{pacman\_simulated.cc} lacks
+  \f{pacman\_rx\_incomplete\_packets}).
+\end{itemize}
+Other facts, unchanged in 3.6.5:  the region \hex{00300000}--\hex{0030FFFF} (timing endpoint
+registers, today a copy of the hardware region) is decoded but not documented.  The command server
+prints every TX packet and register access (to \f{/dev/null} when started by
+\f{pacman\_server.sh}).  \f{hwutil}, \f{zmq\_test} and \f{zmq\_loopback} have sources but are
+not in the build.
+
+\end{document}
