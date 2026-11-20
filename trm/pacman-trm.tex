@@ -6,11 +6,19 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{capt-of}
+\usepackage{pdflscape}
+\usepackage{afterpage}
+\usepackage{url}
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc}
 \lstset{basicstyle=\ttfamily,columns=fullflexible}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\newcommand{\hex}[1]{\texttt{0x#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
 
 \begin{document}
 
@@ -35,15 +43,15 @@ ASIC.  The PACMAN card provides power and digital I/O to arrays of
 LArPix ASICs hosted on pixel tile cards located within the cryostat.
 In the production system, each PACMAN card handles up to ten pixel
 tile cards.  The PACMAN card provides analog test and monitor signals
-as well as digital control signals for clock, exernal trigger, and
-reset, and sync.  The PACMAN card serves as a timing system end point,
-hosts a linux CPU, and is connected to the data acquisition system via
-ethernet.
+as well as digital control signals for clock, external trigger,
+reset, and sync.  The PACMAN card serves as a timing system endpoint,
+hosts a Linux CPU, and is connected to the data acquisition system via
+Ethernet.
 
 The PACMAN card plays a supporting role in the LArPix system.  It does
 not face technical challenges as severe as the cold electronics of the
-LArPix system and therefore a basic design constraint is that it in no
-way limits the performance of the supported system.
+LArPix system and therefore a fundamental design constraint is that it
+in no way limits the performance of the supported system.
 
 \section{Hardware Implementation}
 \subsection{Package Pin to Schematic Netlist}
@@ -140,98 +148,55 @@ PISO[39] & W5   & POSI[39] & W8   \\
 
 \section{Programmable Logic Firmware}
 
-The PACMAN hardware demonstration programmable logic (PL) firmware is implemented in a
-hierarchical fashion, with five unit-level modules that divide up the
-PACMAN features as follows:
-\begin{itemize}
-\item {\bf Global}: this unit handles simple board-wide tasks: setting the
-  power and tile enables, configuring the LEDs, reporting the
-  top-level status, and firmware version.
-\item {\bf TX}: this unit handles the configuration, operation, and monitoring of the 40 UART transmitters.
-\item {\bf RX}: this unit handles the configuration, operation, and monitoring of the 40 UART receivers.
-\item {\bf Timing}: this unit handles the timing and related control signals.  It
-  produces a timestamp which is used by the RX unit to mark each data.
-\item {\bf ADC}: this unit handles the onboard high-performance ADC available starting with PACMAN 1v5.
-\end{itemize}
-These five unit-level modules may appear to leave out some essential
-PACMAN features, notably control of voltage levels, power monitoring,
-and controlling the onboard multiplexer. These features are
-controlled over I2C by the processor (PS), and are therefore not part
-of the PL design.
-
-The top-level design of the PL firmware is shown in
-Fig.~\ref{fig:pl-top}.  The Vivado corresponding block design (at
-interface level) as presented by the Vivado GUI, is shown in
-Fig.~\ref{fig:vivado-top} This version of the documentation is synced
-with firmware version 3.3.  The latest release of 3.X firmware is
-available on github at {\tt
-  https://github.com/mulhearn/pacman/tree/hw-demo-2023.2} The 3.3
-version has not been released yet, but you can find each released
-version under tags (e.g. 3v2).
-
-The modules are implemented as custom RTL modules written in VHDL.
-They contain submodules which are also written in VHDL.  Every module
-adheres to project design rules\footnote{The design rules worked well
-in practice, with the vast majority of bugs detected during GHDL
-simulation, relatively few remaining bugs detected on an Trenz
-evaluation module, and nearly zero bugs (none that I can remember)
-detected using the actual hardware.}, most importantly:
-\begin{itemize}
- \item Custom RTL modules do not use any vendor IP.
- \item Each module {\tt xxx.vhd} has a testbench module {\tt tb/xxx\_tb.vhd} which demonstrates functionality to at least the level of initial hardware tests.
- \item Each module can be compiled and simulated using the lightweight open-source ghdl tool, independently of any vendor tools.
-\end{itemize}
-
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[x=1.5cm, y=1cm]
 
 % Dashed vertical separator between columns 1 and 2 at x = 2.5
-\draw[dashed] (3.5,10.5) -- (3.5,0);
-\node at (1.0,10) {\textbf{PS}};
-\node at (6.5,10) {\textbf{PL}};
+\draw[dashed] (3.0,12.5) -- (3.0,-0.75);
+\node at (1.0,12) {\textbf{PS}};
+\node at (6.5,12) {\textbf{PL}};
+
+\node at (8.4,5.4) {timestamp};
 
 % Uniform box size
 \def\boxwidth{2.0cm}
 \def\boxheight{1.4cm}
 
 % PS column (x ≈ 1) - align with first three boxes in PL column, uniform spacing 1.75 units
-\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (axi)  at (1,8.5) {AXI-LITE};
-\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (mm2s) at (1,6.5) {DMA\\(MM2S)};
-\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (s2mm) at (1,4.5)  {DMA\\(S2MM)};
-\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (bramc) at (1,0.0)  {BRAM\\CTRL};
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (axi)  at (1,10.5) {AXI-LITE};
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (mm2s) at (1,8.5) {DMA\\(MM2S)};
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (s2mm) at (1,6.5)  {DMA\\(S2MM)};
 
 % Center column (x ≈ 4.5)
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (fanout) at (4.5,8.5) {Register\\Bus};
-\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (fifo) at (4.5,4.5) {FIFO};
-\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (bram) at (4.5,0.0)  {BRAM};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (fanout) at (4.5,10.5) {Register\\Bus};
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (txfifo) at (4.5,8.5) {FIFO};
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (rxfifo) at (4.5,6.5) {FIFO};
 
-
-% PL column (x ≈ 7.5) - align first three boxes vertically with PS column
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (global) at (7.5,8.5) {Global};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (tx)     at (7.5,6.5) {TX};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (rx)     at (7.5,4.5) {RX};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (timing) at (7.5,2.0) {Timing};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (adc)    at (7.5,0.0) {ADC};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (global) at (7.5,10.5) {Global};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (tx)     at (7.5,8.5) {TX};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (rx)     at (7.5,6.5) {RX};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (atc)    at (7.5,4.5) {ATC};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (adc)    at (7.5,2.5) {ADC};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (la)     at (7.5,0.5) {LA};
 
 % PS/IP Interface Arrows
-\draw[->, thick] (rx.west) -- (fifo.east);
-\draw[->, thick] (fifo.west) -- (s2mm.east);
+\draw[->, thick] (rx.west) -- (rxfifo.east);
+\draw[->, thick] (rxfifo.west) -- (s2mm.east);
+\draw[<-, thick] (tx.west) -- (txfifo.east);
+\draw[<-, thick] (txfifo.west) -- (mm2s.east);
 \draw[<->, thick] (axi.east) -- (fanout.west);
-\draw[->, thick] (adc.west) -- (bram.east);
-\draw[->, thick] (bram.west) -- (bramc.east);
 
 % timestamp:
-\draw[->, thick] (timing.north) -- (rx.south);
+\draw[->, thick] (atc.north) -- (rx.south);
 
 % REGBUS arrows:
-\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) -- ($(global.west)+(0,0.35cm)$);
-\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) -- ++(0,-2) -- ($(tx.west)+(0,0.35cm)$);
-\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) -- ++(0,-4) -- ($(rx.west)+(0,0.35cm)$);
-\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) -- ++(0,-6.5) -- ($(timing.west)+(0,0.35cm)$);
-\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) -- ++(0,-8.5) -- ($(adc.west)+(0,0.35cm)$);
-
-\draw[->, thick] (mm2s.east) -- ++(1,0) -- ++(0,0) -- (tx.west);
+\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) |- ($(global.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) |- ($(tx.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) |- ($(rx.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) |- ($(atc.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) |- ($(adc.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(fanout.east)+(0,0.35cm)$) -- ++(0.75,0) |- ($(la.west)+(0,0.35cm)$);
 
 
 % Draw arrow from 'global' node east side to right, with label
@@ -243,11 +208,13 @@ detected using the actual hardware.}, most importantly:
 
 \draw[<-, thick] ($(rx.east)-(0,0.35cm)$) -- ++(1.0,0) node[anchor=west, font=\small] {PISO};
 
-\draw[<-, thick] ($(timing.east)+(0,0.35cm)$) -- ++(1.0,0) node[anchor=west, font=\small] {LEMO};
-\draw[->, thick] ($(timing.east)-(0,0.35cm)$) -- ++(1.0,0) node[anchor=west, font=\small] {CLK, ATC};
+\draw[<-, thick] ($(atc.east)+(0,0.35cm)$) -- ++(1.0,0) node[anchor=west, font=\small] {LEMO};
+\draw[->, thick] ($(atc.east)-(0,0.35cm)$) -- ++(1.0,0) node[anchor=west, font=\small] {CLK, ATC};
 
 \draw[->, thick] ($(adc.east)+(0,0.35cm)$) -- ++(1.0,0) node[anchor=west, font=\small] {CLK, EN};
 \draw[<-, thick] ($(adc.east)-(0,0.35cm)$) -- ++(1.0,0) node[anchor=west, font=\small] {DO};
+
+\draw[<-, thick] (la.east) -- ++(1.0,0) node[anchor=west, font=\small, align=left] {PISO\\POSI\\ATC};
 
 
 
@@ -261,66 +228,227 @@ detected using the actual hardware.}, most importantly:
 \end{scope}
 
 \end{tikzpicture}
-\caption{Top-Level Block Diagram of HW Demonstration Firmware}
+\caption{Top-Level Block Diagram of Zipline Firmware}
 \label{fig:pl-top}
 \end{figure}
 
-\noindent
-Both vendor IP and standard interfaces are featured prominantly in the design:
-\begin{itemize}
- \item AXI-Lite (relatively slow 32-bit transfers) is used for custom registers.
- \item DMA (high peformance direct memory access) is used for high-bandwith TX and RX transfers.
- \item A AXI Stream FIFO is used to buffer the RX data between the RX unit and the DMA engine.
- \item BRAM (Block RAM) is used by the ADC unit to store the time series of conversion data.
-\end{itemize}
-The AXI interface is widely used throughout the design, and is well
-documented elsewhere.  A critical point for understanding the AXI
-protocol is that data is transfered from a data producer to a data
-consumer when and only when a beat occurs.  {\bf A beat is defined as
-  a clock-cycle during which the data producer asserts its valid
-  signal and the data consumer asserts a busy signal.}
-There are further
-requirements, but this is sufficient to understand basic operation.
-For convenience, we use the same valid and ready handshake elsewhere
-in the design, even when we do not implement an AXI interface.
-The design uses one custom interface: the register bus (REGBUS).  Each
-unit-level module is a secondary on the REGBUS, and is guaranteed to
-respond on the clock cycle immediately following a read or write
-request from the REGBUS primary.  The PS drivers access the REGBUS
-interface via AXI-Lite.
-
-\begin{figure}[htbp]
+\afterpage{%
+\begin{landscape}
+\begin{figure}[p]
   \centering
-  \includegraphics[angle=90, width=\paperheight, height=\paperwidth, keepaspectratio]{figs/pacman-top.png}
+  \includegraphics[width=\linewidth, height=0.9\textheight, keepaspectratio]{figs/pacman-top.png}
 \caption{Vivado Block Design (Interfaces View) }
 \label{fig:vivado-top}
 \end{figure}
+\end{landscape}}
+
+\noindent
+The PACMAN Zipline programmable logic (PL) firmware is
+implemented in a hierarchical fashion, with six unit-level modules
+that divide the PACMAN features as follows:
+\begin{itemize}
+\item {\bf Global}: simple board-wide tasks. Sets the
+  power and tile enables, configures the LEDs, reports the
+  top-level status and firmware version.
+\item {\bf TX}: configures, operates, and monitors the 40 UART transmitters.
+\item {\bf RX}: configures, operates, and monitors the 40 UART receivers.
+\item {\bf ATC}: generation of ASIC timing and control signals
+  (clock, reset, sync, and trigger).  It produces a timestamp which the RX unit uses to record the arrival time of data.
+\item {\bf ADC}: a one-differential-channel digital oscilloscope using the onboard high-performance ADC available starting with PACMAN 1v5.
+\item {\bf LA}: a multi-channel logic analyzer for PISO/POSI/ATC and other signals of interest.
+\item {\bf (CDR)}: clock and data recovery.  Reconstructs
+  the $62.5~\rm MHz$ {\tt cdr\_clk} and timestamp.  This unit is planned for 3.7 but is not included in the 3.6 firmware.
+\end{itemize}
+These unit-level modules may appear to leave out some essential PACMAN
+features, notably control of voltage levels, power monitoring, and
+controlling the onboard multiplexer. These features are controlled
+over I2C by the processor (PS), and are therefore not part of the PL
+design. The top-level design of the PL firmware is shown in
+Fig.~\ref{fig:pl-top}.  The corresponding Vivado block design (at
+interface level) as presented by the Vivado GUI, is shown in
+Fig.~\ref{fig:vivado-top}.  This version of the documentation is
+synced with firmware version 3.6.\footnote{Generation of this
+documentation inspired a few purely cosmetic changes (e.g. FIRST state
+was renamed to START) to the firmware to reduce confusion.  So
+technically, this documentation describes the not yet released 3.6.1
+firmware.}  The latest release of 3.X firmware is available on GitHub
+at
+\url{https://github.com/mulhearn/pacman-firmware/tree/zipline-2023.2}
+
+The modules are implemented as custom RTL modules written in VHDL.
+They contain submodules which are also written in VHDL.  Every module
+adheres to project design rules, most importantly:
+\begin{itemize}
+ \item Custom RTL modules do not use any vendor IP.
+ \item Each module can be compiled and simulated using the lightweight open-source ghdl tool, independently of any vendor tools.
+ \item Each module {\tt xxx.vhd} has a testbench module {\tt tb/xxx\_tb.vhd} which demonstrates functionality to at least the level of initial hardware tests.
+ \item Use a finite state machine (FSM) when it reduces complexity.
+\end{itemize}
 
 
+\noindent
+Vendor IP, standard interfaces, and Block RAM are featured prominently in the design:
+\begin{itemize}
+ \item AXI-Lite (relatively slow 32-bit transfers) is used for custom registers.
+ \item DMA (high performance direct memory access) is used for high-bandwidth TX and RX transfers.
+ \item An AXI Stream FIFO is used to buffer the TX data between the DMA engine and the TX unit.
+ \item An AXI Stream FIFO is used to buffer the RX data between the RX unit and the DMA engine.
+ \item BRAM (Block RAM) is used by the ADC and LA units to store the time series of conversion data.
+\end{itemize}
+The AXI interface is widely used throughout the design, and is well
+documented elsewhere.  A critical point for understanding the AXI
+protocol is that data is transferred from a data producer to a data
+consumer when and only when a beat occurs.  {\bf A beat is defined as
+  a clock cycle during which the data producer asserts its valid
+  signal and the data consumer asserts a ready signal.}
+There are further requirements, but this is sufficient to understand
+basic operation.  For conceptual economy, we use the same valid and
+ready handshake elsewhere in the design, even when we do not implement
+an AXI interface.  The design uses one custom interface: the register
+bus (REGBUS).  Each unit-level module is a secondary on the REGBUS,
+and is guaranteed to respond on the clock cycle immediately following
+a read or write request from the REGBUS primary.  The PS drivers
+access the REGBUS interface via AXI-Lite.
+
+\subsection{Clocks}
+
+There are several logical clocks in the PACMAN firmware, which we define as:
+\begin{itemize}
+\item {\tt axi\_clk}: (100 MHz) AXI system clock, generated by the PS,
+  always available.
+\item {\tt cdr\_clk}: (62.5 MHz) generated by the Clock and Data Recovery
+  (CDR) subsystem from external fiber-optic input, which might not be
+  present. (Not implemented in 3.6)
+\item {\tt sys\_clk}: (62.5--100 MHz) System clock, either from {\tt
+  cdr\_clk} or generated by the PS, always available. (100 MHz in 3.6)
+\end{itemize}
+
+The 3.6 firmware does not include the CDR unit, and so the {\tt
+  cdr\_clk} is not present, and the {\tt sys\_clk} is generated from
+the PS, where it has been configured to 100 MHz.  After the release of
+3.6, a consensus was finally reached that {\tt sys\_clk} would be set
+to operate at 62.5 MHz (direct from {\tt cdr\_clk} or generated by the
+PS), much to the delight of the system designers.  As detailed in the
+ATC unit, the PACMAN firmware treats the ASIC clock (UCLK) as a signal in the
+{\tt sys\_clk} domain.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1.4cm, y=1cm]
+
+% Dashed vertical separator between columns 1 and 2 at x = 2.5
+\draw[dashed] (6.0,10.5) -- (6.0,-0.25);
+\node at (4.5,10) {\textbf{axi\_clk} domain};
+\node at (7.5,10) {\textbf{sys\_clk} domain};
+
+% Uniform box size
+\def\boxwidth{2.0cm}
+\def\widewidth{3.0cm}
+\def\boxheight{1.4cm}
+
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (axi)  at (1,4.5) {AXI-LITE};
+
+\node[draw, rounded corners, minimum width=\widewidth, minimum height=\boxheight,
+  text width=\widewidth, align=center] (arb)  at (3.35,4.5) {axil\_to\_regbus};
+
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (rbc) at (6.0,4.5) {regbus\_cdc};
+
+\draw[<->, thick] (axi.east) -- (arb.west);
+\draw[<->, thick] (arb.east) -- (rbc.west);
+
+
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (tx)     at (9.0,8.5) {TX};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (rx)     at (9.0,6.5) {RX};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (timing) at (9.0,4.5) {ATC};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (adc)    at (9.0,2.5) {ADC};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (la)     at (9.0,0.5) {LA};
+
+% REGBUS arrows:
+\draw[<->, thick] ($(rbc.east)$) -- ++(0.75,0) |- ($(tx.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(rbc.east)$) -- ++(0.75,0) |- ($(rx.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(rbc.east)$) -- ++(0.75,0) |- ($(timing.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(rbc.east)$) -- ++(0.75,0) |- ($(adc.west)+(0,0.35cm)$);
+\draw[<->, thick] ($(rbc.east)$) -- ++(0.75,0) |- ($(la.west)+(0,0.35cm)$);
+\fill ($(rbc.east)+(0.75,0)$) circle (2pt);
+
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (mm2s) at (1,8.5)  {DMA\\(MM2S)};
+
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (txfifo) at (6.0,8.5) {TX FIFO};
+
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (s2mm) at (1,6.5)  {DMA\\(S2MM)};
+
+\node[draw, rounded corners, dashed, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (rxfifo) at (6.0,6.5) {RX FIFO};
+
+\draw[->, thick] ($(mm2s.east)$) -- ($(txfifo.west)$);
+\draw[<-, thick] ($(s2mm.east)$) -- ($(rxfifo.west)$);
+
+\draw[->, thick] ($(txfifo.east)$) -- ($(tx.west)$);
+\draw[<-, thick] ($(rxfifo.east)$) -- ($(rx.west)$);
+
+% Global taps the bus between axil_to_regbus and regbus_cdc (the fanout is not drawn)
+\coordinate (tap) at ($(arb.east)!0.5!(rbc.west)$);
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxheight, text width=\boxwidth, align=center] (global) at ($(tap)+(0,-2.0)$) {Global};
+
+\fill (tap) circle (2pt);
+\draw[->, thick] (tap) -- (global.north);
+
+% ASIC-side signals, generated and sampled in sys_clk
+\draw[->, thick] (tx.east) -- ++(1.4,0) node[anchor=west, font=\small] {POSI};
+\draw[<-, thick] (rx.east) -- ++(1.4,0) node[anchor=west, font=\small] {PISO};
+\draw[->, thick] ($(timing.east)+(0,0.35cm)$) -- ++(1.4,0) node[anchor=west, font=\small] {CLK};
+\draw[->, thick] ($(timing.east)-(0,0.35cm)$) -- ++(1.4,0) node[anchor=west, font=\small] {ATC};
+\draw[->, thick] ($(adc.east)+(0,0.35cm)$) -- ++(1.4,0) node[anchor=west, font=\small] {CLK, EN};
+\draw[<-, thick] ($(adc.east)-(0,0.35cm)$) -- ++(1.4,0) node[anchor=west, font=\small] {DO};
+\draw[<-, thick] (la.east) -- ++(1.4,0) node[anchor=west, font=\small, align=left] {PISO\\POSI\\ATC};
+
+% Legend
+\begin{scope}[shift={(0,-1.5)}] % adjust this shift to position the legend
+  \draw[dashed, rounded corners] (0.5,0.0) rectangle ++(0.8,0.4);
+  \node[anchor=west] at (1.3,0.2) {Interface or Vendor IP};
+
+  \draw[rounded corners] (5.2,0.0) rectangle ++(0.8,0.4);
+  \node[anchor=west] at (6.0,0.2) {VHDL module};
+
+  \fill (8.6,0.2) circle (2pt);
+  \node[anchor=west] at (8.7,0.2) {regbus\_hub};
+\end{scope}
+
+\end{tikzpicture}
+\caption{Clock Domains in the PACMAN firmware}
+\label{fig:domains}
+\end{figure}
+
+As shown in Fig.~\ref{fig:domains}, firmware components run in one of
+two clock domains: {\tt axi\_clk} and {\tt sys\_clk}. The firmware
+handles clock domain crossing for signals that pass between these two
+domains.  A register read or write is initiated on the PS in the {\tt
+  axi\_clk} domain.  The register bus includes a CDC stage to reach
+all modules in the {\tt sys\_clk} domain.  The TX and RX units are in
+the {\tt sys\_clk} domain, and reach the DMA engine, in the {\tt
+  axi\_clk} domain, via FIFOs.  Lastly, the global unit is in the {\tt
+  axi\_clk} domain.
 
 \subsection{Registers}
-
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.68\paperwidth, keepaspectratio]{timing_diagrams/single_write.pdf}
 \caption{Single REGBUS write request (output of ghdl testbench)}
-\label{fig:single-read}
+\label{fig:single-write}
 \end{figure}
 
+\noindent
 Access to registers in the PL firmware is done via a simple custom
-register bus (REGBUS).
-
-A REGBUS write request is made by the single primary setting the
-16-bit write address to that of the register of interest, the 32-bits
-of write data to the desired value, and the write update bit high.
-The secondary on the bus responsible for that register responds on the
-next clock cycle by setting the write acknowledge bit high and
+register bus (REGBUS).  A REGBUS write request is made by the single
+primary setting the 16-bit write address to that of the register of
+interest, the 32-bits of write data to the desired value, and the
+write update bit high.  The secondary on the bus responsible for that
+register responds by setting the write acknowledge bit high and
 performing any other desired effect, such as setting a register to the
 value of the write data.  A single write request is illustrated in
 Fig.~\ref{fig:single-write}.  Command registers are implemented by
 setting a command signal high for one clock cycle after a write to the
-command register address, often ignoring the write data entirely.
+command register address, sometimes ignoring the write data entirely.
 
 \begin{figure}[htbp]
   \centering
@@ -332,128 +460,348 @@ command register address, often ignoring the write data entirely.
 A read request on the bus is made by the single primary setting the
 16-bit read address to that of the register of interest and setting
 the read update bit high.  The secondary on the bus responsible for
-that register responds on the next clock cycle by setting the 32-bit
-read data to the value associated with the register of interest, and
-setting the read acknowledge bit high.  A single read request is illustrated in
+that register responds by setting the 32-bit read data to the value
+associated with the register of interest, and setting the read
+acknowledge bit high.  A single read request is illustrated in
 Fig.~\ref{fig:single-read}.
 
-The register bus is implemented by a module ({\tt axil\_to\_regbus.vhd})
+The register bus is implemented by the module {\tt axil\_to\_regbus.vhd}
 which translates AXI-Lite requests from the PS to read and write
 requests on the REGBUS.  Because FPGAs do not have internal tristate
 buffers, the bus implementation also requires a multiplexer {\tt
-  regbus\_mux.vhd} to connect the REBGUS primary to multiple
+  regbus\_hub.vhd} to connect the REGBUS primary to multiple
 secondaries.
 
+Within the same clock domain, REGBUS requests
+are always acknowledged on the next clock cycle, as shown in
+Figs.~\ref{fig:single-write} and \ref{fig:single-read}.  However, a
+CDC stage in the register bus {\tt regbus\_cdc} introduces
+synchronization delays, and so the acknowledgement from units in the
+{\tt sys\_clk} domain is not seen in the {\tt axi\_clk} domain until
+several clock cycles later.  For this reason, the read address, write
+address, and write data are held fixed until the acknowledgement is
+received, or a timeout occurs.  The timeout ensures that writing an
+invalid address does not hang the AXI-Lite bus.  Read responses to an
+invalid address return 0xEEEEEEEE.  (Additional error flags for
+invalid addresses are available, but not fully implemented in version
+3.6.)
+
 The 16-bit address space for PACMAN registers is allocated in a
-hierachical fashion, represented as
+hierarchical fashion, represented as
 $$0{\rm x}SRRR$$
 with the most significant four bits $0{\rm x}S$ defining the scope, and the
 remaining 12 bits $0{\rm x}RRR$ defining the specific register within the scope.
 For example, the scratch A register (0x020), of the global unit (0xF)
-would be found at the 32-bit address:
+would be found at the 16-bit address:
 $$0{\rm xF}020.$$
 The scopes are allocated as shown in Table~\ref{tbl:scope}.
 \begin{table}
-\caption{\label{tbl:scope} The most significant four bits of the register address, referred to as the scope, is allocated as shown.}
+\caption{\label{tbl:scope} The most significant four bits of the register address, referred to as the scope, are allocated as shown.}
 \begin{center}
-\begin{tabular}{|lll|}
-\hline
-Scope      & Hexadecimal & Binary \\
-\hline
-Global     & 0{\rm x}F         & 0b1111 \\
-Timing     & 0{\rm x}E         & 0b1110 \\
-ADC        & 0{\rm x}D         & 0b1101 \\
-TX         & 0{\rm x}4-0{\rm x}7     & 0b01XX \\
-RX         & 0{\rm x}0-0{\rm x}3     & 0b00XX \\
-(Reserved) & 0{\rm x}8-0{\rm x}C     & 0b1000-0b1100 \\
-\hline
-\end{tabular} \\
+\begin{tabular}{lll}
+\toprule
+Unit      & Scope bits   & Addresses                    \\
+\midrule
+TX        & \texttt{00XX} & \hex{0000}--\hex{3FFF} \\
+RX        & \texttt{01XX} & \hex{4000}--\hex{7FFF} \\
+(reserved)& \texttt{1000}--\texttt{1011} & \hex{8000}--\hex{BFFF} \\
+LA        & \texttt{1100} & \hex{C000}--\hex{CFFF} \\
+ADC       & \texttt{1101} & \hex{D000}--\hex{DFFF} \\
+Timing    & \texttt{1110} & \hex{E000}--\hex{EFFF} \\
+Global    & \texttt{1111} & \hex{F000}--\hex{FFFF} \\
+\bottomrule
+\end{tabular}
 \end{center}
 \end{table}
-The RX and TX unit are allocated a range of scopes to more readily
-accommodate the large number of registers associated with all 40 uarts
-(e.g. lost packet counts per uart channel).  Further discussion of
+The RX and TX units are allocated a range of scopes to more readily
+accommodate the large number of registers associated with all 40 UARTs
+(e.g. lost packet counts per UART channel).  Further discussion of
 PACMAN registers is left to the subsections for each unit.
 
 \subsection{Global Unit}
 
-\begin{table}
-\label{tbl:global-reg}
+\begin{table}[bp]
 \caption{Registers managed by the global unit}
-\begin{center}
-\begin{tabular}{|lll|}
-\hline
-Register    & Address & RO/RW \\
-\hline
-STATUS      & 0xF000 & RO \\
-ENABLES     & 0xF010 & RW \\
-LEDS        & 0xF014 & RW \\
-SCRATCH\_A  & 0xF020 & RW \\
-SCRATCH\_B  & 0xF024 & RW \\
-FIRMWARE\_MAJOR   & 0xFF10 & RO \\
-FIRMWARE\_MINOR   & 0xFF14 & RO \\
-FIRMWARE\_LETTER  & 0xFF18 & RO \\
-HARDWARE\_MAJOR   & 0xFF20 & RO \\
-HARDWARE\_MINOR   & 0xFF24 & RO \\
-HARDWARE\_LETTER  & 0xFF28 & RO \\
-SYNTHESIS\_DATE   & 0xFF30 & RO \\
-GIT\_HASH\_UPPER   & 0xFF40 & RO \\
-GIT\_HASH\_LOWER   & 0xFF44 & RO \\
-VIVADO\_MAJOR     & 0xFF50 & RO \\
-VIVADO\_MINOR     & 0xFF54 & RO \\
-\hline
-\end{tabular}
+\label{tbl:global-reg}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register          & Address     & Access & Contents \\
+\midrule
+STATUS            & \hex{F000} & RO & fixed pattern \hex{0000CAFE} \\
+ENABLES           & \hex{F010} & RW & tile enables and tile power (Table~\ref{tbl:global-bit-fields}) \\
+LEDS              & \hex{F014} & RW & the two LEDs driven by the PL (Table~\ref{tbl:global-bit-fields}) \\
+SCRATCH\_A        & \hex{F020} & RW & no effect: for testing the register path \\
+SCRATCH\_B        & \hex{F024} & RW & no effect: for testing the register path \\
+FIRMWARE\_MAJOR   & \hex{FF10} & RO & firmware version: 3 \\
+FIRMWARE\_MINOR   & \hex{FF14} & RO & firmware version: 6 \\
+FIRMWARE\_PATCH   & \hex{FF18} & RO & firmware version: 0 \\
+HARDWARE\_MAJOR   & \hex{FF20} & RO & hardware version the firmware was built for: 1 \\
+HARDWARE\_MINOR   & \hex{FF24} & RO & hardware version: 5 \\
+HARDWARE\_PATCH   & \hex{FF28} & RO & hardware version: 0 \\
+SYNTHESIS\_DATE   & \hex{FF30} & RO & time of the build, in seconds since 1970 (Unix time) \\
+GIT\_HASH\_UPPER  & \hex{FF40} & RO & short git hash of the build, ASCII, characters 1--4 \\
+GIT\_HASH\_LOWER  & \hex{FF44} & RO & short git hash, ASCII, characters 5--7 and a space \\
+BUILD\_FLAGS      & \hex{FF48} & RO & bit 0 DIRTY, bit 1 OFFICIAL\_RELEASE \\
+VIVADO\_MAJOR     & \hex{FF50} & RO & Vivado version of the build (e.g.\ 2023) \\
+VIVADO\_MINOR     & \hex{FF54} & RO & Vivado version of the build (e.g.\ 2) \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
 \begin{table}
-\caption{\label{tbl:global-bit-fields} Bit fields:  discription }
+\caption{\label{tbl:global-bit-fields} Bit fields for registers in the global unit. }
 \begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register & Field             & Bits & Mask       \\
-\hline
-ENABLES  & TILE\_ENABLES       & 0-9  & 0x000003FF \\
-         & TILE\_POWER\_ENABLE &  16  & 0x00010000 \\
-\hline
-LEDS     & LED\_3              & 0    & 0x00000001 \\
-         & LED\_4              & 1    & 0x00000002 \\
-\hline
+\begin{tabular}{llll}
+\toprule
+Register & Field               & Bits  & Mask \\
+\midrule
+ENABLES  & TILE\_ENABLES       & 9--0  & \hex{000003FF} \\
+         & TILE\_POWER\_ENABLE & 16    & \hex{00010000} \\
+\midrule
+LEDS     & LED-2               & 0     & \hex{00000001} \\
+         & LED-3               & 1     & \hex{00000002} \\
+\midrule
+BUILD\_FLAGS & DIRTY            & 0     & \hex{00000001} \\
+         & OFFICIAL\_RELEASE   & 1     & \hex{00000002} \\
+\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
 
-The global unit handles simple board-wide tasks, and manages the
-registers listed in Table~\ref{tbl:global-reg}.  The bit field
-interpretations for some registers are shown in
-Table~\ref{tbl:global-bit-fields}.  The read-only firmware registers
-can be used to determine the firmware version installed, and the
-read-only hardware registers can be used to check the hardware version
-for which the firmware was built.  The FIRMWARE\_BUILD and HARDWARE\_BUILD registers are reserved.
-The read-write scratch registers SCRATCH\_A and SCRATCH\_B
-have no impact beyond storing and retrieving the register value, and
-are useful for testing the operation of the AXI-Lite and REGBUS
-interfaces.
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\textwidth]{timing_diagrams/global.pdf}
+  \caption{\label{fig:global} The Global unit on the register bus (GHDL simulation of {\tt global\_unit}).
+    Two writes, ENABLES (\hex{F010}) with tile power and all ten tiles, and LEDS (\hex{F014}) with both
+    LEDs on, each acknowledged on the next clock cycle, at which time the outputs change.  Then reads of
+    ENABLES and STATUS, each answered on the next clock cycle.}
+\end{figure}
 
-Providing power and data I/O to the TILES requires enabling power to
-the tile power subsystem (called ANALOG\_POWER\_ENABLE in hardware
-schematics) as well as enabling the individual tile.  These settings
-are available in the ENABLES register, using the bit fields
-TILE\_POWER\_ENABLE and TILE\_ENABLES.  While a tile is disabled, even with
-tile power enabled, the LVDS transmitters and receivers will be off,
-and both VDDD and VDDA are at zero.  Setting the values of VDDD and
-VDDDA, and monitoring currents and voltages on the board, is done over
-I2C, by the PS, and so is not part of the PL firmware design.
+\noindent
+The global unit handles simple board-wide tasks, and manages the registers listed in
+Table~\ref{tbl:global-reg}.  The bit field interpretations for some registers are shown in
+Table~\ref{tbl:global-bit-fields}.
 
-The PACMAN has two LEDs controlled by the PL.  Their behavior is
-controlled by the LEDS register.  In the current iteration, each LED
-is simply turned on or off directly, by the LED\_3 and LED\_4 bits,
-but in the future, they could be driven by specific conditions as
-well.  Two additional LEDs are driven from the PS, and are not part of
-the PL firmware design.  Two LEDs on the Trenz module are also
-controllable from the PS.  The global unit also provides a global
-status register (STATUS).  In the current implementation, this
-register is implemented as a fixed pattern.
+The read-only registers can be used to determine the firmware version installed, the hardware
+version the firmware was configured for, the date and time, git hash, and Vivado version used at
+firmware synthesis.  The read-write scratch registers SCRATCH\_A and SCRATCH\_B have no impact
+beyond storing and retrieving the register value, and are useful for testing the operation of the
+AXI-Lite and REGBUS interfaces.
+
+Providing power and data I/O to the tiles requires enabling power to the tile power subsystem
+(called ANALOG\_PWR\_EN in hardware schematics) as well as enabling the individual tile.  These
+settings are available in the ENABLES register, using the bit fields TILE\_POWER\_ENABLE and
+TILE\_ENABLES.  While a tile is disabled, even with tile power enabled, the LVDS transmitters and
+receivers are off, and both VDDD and VDDA are at zero. Setting the values of VDDD and VDDA, and
+monitoring currents and voltages on the board, is done over I2C, by the PS, and so is not part of
+the PL firmware design.
+
+The PACMAN has two LEDs controlled by the PL.  Their behavior is controlled by the LEDS register.
+In the current firmware, each LED is simply turned on or off directly, by the LED-2 and LED-3 bits,
+but in the future, they could be driven by specific conditions as well.  A timing diagram
+demonstrating control of the LED and enable outputs over the register bus is shown in
+Fig.~\ref{fig:global}.  Two additional LEDs are driven from the PS, and are not part of the PL
+firmware design.  Two LEDs on the Trenz module are also controllable from the PS.  The global unit
+also provides a global status register (STATUS).  In version 3.6, the status register is implemented
+as a fixed pattern.
+
+\subsection{ASIC Timing and Control Unit}
+
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=1.00\textwidth]{timing_diagrams/atc_timer.pdf}
+  \caption{\label{fig:atc-timer} UART and BAUD strobes, UCLK and the timestamp after reset.}
+\end{figure}
+
+\noindent
+The ASIC Timing and Control unit (ATC) is responsible for the UCLK sent to the ASICs and producing a
+timestamp, synchronous with UCLK, which is added to the incoming data.  The unit also handles timing
+control signals sent to the ASICs, such as SYNC, RESET, and TRIG signals.  The PACMAN does not have
+a UCLK clock domain.  Signals to the ASIC are in the {\tt sys\_clk} domain, with transitions occurring
+only at configurable phase offsets from UART strobes.  The timing diagram of the UCLK and
+timestamp signals relative to the UART and baud strobes is shown in Fig.~\ref{fig:atc-timer}.
+
+\begin{figure}[htbp]
+  \centering
+  \resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    >={Stealth[length=2mm]}, font=\small,
+    blk/.style={draw, thick, rectangle, align=center},
+    bus/.style={->, line width=1.2pt},
+    sig/.style={->, thick}]
+  % ATC_MUX:  x -1.5..1.5, y -2.2..2.2
+  \draw[thick] (-1.5,-2.2) rectangle (1.5,2.2);
+  \node at (0,0) {ATC\_MUX};
+  % LEMO inputs through the synchronizer and edge detect
+  \draw[thick] (-5.4,0.6) rectangle (-2.9,1.6);
+  \node[align=center, font=\footnotesize] at (-4.15,1.1) {Synchronizer\\and Edge detect};
+  \draw[sig] (-6.6,1.35) node[left] {LEMO A} -- (-5.4,1.35);
+  \draw[sig] (-6.6,0.85) node[left] {LEMO B} -- (-5.4,0.85);
+  \draw[sig] (-2.9,1.35) -- (-1.5,1.35);
+  \draw[sig] (-2.9,0.85) -- (-1.5,0.85);
+  % pokes, each with its tile mask
+  \draw[sig] (-6.6,-0.2) node[left] {POKE A and tile mask} -- (-1.5,-0.2);
+  \draw[sig] (-6.6,-0.7) node[left] {POKE B and tile mask} -- (-1.5,-0.7);
+  \draw[sig] (-6.6,-1.2) node[left] {POKE C and tile mask} -- (-1.5,-1.2);
+  \draw[sig] (-6.6,-1.7) node[left] {POKE D and tile mask} -- (-1.5,-1.7);
+  % G and H through the output buffer to the tiles
+  \draw[thick] (3.3,-1.9) rectangle (5.5,0.0);
+  \node[align=center] at (4.4,-0.95) {Output\\buffer};
+  \draw[bus] (1.5,-0.55) -- node[above] {G[9:0]} (3.3,-0.55);
+  \draw[bus] (1.5,-1.35) -- node[above] {H[9:0]} (3.3,-1.35);
+  \draw[bus] (5.5,-0.55) -- ++(0.9,0) node[right] {G to tiles};
+  \draw[bus] (5.5,-1.35) -- ++(0.9,0) node[right] {H to tiles};
+  \draw[sig] (4.4,-2.9) node[below] {UART strobe} -- (4.4,-1.9);
+  % markers up to the RX unit, marker 0 also to the timestamp reset
+  \draw[thick] (-5.4,4.2) rectangle (1.5,5.0);
+  \node at (-1.95,4.6) {RX unit};
+  \draw[sig] (-0.9,2.2) -- (-0.9,4.2);
+  \draw[sig] (-0.3,2.2) -- (-0.3,4.2);
+  \draw[sig] (0.3,2.2) -- (0.3,4.2);
+  \draw[sig] (0.9,2.2) -- (0.9,4.2);
+  \node[font=\scriptsize, right, inner sep=1pt] at (-0.9,2.45) {0};
+  \node[font=\scriptsize, right, inner sep=1pt] at (-0.3,2.45) {1};
+  \node[font=\scriptsize, right, inner sep=1pt] at (0.3,2.45) {2};
+  \node[font=\scriptsize, right, inner sep=1pt] at (0.9,2.45) {3};
+  \node[right] at (0.9,3.0) {Markers};
+  \draw[thick] (-5.4,2.6) rectangle (-3.2,3.4);
+  \node at (-4.3,3.0) {Timestamp};
+  \fill (-0.9,3.0) circle (1.6pt);
+  \draw[sig] (-0.9,3.0) -- node[above] {Reset} (-3.2,3.0);
+  \draw[bus] (-4.3,3.4) -- (-4.3,4.2);
+\end{tikzpicture}}
+  \caption{\label{fig:atc-mux} The stimuli, ATC\_MUX and its outputs.}
+\end{figure}
+
+The ATC unit is highly configurable and agnostic about the role of signals it produces.  Inputs and
+outputs are given generic names instead of functional names, which reinforces the agnostic design
+and allows different generations of PACMAN hardware to use the same firmware.  The heart of the
+module is the ATC\_MUX, shown in Fig.~\ref{fig:atc-mux}, which generates outputs based on its
+configuration and input stimuli.  The available input stimuli are:
+\begin{itemize}
+ \item LEMO A--B are the two LEMO inputs (for example a PPS or external trigger).  They are
+  double-flop synchronized with a configurable polarity.  Each rising (or falling if polarity is
+  inverted) edge that holds for more than one clock cycle produces a single clock cycle input
+  stimulus.
+ \item POKE A--D are single clock cycle stimuli that fire upon a register write.  They also carry a
+   tile mask, which can be used to specify the tiles that receive the signal per request.
+ \item LOGIC A--B are logical inputs, not yet implemented.
+\end{itemize}
+The stimuli can be configured to generate signals at the available outputs:
+\begin{itemize}
+ \item G outputs (one per tile) with configurable duration, driving the ASIC RESET on the PACMAN 1v5 (schematic net SYNC/RST).
+ \item H outputs (one per tile) with configurable duration, driving the ASIC SYNC and TRIG on the PACMAN 1v5 (schematic net TRIG).
+ \item Marker 0--3: these single clock cycle pulses are sent to the RX unit, where they can cause
+   markers to be added to the event record (such as recording an external trigger). Marker 0 is also connected to the timestamp reset.
+\end{itemize}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=1.00\textwidth]{timing_diagrams/atc_poke.pdf}
+  \caption{\label{fig:atc-poke} A poke routed to H.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=1.00\textwidth]{timing_diagrams/atc_lemo.pdf}
+  \caption{\label{fig:atc-lemo} A LEMO input routed to G.}
+\end{figure}
+
+\begin{table}[htbp]
+\caption{\label{tbl:atc-reg} Registers of the Timing unit (scope \texttt{1110}).}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register        & Address     & Access & Contents \\
+\midrule
+STATUS          & \hex{E000} & RO & ATC status register \\
+TIMESTAMP       & \hex{E004} & RO & Timestamp, bits 31--0 \\
+POKE\_A         & \hex{E0A0} & WO & Poke A command with tile mask \\
+POKE\_B         & \hex{E0B0} & WO & Poke B command with tile mask \\
+POKE\_C         & \hex{E0C0} & WO & Poke C command with tile mask \\
+POKE\_D         & \hex{E0D0} & WO & Poke D command with tile mask \\
+CONFIG\_UART    & \hex{E100} & RW & UART period in clock cycles (default 10) \\
+CONFIG\_BAUD    & \hex{E104} & RW & Baud period in clock cycles (default 10) \\
+CONFIG\_INPUT   & \hex{E108} & RW & Config input polarity \\
+CONFIG\_G       & \hex{E110} & RW & Config G output phase and polarity\\
+CONFIG\_H       & \hex{E114} & RW & Config H output phase and polarity\\
+DST\_LEMO\_A    & \hex{E120} & RW & Destination of LEMO A (Table~\ref{tbl:atc-bit-fields}) \\
+DST\_LEMO\_B    & \hex{E124} & RW & Destination of LEMO B (Table~\ref{tbl:atc-bit-fields}) \\
+DST\_POKE\_A    & \hex{E128} & RW & Destination of POKE A (Table~\ref{tbl:atc-bit-fields}) \\
+DST\_POKE\_B    & \hex{E12C} & RW & Destination of POKE B (Table~\ref{tbl:atc-bit-fields}) \\
+DST\_POKE\_C    & \hex{E130} & RW & Destination of POKE C (Table~\ref{tbl:atc-bit-fields}) \\
+DST\_POKE\_D    & \hex{E134} & RW & Destination of POKE D (Table~\ref{tbl:atc-bit-fields}) \\
+%DST\_LOGIC\_A   & \hex{E138} & RW & Destination of LOGIC A (Table~\ref{tbl:atc-bit-fields}) \\
+%DST\_LOGIC\_B   & \hex{E13C} & RW & Destination of LOGIC B (Table~\ref{tbl:atc-bit-fields}) \\
+COUNT\_REQ      & \hex{E200} & WO & Counter command (Table~\ref{tbl:atc-cmd}) \\
+COUNT           & \hex{E204} & RO & Latched count and integral \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tbl:atc-bit-fields} Bit fields of the Timing unit registers.  DST\_* is each destination
+  register, DST\_LEMO\_A to DST\_POKE\_D.}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lllL}
+\toprule
+Register        & Field          & Bits   & Description \\
+\midrule
+STATUS          & RESERVED       & 31--0  & Reads 0, no status bits in this version \\
+\midrule
+POKE\_*         & TILES          & 9--0   & Tile mask of the poke \\
+\midrule
+CONFIG\_INPUT   & INVERT\_LEMO\_A & 0     & Invert LEMO A (detect falling edge) \\
+                & INVERT\_LEMO\_B & 1     & Invert LEMO B (detect falling edge) \\
+\midrule
+CONFIG\_G, \_H  & PHASE          & 7--0   & Output changes PHASE + 2 clock cycles after the UART strobe \\
+                & INVERT         & 17--8  & Invert output of tile $n$ in bit $8 + n$ \\
+\midrule
+DST\_*          & G              & 0      & Send to the G outputs for DURATION \\
+                & H              & 1      & Send to the H outputs for DURATION\\
+                & MARKER\_0      & 2      & Send to marker 0 / sync for one clock cycle \\
+                & MARKER\_1      & 3      & Send to marker 1 for one clock cycle \\
+                & MARKER\_2      & 4      & Send to marker 2 for one clock cycle \\
+                & MARKER\_3      & 5      & Send to marker 3 for one clock cycle \\
+                & TILES          & 15--6  & Tile mask for G and H \\
+                & DURATION       & 31--16 & Length of the G and H pulse in clock cycles\\
+\midrule
+COUNT\_REQ      & CHANNEL        & 3--0   & Channel $C$ of the command \\
+                & COMMAND        & 7--4   & Command (Table~\ref{tbl:atc-cmd}) \\
+\midrule
+COUNT           & EDGES          & 15--0  & Rising edge count \\
+                & INTEGRAL       & 31--16 & Integral (count of high clock cycles) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+\begin{table}[htbp]
+\caption{\label{tbl:atc-cmd} Commands of the counters, written to COUNT\_REQ (bits 7--0).}
+\begin{center}
+\begin{tabularx}{\textwidth}{llL}
+\toprule
+Command & Code (bits 7--4) & Description (bits 3--0: the channel $C$) \\
+\midrule
+NO OP   & 0 & Nothing \\
+CLEAR   & 1 & Clear all counters \\
+START   & 2 & Start all counters \\
+STOP    & 3 & Stop all counters \\
+READ M  & 4 & Latch the count of marker $C$ (0--3) into COUNT \\
+READ G  & 5 & Latch the count of the G signal of tile $C$ (0--9) \\
+READ H  & 6 & Latch the count of the H signal of tile $C$ (0--9) \\
+READ I  & 7 & Latch the count of stimulus $C$: 0--1 LEMO A--B, 2--5 POKE A--D \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+An example of the POKE\_C command, configured to sync the timestamp and send H output is shown in Fig.~\ref{fig:atc-poke}.  A second example showing LEMO A configured to send G output is shown in Fig.~\ref{fig:atc-lemo}.
+The registers and bit fields needed to configure and monitor the ATC unit are presented in Tables~\ref{tbl:atc-reg} and \ref{tbl:atc-bit-fields}.  Counts are available for all stimuli and outputs, using commands described in Table~\ref{tbl:atc-cmd}.
 
 \subsection{TX Unit}
 
@@ -466,13 +814,14 @@ register is implemented as a fixed pattern.
 \def\boxshort{3.0cm}
 \def\boxtall{7.0cm}
 
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (mm2s) at (1,3) {DMA\\(MM2S)};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (tx)   at (7,3) {TX Buffer};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (mm2s) at (-1.5,3) {DMA\\(MM2S)};
+\node[draw, rounded corners, minimum width=1.6cm, minimum height=\boxtall, text width=1.6cm, align=center] (fifo) at (1.2,3) {FIFO\\(AXIS)};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxtall, text width=\boxwidth, align=center] (tx)   at (6.5,3) {TX Buffer};
 
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (a)   at (13,5) {TX \\ Channel \\ 0};
-\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (b)   at (13,1) {TX \\ Channel \\ 39};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (a)   at (11.5,5) {TX \\ Channel \\ 0};
+\node[draw, rounded corners, minimum width=\boxwidth, minimum height=\boxshort, text width=\boxwidth, align=center] (b)   at (11.5,1) {TX \\ Channel \\ 39};
 
-\node at (13,3) {\large\textellipsis};
+\node at (11.5,3) {\large\textellipsis};
 
 \coordinate (aa) at ($(a.west)+(0,0.75)$);
 \coordinate (ab) at ($(a.west)+(0,0.00)$);
@@ -488,150 +837,185 @@ register is implemented as a fixed pattern.
 \draw[->, thick] (tx.east |- bb) -- node[above, font=\small] {uvalid(39)} (bb);
 \draw[<-, thick] (tx.east |- bc) -- node[above, font=\small] {uready(39)} (bc);
 
-
 % Stream Interface Arrows
+\draw[->, thick] ($(mm2s.east)+(0,1.5)$) -- ($(fifo.west)+(0,1.5)$);
+\draw[->, thick] ($(mm2s.east)+(0,0.0)$) -- ($(fifo.west)+(0,0.0)$);
+\draw[->, thick] ($(mm2s.east)-(0,1.0)$) -- ($(fifo.west)-(0,1.0)$);
+\draw[<-, thick] ($(mm2s.east)-(0,2.0)$) -- ($(fifo.west)-(0,2.0)$);
 \draw[->, thick]
-  ($(mm2s.east)+(0,1.5)$)
+  ($(fifo.east)+(0,1.5)$)
   -- node[above, font=\small] {tdata}
      node[below, font=\small] {64-bits, 41 beats}
   ($(tx.west)+(0,1.5)$);
-\draw[->, thick] ($(mm2s.east)+(0,0.0)$) -- node[above, font=\small] {tvalid} ($(tx.west)+(0,0.0)$);
-\draw[->, thick] ($(mm2s.east)-(0,1.0)$) -- node[above, font=\small] {tlast} ($(tx.west)-(0,1.0)$);
-\draw[<-, thick] ($(mm2s.east)-(0,2.0)$) -- node[above, font=\small] {tready} ($(tx.west)-(0,2.0)$);
+\draw[->, thick] ($(fifo.east)+(0,0.0)$) -- node[above, font=\small] {tvalid} ($(tx.west)+(0,0.0)$);
+\draw[->, thick] ($(fifo.east)-(0,1.0)$) -- node[above, font=\small] {tlast} ($(tx.west)-(0,1.0)$);
+\draw[<-, thick] ($(fifo.east)-(0,2.0)$) -- node[above, font=\small] {tready} ($(tx.west)-(0,2.0)$);
 
 % POSI Output
-\draw[->, thick] (a.east) -- ++(1.0,0) node[anchor=west, font=\small] {POSI(0)};
-\draw[->, thick] (b.east) -- ++(1.0,0) node[anchor=west, font=\small] {POSI(39)};
-
+\draw[->, thick] (a.east) -- ++(0.5,0) node[anchor=west, font=\small] {POSI(0)};
+\draw[->, thick] (b.east) -- ++(0.5,0) node[anchor=west, font=\small] {POSI(39)};
 
 \end{tikzpicture}
 \caption{Data path in the TX Unit}
 \label{fig:tx-unit}
 \end{figure}
 
+
 \noindent
 The TX unit is responsible for configuration, operation, and
-monitoring of transmission to the tile cards via 40 uart channels.  A
+monitoring of transmission to the tile cards via 40 UART channels.  A
 block diagram of the TX unit is shown in Fig.~\ref{fig:tx-unit}.  The
-data to be transmitted arrives as an AXI stream, which is filled by
-the PS using DMA.
+data to be transmitted arrives as an AXI stream, filled by the PS
+using DMA. A FIFO carries the stream from the {\tt axi\_clk} domain to
+the {\tt sys\_clk} domain.  The TX buffer module receives the stream
+data and holds it until it has been handed off to the TX channel
+modules for transmission.  It has both an input buffer and an output
+buffer, so that it can receive new stream data while the output is
+being held constant.
 
 \begin{table}[htbp]
-\label{tbl:tx-dma}
 \caption{Contents of the TX DMA packet}
+\label{tbl:tx-dma}
 \begin{center}
-\begin{tabular}{|lll|}
-\hline
-Beat: & Contents: & Description \\
-\hline
-1     & {\tt 0}x{\tt 000000MMMMMMMMMM} & M=UART Mask \\
-2     & {\tt 0}x{\tt AAAAAAAABBBBBBBB} & A=UART[1], B=UART[0]   \\
-3     & {\tt 0}x{\tt AAAAAAAABBBBBBBB} & A=UART[3], B=UART[2]   \\
-      & $\ldots$           &                        \\
-21    & {\tt 0}x{\tt AAAAAAAABBBBBBBB} & A=UART[39], B=UART[38] \\
-\hline
+\begin{tabular}{lll}
+\toprule
+Beat & Contents (64 bits)                    & Description \\
+\midrule
+0    & \texttt{0x000000MMMMMMMMMM}           & M: UART mask, bit $i$ for UART $i$ \\
+1    & \texttt{0xDDDDDDDDDDDDDDDD}           & D: the word for UART 0 \\
+2    & \texttt{0xDDDDDDDDDDDDDDDD}           & the word for UART 1 \\
+     & \ldots                                & \\
+40   & \texttt{0xDDDDDDDDDDDDDDDD}           & the word for UART 39 \\
+\bottomrule
 \end{tabular}
 \end{center}
 \end{table}
 
-The TX Buffer sub-module contains a single buffer which holds incoming
-stream data until a complete DMA packet has been received.  As shown
-in Table~\ref{tbl:tx-dma}, a complete DMA packet consists of a 128-bit
-header and 20 128-bit words.  The header contains a channel mask
-specifying which channels have data to transmit.  The 20 128-bit words
-contain 40 uart payloads, each of 64 bits.  The DMA packet is the same
-size independent of how many UARTs are activated by the mask.
-Payloads from inactive UARTs are simply ignored.
+A complete DMA packet (see Table~\ref{tbl:tx-dma}) consists of a
+64-bit header and 40 64-bit words.  The header contains a channel mask
+specifying which channels have data to transmit.  The 40 64-bit words
+contain the 40 UART payloads.  The DMA packet is the same size
+independent of how many UARTs are activated by the mask.  Payloads
+from inactive UARTs are simply not used.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.85\paperwidth, keepaspectratio]{timing_diagrams/tx_buffer.pdf}
-\caption{TX buffer handling a single DMA packet (output of ghdl testbench)}
-\label{fig:tx-buffer}
+  \begin{tikzpicture}
+    \node[anchor=south west, inner sep=0] at (0,0) {\includegraphics{timing_diagrams/tx_stream.pdf}};
+    \draw (14.24, 2.83) node[above] {Start};
+  \end{tikzpicture}
+  \caption{Handling of a single DMA packet by the TX buffer with
+    hand-off to a TX channel to produce the start bit (output of ghdl
+    testbench).  The DMA packet is contained in the 41 beats of {\tt
+      tdata} words transferred while {\tt tvalid} and {\tt tready} are
+    simultaneously asserted, with the last word marked by {\tt tlast}.
+    The transfer to a UART channel for transmission occurs during the
+    beat when {\tt uvalid} and {\tt uready} are simultaneously
+    asserted, at the first clock cycle of the start bit (labeled
+    Start).  The width of each transmitted bit is set by the
+    configurable {\tt baud} signal.  The relative phase is set to zero
+    here, for clarity, but is configurable as well.} 
+\label{fig:tx-stream}
 \end{figure}
 
-A timing diagram of the TX Buffer handling a single DMA packet is
-presented in Fig.~\ref{fig:tx-buffer}.  As discussed in the
-introduction, the AXI interface transfers data from producer to
-consumer when and only when both valid and ready are asserted on the
-same clock-cycle, called a beat.  At the start, the TX buffer is
-empty, and so the stream ready ({\tt tready}) signal is asserted by TX
-buffer.  When data is available via DMA, the AXI stream asserts stream
-valid ({\tt tvalid}).  This continues for 21 beats.  During the last
-beat, the stream asserts the last signal ({\tt tlast}) indicating the
-end of the packet.  The TX buffer will now contain a complete DMA
-packet, and so the TX buffer deasserts stream ready ({\tt tready})
-which halts the stream.
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+    \node[anchor=south west, inner sep=0] at (0,0) {\includegraphics{timing_diagrams/tx_backpressure.pdf}};
+    \draw[{Stealth[length=5pt]}-] (9.78, 2.40) -- (9.07, 3.14) node[left] {Stop};
+    \draw[{Stealth[length=5pt]}-] (9.88, 2.40) -- (10.59, 3.14) node[right] {Start};
+  \end{tikzpicture}
+  \caption{Back pressure in the TX unit.  Three packets are received at once, with additional buffers accepted after each transmission completes.  The transmission maintains full speed, with each start bit following immediately after a stop bit. (A configuration setting optionally injects a delay.)}
+\label{fig:tx-backpressure}
+\end{figure}
 
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+    \node[anchor=south west, inner sep=0] at (0,0) {\includegraphics{timing_diagrams/tx_delay.pdf}};
+    \draw[{Stealth[length=5pt]}-] (15.29, 1.82) -- (14.58, 2.24) node[left] {Stop};
+    \draw[{Stealth[length=5pt]}-] (16.46, 1.82) -- (16.80, 2.30) node[above] {Start};
+  \end{tikzpicture}
+  \caption{The transmission of Fig.~\ref{fig:tx-backpressure} with a
+    delay of five bit periods configured between the stop bit of one
+    frame and the start bit of the next (UART\_CONFIG {\tt 0x00050000}).}
+\label{fig:tx-delay}
+\end{figure}
+
+{\bf TX buffer:} As shown in Fig.~\ref{fig:tx-stream}, when the FIFO
+is non-empty, the TX buffer receives stream data by asserting {\tt
+  tready}, shifting each word into its 41-word buffer until the DMA
+packet is complete, as indicated by {\tt tlast}.  The TX buffer
+then deasserts {\tt tready}, halting the stream, until the new packet
+has been moved to its output buffer, at which point it asserts {\tt
+  tready} again.  Holding {\tt tready} low is how the TX unit adds
+back pressure to DMA.  Fig.~\ref{fig:tx-backpressure} shows the TX
+unit operating the UART transmission at full speed.\footnote{Even when
+the output buffer is empty, as in Fig.~\ref{fig:tx-stream} and for
+the first two packets of Fig.~\ref{fig:tx-backpressure}, there are
+three clock cycles during which {\tt tready} is low.  This unneeded
+latency is the result of a design that registers signals at the stream
+interface as well as the state of the TX buffer state machine.  Since
+the transmission rate is ultimately limited by the UART, this is an
+intentional design choice that favors simplicity and robustness at no
+cost to performance.}
+
+The transfer of data between the TX buffer and each TX channel is
+coordinated with {\tt uvalid} and {\tt uready} signals (one for each
+UART channel).  As shown in Fig.~\ref{fig:tx-stream}, when a new
+packet arrives at the TX buffer output, {\tt uvalid} is asserted for
+each channel enabled in the UART mask from the first beat of the
+packet.  Each TX channel has a 64-bit shift register for transmission,
+and it asserts {\tt uready} for one clock cycle just as the start bit
+begins and the new input has been loaded into its shift
+register. The TX buffer deasserts {\tt uvalid} on the next clock
+cycle, marking the data for that channel as consumed.  The TX buffer
+holds its output buffer constant until every enabled UART has consumed
+its data, and so every {\tt uvalid} is low.  At that point, it shifts
+its next input buffer into the output buffer if one is available, and
+the process repeats.  As shown in Fig.~\ref{fig:tx-backpressure},
+after initial buffering, it is the withholding of {\tt uready} that
+holds the output buffer in the TX buffer, keeping {\tt tready} deasserted,
+and throttling the DMA engine to match the transmission rate.\\[4pt]
+
+{\bf TX channel:}
 The UART transmission is handled by 40 instances of the TX Channel
-sub-module, with one assigned to each UART channel.  Even though this
-stage is not an AXI interface, the valid and ready handshake is used
-again, this time with one handshake per UART channel.  The TX buffer
-asserts a valid signal ({\tt uvalid(i)}) for each UART channel that
-has data available, as specified in the mask located in the DMA packet
-header.  Assuming a TX channel is not currently transmitting, it
-loads valid data presented by TX buffer into its internal shift registers for
-transmission, and asserts ready ({\tt uready(i)}) on the next clock cycle.
+module, with one assigned to each UART channel.  The UART timing is
+controlled by the configurable BAUD strobe of the ATC unit, one clock
+cycle before the start of each bit period (every 10 clock cycles, or 10
+Mbit/s, by default in 3.6).  Bit transitions occur PHASE + 1 clock
+cycles after the start of each bit period (PHASE + 2 clock cycles
+after the BAUD strobe).  While idle, the line is high.
 
-Upon detecting a beat, the UART valid signal for the channel is
-cleared on the next clock cycle, indicating the data for that channel
-has been transferred to the shift register of the corresponding TX
-channel for transmission.  When and only when all UART valid signals
-are cleared, the buffer is empty, the TX buffer asserts stream ready
-({\tt tready}) and, assuming data is available via DMA, the cycle
-begins again.
+At the first transition during which valid data is offered (uvalid),
+the channel loads the word into its shift register, asserts uready for
+one clock cycle, and sends the start bit (low).  It then sends the 64
+data bits, least significant first, then the stop bit (high).  It then
+waits DELAY further bit periods, with the line high, before it may
+load the next word.  As shown in Fig.~\ref{fig:tx-backpressure}, full
+speed (back-to-back frames) transmission is reached for DELAY=0, for
+as long as data is present.
 
-The slowest component in this chain is the UART transmission, which is
-bit serial.  At 10 MHz, transmitting 64 bits, plus a start and stop
-bit, requires 660 100 MHz clock cycles.  The DMA transfer of a single
-packet takes only 21 clock cycles\footnote{This is why we opt for a
-simple fixed length transmission, there is nothing further to be
-gained by e.g. zero suppression.}  While each TX channel is
-transmitting, it deasserts its ready, which prevents a beat with TX
-Buffer, and causes TX Buffer to deassert stream ready once it has a
-DMA packet buffered.  As soon as the current transmission is complete,
-the next transmission begins immediately.  As long as new data is
-available via DMA, the transmitters run flat out.  However, a configurable
-parameter inserts an artificial delay between each transmission cycle,
-which allows the TX speed to be throttled as needed to avoid
-overwhelming the ASICs.
-
-You might notice in Fig.~\ref{fig:tx-buffer} that the timing in TX
-buffer is not particularly tight.  The UART valid signals ({\tt
-  uvalid(i)}) and the Stream ready ({\tt tready}) could in principle
-all go high one clock cycle earlier.  The additional delay is due to
-pipelined logic.  The AXI stream delivers the UART data with UARTs
-handled serially (two at a time).  An initial stream reader stage
-parallizes the stream data, and registers its output.  Likewise, the
-calculation of the logical or across all of the UART valid signals
-({\tt uvalid(i)}) is registered as well.  These calculations could be
-made combinatoric if tighter timing was needed.  However, as discussed
-above, TX buffer is more than fast enough to keep up with the UART
-transmission at full speed, so we prefer the added robustness of the
-pipelined calculation.
-
-The UART modules have been left unchanged from the legacy firmware.
-It was an intentional design choice to leave the PACMAN interfaces (to
-the ASICs, and to DAQ via pacman-server) unchanged during the initial
-development of the the 3.X firmware, so that it could proceed without
-the need for extensive testing on ASICs and without any changes to the
-DAQ.  The legacy UART design includes an unnecessary pause between
-start and stop bits, which increases the transmission time to 670
-clock cycles (at 10 MHz).  Unlike the TX buffer latency, this is at
-the timing bottle neck for the entire TX unit.  However, this is still
-not problematic, because, as discussed above, we throttle down the TX
-transmission rate to avoid overwhelming the ASICs.  An update to the
-UART firmware is planned for a future firmware release, but only after
-we have an extensive testbench available using actual ASICs.
+At 10 MHz (100 ns), transmitting 64 bits, plus a
+start and stop bit, requires 6600 ns, so that the maximum TX
+throughput across 40 UART channels is:
+$$R = \frac{40}{66 \cdot 100~{\rm ns}} = 6060~{\rm packets}/{\rm ms}$$
+The DUNE detector clock is $62.5~\rm MHz$ (16 ns).  With a baud period
+of 8 clock cycles, each bit takes $128~{\rm ns}$ and the maximum TX throughput is:
+$$R = \frac{40}{66 \cdot 128~{\rm ns}} = 4735~{\rm packets}/{\rm ms}$$
+The TX firmware has been benchmarked in the hardware (using both
+bare-metal applications and Linux) to reach maximum speed.\\[4pt]
 
 \begin{table}
-\caption{\label{tbl:tx-scope} All TX registers have leading two bits 0, and the next six bits define the channel.  That least significant byte (XX below) specifies the register.}
+\caption{\label{tbl:tx-scope} All TX registers have the two leading bits
+  0, and the next six bits define the channel.  The least significant
+  byte (XX below) specifies the register.}
 \begin{center}
 \begin{tabular}{|lll|}
 \hline
 Channel      & $C$                   & TX Register Address          \\
 \hline
-UART 0-39    & 0{\rm x}00-0{\rm x}27 & 0{\rm x}00XX-0{\rm x}27XX \\
+UART 0--39   & 0{\rm x}00-0{\rm x}27 & 0{\rm x}00XX-0{\rm x}27XX \\
 Broadcast    & 0{\rm x}3B            & 0{\rm x}3BXX              \\
 In Common    & 0{\rm x}3F            & 0{\rm x}3FXX              \\
 \hline
@@ -639,104 +1023,101 @@ In Common    & 0{\rm x}3F            & 0{\rm x}3FXX              \\
 \end{center}
 \end{table}
 
-Configuration and monitoring of the TX unit is performed over the
-AXI-LITE to REGBUS interface.  Recall that the first four bits of the
-32-bit address space is referred to as the scope, and is used to
-divide the 16-bit address space between different units.  The TX unit
-is allocated the range of scopes from 0x0 to 0x3.  Consistent with
-this assignment, the the most significant bytes of a TX register
-address are interpreted as:
-$${\rm 0b00}cc cccc$$
-where
-$$C \equiv 0{\rm b}cccccc$$ is the UART channel, taking values from 0
-to 63.  In addition to the 40 physical UART channels, assigned
-channels 0 to 39 (0x00 to 0x27), there are two notional channels:
-broadcast (0x3B) and in common (0x3F).  This is summarized in Table~\ref{tbl:tx-scope}.
-A single write to a UART register at the broadcast channel sets that
-registers for {\bf all} UARTs to the specified value.  Attempting to
-read from the broadcast channel is invalid.  Registers associated to
-the entire TX unit are assigned to the notional channel ``in common''.
-Both read and write to the common channel, for defined common
-registers, is valid.
-
-
 \begin{table}
-\label{tbl:tx-reg}
-\caption{Registers managed by the TX unit}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register    & Address   & RWC & Per UART    \\
-\hline
-UART\_STATUS     & 0x00  & RO  & Per UART   \\
-UART\_CONFIG     & 0x04  & RW  & Per UART   \\
-UART\_LOOK\_C    & 0x18  & RO  & Per UART   \\
-UART\_LOOK\_D    & 0x1C  & RO  & Per UART   \\
-UART\_STARTS     & 0x20  & RO  & Per UART   \\
-UART\_BEATS      & 0x24  & RO  & Per UART   \\
-UART\_CHAN       & 0x50  & RO  & Per UART   \\
-BUFFER\_STATUS     & 0xA0  & RO  & In Common  \\
-ZERO\_CNTS       & 0xA8  & CMD & In Common  \\
-\hline
-\end{tabular}
+\caption{\label{tbl:tx-reg} UART registers of the TX unit.}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register        & $R$      & Access & Contents \\
+\midrule
+UART\_STATUS    & \hex{00} & RO & channel status (Table~\ref{tbl:tx-bit-fields}) \\
+UART\_CONFIG    & \hex{04} & RW & PHASE and DELAY (Table~\ref{tbl:tx-bit-fields}); default \hex{00000006} \\
+UART\_STARTS    & \hex{20} & RO & counter: frames started (start bits sent) \\
+UART\_BEATS     & \hex{24} & RO & counter: words taken from the TX buffer (uvalid and uready) \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
 \begin{table}
+\caption{\label{tbl:tx-common} In-common registers of the TX unit.}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register        & $R$      & Access & Contents \\
+\midrule
+LOOK\_SELECT    & \hex{A0} & RW & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
+LOOK\_LOWER     & \hex{A4} & RO & that UART's word in the output buffer, bits 31--0 \\
+LOOK\_UPPER     & \hex{A8} & RO & that UART's word in the output buffer, bits 63--32 \\
+BUFFER\_STATUS  & \hex{B0} & RO & TX buffer status (Table~\ref{tbl:tx-bit-fields}) \\
+ZERO\_CNTS      & \hex{F8} & WO & clear all TX counters (command: any value) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
+
+\begin{table}
+\caption{Bit field descriptions for TX registers}
 \label{tbl:tx-bit-fields}
-\caption{Bit field descriptions for TX register}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register & Field    & Bits & Mask       \\
-\hline
-UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-UART\_CONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
-              & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
-              & MODE       & 13-12 & {\tt 0}x{\tt 00003000}  \\
-              & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000}  \\
-              & DELAY      & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
-\hline
-BUFFER\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-\end{tabular}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lllL}
+\toprule
+Register       & Field   & Bits   & Description \\
+\midrule
+UART\_CONFIG   & PHASE   & 7--0   & tx strobe at PHASE+1 clock cycles after baud strobe\\
+               & DELAY   & 31--16 & bit periods of idle line between frames \\
+\midrule
+UART\_STATUS   & START      & 0    & a start bit was sent (pulse) \\
+               & TX         & 1    & the POSI line \\
+               & VALID      & 2    & uvalid (a word is waiting for this UART) \\
+               & READY      & 3    & uready (the word is taken; one clock cycle) \\
+               & STATE      & 5--4 & 0 idle, 1 shifting, 2 stop, 3 delay.  \\
+               & TX\_STROBE & 6    & the bit strobe:  the line changes on the next clock cycle \\
+\midrule
+BUFFER\_STATUS & TREADY  & 0      & stream tready \\
+               & TVALID  & 1      & stream tvalid \\
+               & RELEASE & 4      & stream reader is released (one clock cycle) \\
+               & PACKET  & 5      & stream reader holds a complete packet \\
+               & STATE   & 9--8   & 0 idle, 1 start of transmission, 2 transmitting \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
-The registers managed by the TX unit are presented in
-Table~\ref{tbl:tx-reg}, and bit field interpretations for some of the
-registers are provided in Table~\ref{tbl:tx-bit-fields}. The UART
-configuration (UART\_CONFIG) includes fields for a phase offset (in 10 ns
-ticks) and a clock divider (slow down factor) of the TX UART clock
-relative to the 100 ns clock sent directly to the ASICs.  Normal
-operation is mode=1.  For mode=0, the TX UART is off, and the channel
-holds ready high.  The upper 16 bits of the register is the
-configurable delay (in 10 ns ticks) inserted between TX cycles.  The
-UART status registers (UART\_STATUS, one per UART) and TX buffer status
-(BUFFER\_STATUS) interpretation is currently expert only, and not documented
-here, but the counts (explained below).  More user friendly
-quantities (derived from the status registers) are available and
-described below.
+{\bf Registers:} The registers of the TX unit are assigned the range
+of scopes (upper four bits of the 16-bit register address) from 0x0 to 0x3.  Each
+16-bit address within the TX unit scope is interpreted as:
+$${\rm 0b00}cc cccc rrrr rrrr$$ where $C=0bcc cccc$ is the 6-bit
+channel index, and $R=0brrrr rrrr$ is the 8-bit register.  The 40 UART
+channels are assigned $C=0$ to $C=39=0x27$.  In-common registers
+(not channel-specific) are assigned to logical channel $C=0x3F$.  For
+convenience, register writes to broadcast channel $C=0x3B$ update
+every UART channel's register to the same value.  Broadcast reads are
+not supported. See Table~\ref{tbl:tx-scope} for a summary.
 
-The look registers (UART\_LOOK\_C and UART\_LOOK\_D) are the least significant
-and most significant 32-bit words from the most recent transmission
-request sent to each UART channel.  These buffers are used to verify
-the operation of the DMA to UART channel transmission, and do not test
-the actual operation of the UART transmitter.  Operation of the UART
-itself can be verified by software loopback of the UART output to the
-RX UARTs (as described in the RX section) or by physical loopback.
-The number of beats encountered (UART\_BEATS) and the number of
-transmission start bits sent (UART\_STARTS) is available for each UART.
-These counts are cleared upon reset and by writing the zero counts
-(ZERO\_CNTS) register.
+The registers of the TX unit are listed in Tables~\ref{tbl:tx-reg}
+and~\ref{tbl:tx-common}, and bit fields in Table~\ref{tbl:tx-bit-fields}.
+The configuration of each UART (via
+UART\_CONFIG) holds the PHASE and DELAY parameters.  The BAUD signal
+is provided by the ATC unit and configured there.
 
+The UART status register provides a snapshot of each channel for one
+clock cycle.  Counters derived from the status are available per
+channel: the number of start bits (UART\_STARTS) and the number of
+uvalid and uready beats (UART\_BEATS).  The 16-bit counts saturate at
+0xFFFF and are cleared at reset or by writing the zero counts
+(ZERO\_CNTS) register.  A look register is provided to support reading
+the TX buffer's output buffer:  the words of the packet being
+transmitted, or of the last packet once transmission is complete.  A
+packet still waiting in the input buffer is not shown, and each new
+packet replaces the word of every UART, including those not enabled by
+its mask.  To reduce FPGA resources, access is through a MUX that
+selects one UART channel at a time.  The look registers (LOOK\_LOWER
+and LOOK\_UPPER) report the 64-bit word (lower and upper bits) of the
+UART channel selected via LOOK\_SELECT.  To be clear, LOOK\_SELECT can be used to
+read (in series) every channel after a transmission has already
+occurred (it need not be selected ahead of time).
 
-The TX firmware has been demonstrated in the hardware (using both
-bare-metal applications and Linux) to run continuously at maximum
-speed without any bit errors.
-
-\newpage
 \subsection{RX Unit}
 
 \begin{figure}[htbp]
@@ -797,249 +1178,401 @@ speed without any bit errors.
 \draw[<-, thick] (b.west) -- ++(-0.25,0) node[anchor=east, font=\small] {PISO (39)};
 
 \end{tikzpicture}
-\caption{Data path in the RX Unit.  Timestamps from each channels are
+\caption{Data path in the RX Unit.  Timestamps from each channel are
   MUXed in a similar fashion for inclusion in the stream.  A secondary
   output of the MUX is used to provide a look register.}
 \label{fig:rx-unit}
 \end{figure}
 
 \noindent
-The RX unit receives UART packets from the tile cards and forwards
-the data to memory in the processor (PS).  A block diagram of the RX unit
-is shown in Fig.~\ref{fig:rx-unit}.  Incoming UART packets, on PISO(0)
-to PISO(39), are received by 40 independently operating RX channels.
-The RX buffer combines the output of all 40 UART channels and writes
-to an AXI stream FIFO.  The DMA engine reads from the FIFO and places
-the data in memory accessible from the processor (PS).
+The RX unit receives UART packets from the tile cards and streams them
+to the PS.  Each 64-bit UART packet is bundled within a 192-bit PACMAN
+word, as defined in Table~\ref{tbl:pacman_word_fields}, consisting of
+three 64-bit fragments: a header, a receipt timestamp, and the UART
+packet.  The header contains the word type (data or config), the
+PACMAN ID, and the UART channel.  Together with the chip ID contained
+in the UART payload, the unique ASIC chip that originated the packet is
+completely specified.
 
-\begin{table}
-\caption{\label{tbl:rx-turns} Round-robin turn assignments for the RX buffer.}
-\begin{center}
-\begin{tabular}{|lll|}
-\hline
-Counter $c$: & Stream word for:  & Word type (ASCII) \\
-\hline
-0x00-0x27    & udata($c$)        & 0x44 (D) \\
-(0-39)       &                   & \\
-\hline
-0x28         & sync heartbeat    & 0x53 (S)\\
-(40)         &                   & \\
-\hline
-0x29         & sync rollover     & 0x53 (S)\\
-(41)         &                   &\\
-\hline
-0x32         & trailer           & 0x45 (E)\\
-\hline
-\end{tabular}
-\end{center}
-\end{table}
+A block diagram of the RX unit is shown in Fig.~\ref{fig:rx-unit}.
+Each incoming 64-bit UART packet, enclosed within a start and stop bit
+defining a 66-bit frame, is deserialized by one of 40 independently
+operating RX channels, which registers the payload and its arrival
+timestamp into its output buffer.  The RX buffer visits each channel
+in turn, and, for each waiting payload, sends a 192-bit PACMAN word
+(as three 64-bit fragments) to an AXI stream.  To reduce congestion,
+the RX buffer selects the payload and timestamp via a registered MUX.
+A FIFO crosses the stream into the {\tt axi\_clk} domain, and the AXI
+DMA engine writes the packets to memory accessible from the PS.
 
-While in STREAM mode, the RX Buffer fills the AXI stream using round
-robin scheduling, with slot allocation based on a turn counter from 0
-to 63.  Data is sent to the FIFO when the turn counter reaches a UART
-channel number (from 0-39) that has data available.  The additional
-slots from 40-63 are used to add additional data to stream, such as
-SYNC words, and for state transitions.  The round-robin schedule is
-presented in Table~\ref{tbl:rx-turns}.
+\begin{figure}[p]
+  \centering
+
+  \begin{tikzpicture}
+    \node[anchor=south west, inner sep=0] at (0,0) {\includegraphics{timing_diagrams/rx_chan_noise.pdf}};
+    \draw (4.5, 14.5) node[right] {Start bit};
+    \draw (8.5, 14.5) node[right] {Bit 0};
+    \draw[{Stealth[length=5pt]}-] (12.65, 14.5) -- (12.35, 14.5) node[left] {Glitch};
+    \draw (15.0, 14.5) node[right] {Bit 2};
+  \end{tikzpicture}
+  
+  \caption{\label{fig:rx-chan} An RX channel receiving the start of a
+    frame, with a glitch occurring during bit 1.}
+\end{figure}
+
+{\bf RX channel:} The ASIC clock (UCLK) is driven by the PACMAN as a signal
+in the {\tt sys\_clk} domain, with a fixed phase relative to the UART
+and baud strobes.  The PISO signal therefore has a fixed phase with
+respect to the baud strobe, but as it passes through an unspecified
+cable length, that phase is unknown.  The RX channel is designed to
+support both a traditional edge-detect UART mode and a fixed sample
+phase mode.  The traditional UART mode treats the PISO as if it is
+from a different clock domain.  The PISO signal is passed through a
+double-flop synchronizer to reduce metastability risk, and the sample
+phase is set at a fixed delay past the falling edge detected during
+idle.  The fixed sample phase mode relies on knowledge of the location
+of a good phase relative to the baud strobe for sampling far from any
+edge.  This mode needs neither the CDC double-flop synchronizer nor
+the edge detection (even though both are in place) and is therefore
+the most deterministic once a correct setting is determined.  The two
+modes differ only in how the sample flag (which specifies at which
+point the PISO signal should be sampled per bit) is determined.
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.85\paperwidth, keepaspectratio]{timing_diagrams/rx_buffer.pdf}
-\caption{\label{fig:rx-buffer} RX buffer handling a single DMA packet
-  containing data received from three UART channels (output of ghdl
-  testbench) For simplicity, only a single indicative byte of the
-  stream data (tdata) is shown (e.g. 0xAA).}
+  \begin{tikzpicture}
+    \node[anchor=south west, inner sep=0] at (0,0) {\includegraphics{timing_diagrams/rx_chan_frames.pdf}};
+    \draw[{Stealth[length=5pt]}-] (2.9, 10.1) -- (3.5, 10.8) node[right] {Glitch};
+    \draw[{Stealth[length=5pt]}-] (9.9, 9.5) -- (10.5, 9.0) node[right] {Low stop bit};
+    \draw[{Stealth[length=5pt]}-] (15.3, 5.7) -- (14.7, 6.2) node[left] {RX buffer stalls};
+  \end{tikzpicture}
+  
+  \caption{\label{fig:rx-chan-frames} An RX channel receiving four
+    frames back to back, with an input glitch causing noisy flag to
+    assert, a low stop bit causing the frame error flag to assert, and
+    an RX buffer stall (ready withheld indefinitely) causing the lost
+    flag to assert.}
 \end{figure}
 
-The RX unit uses a valid and ready handshake, as in the AXI protocol,
-which was described in previous sections.  Upon receiving a complete
-transmission, the RX unit presents the UART data as output and asserts
-its UART valid ({\tt uvalid(i)}) signal.  A timing diagram from a GHDL
-simulation of the RX buffer operation is presented in
-Fig.~\ref{fig:rx-buffer}.  At the start, only UART channels 0-2 have
-data available and are each therefore asserting their valid signal.
-On the turn assigned to each UART channel, the RX buffer asserts ready
-for that channel.  On the next clock cycle, the RX channel deassserts
-its valid and the RX buffer presents the data to the stream.  In the
-diagram, only an indicative byte of the the stream data is shown, and
-in this demonstration UART channel 0 has received 0xAA, channel 1 has
-0xBB, and channel 2 has 0xCC, matching the observed pattern.  The
-stream data also contains a byte for the word type ({\tt ttype}),
-which is 0x44 (the character D in ASCII) for these three UART data
-words.  The stream writer asserts stream valid ({\tt tvalid}) for
-three clock cycles while these three words are added to the stream.
-Since subsequent channels do not have valid data, the stream valid is
-deasserted during subsequent turns.
+A timing diagram for an RX channel receiving the start of a new frame
+is presented in Fig.~\ref{fig:rx-chan}.  The receiver runs faster than
+the baud rate, as marked by the baud strobe ({\tt baud}), which
+provides a consistent reference for each bit period in the {\tt
+  sys\_clk} domain.  The RX channel has an input MUX that selects
+between PISO (normal operation), the channel's own TX output (POSI
+loopback), a test pattern, no input (the line held high), or (when
+available) the output of an FPGA-emulated ASIC.  The MUX-selected
+input (POSI in the timing diagrams) feeds a three stage tap ({\tt
+  tap(0)} to {\tt tap(2)}).  The tap is used to determine a majority
+vote ({\tt vote}) across three clock cycles, with non-unanimous votes
+marked by the {\tt dissent} signal.  A falling edge signal is asserted
+only for the clean falling edge pattern 001.
 
-UART data is streamed to the FIFO one word at a time, but multiple
-words are assembled into a single DMA packet using the last bit ({\tt
-  tlast}) bit.  All data that arrives within a configurable number
-(TCYCLES) of turn cycles (64 clock cycles) is included in the same DMA
-packet.  In the demonstration of Fig.~\ref{fig:rx-buffer}, the TCYCLES
-parameter has been set to 1.  In the second half of the timing
-diagram, on turn 50, which occurs 500 ns after the data from channel 0 is placed
-in the stream, the stream writer asserts the last ({\tt tlast}) bit,
-indicating the end of the packet.  The stream data has its type sent
-to END\_OF\_PACKET (0x45 or ASCII character E) and the number of
-packets (not including the trailer) 3 is sent.  The indicative byte
-was choosen to include this field, so the word count with value 0x3 is
-also visible in the diagram.
+The RX channel is a finite state machine, with states:
+\begin{itemize}
+  \item {\bf IDLE:} Waiting on the start bit.
+  \item {\bf START:} Start bit received, waiting on first payload bit.
+  \item {\bf DATA:} First payload bit received, waiting on remaining payload bits.
+  \item {\bf STOP:} Waiting on stop bit.
+\end{itemize}
+Each bit is sampled from the majority vote on the clock cycle that the
+sample strobe ({\tt sample}) is asserted. After the bit or bits that
+each state is waiting on have been sampled, the state machine advances
+to the next state.  The frame ends when the stop bit is detected with
+the expected value of 1.  The RX channel registers the 64-bit payload
+at its output, along with its arrival timestamp (latched at the stop
+bit), and asserts {\tt uvalid}, marking the payload as ready for
+streaming.  Once the RX buffer takes the word into its holding
+register, it asserts {\tt uready}, the RX channel deasserts {\tt
+  uvalid}, and the output buffer is ready to receive the next packet.
 
-Upon first seeing data after a pause, the RX buffer does not restart
-streaming until the start of the next full cycle (starting at turn 0).
-This orders the data in the DMA packet nicely, starting from UART
-channel 0, when the data from all UARTs arrives synchronously.
+The RX channel outputs a status register that includes {\tt uvalid}
+and {\tt uready} (the logical AND of the two is called a beat), a start
+flag that is asserted once per detected start bit, and an update flag
+that is asserted once per detected stop bit.  During normal operation,
+the number of starts, updates, and beats should all be equal.  The
+status register also includes error flags that fire for one clock
+cycle when an error condition is detected.  If {\tt uvalid} is high
+and {\tt uready} is not being asserted on the cycle that a new packet
+has been received, the new packet is discarded, and the {\tt lost}
+flag is asserted for one clock cycle.  If the stop bit is invalid (a
+zero instead of one), the new packet is discarded, and the {\tt frame
+  error} flag is asserted for one clock cycle.  The dissent flag is
+expected for two clock cycles during any bit transition, but the
+sample cycle should be away from transitions when configured for
+normal operation.  A noise flag is set when dissent occurs at a sample
+point.  Under normal operation, lost packets, frame errors, and noisy
+samples should not occur.  The RX unit diagnostic registers (described
+below) include counters for starts, beats, updates, lost packets, frame
+errors, and noisy samples.  A timing diagram showing the reception of four
+back-to-back packets, including a noisy sample, a frame error, and a
+lost packet is presented in Fig.~\ref{fig:rx-chan-frames}.
 
-In the demonstration, the FIFO is never full, and so the stream always
-asserts stream ready ({\tt tready}).  If the DMA engine were to fall
-behind, than the FIFO could fill, and the stream would deassert
-stream ready.  This would cause the RX buffer to reframin from asserting any
-UART ready ({\tt uready(i)}) signals, which prevents any UART valid ({\tt
-  uvalid(i)}) from being cleared.  If new data arrives on any RX channel
-before its valid bit is cleared (via ready) the packet is lost, which
-is noted by the lost bit in the UART status.  Counters track the
-number of lost packets for each UART (which should be always zero
-during normal operation).
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{timing_diagrams/rx_stream.pdf}
+  \caption{\label{fig:rx-stream} The RX buffer streaming three words and
+    the trailer (output of ghdl testbench, BUFFER\_CONFIG
+    \hex{00030000}: at most three words per packet, no timeout).  UARTs
+    0, 1 and 3 hold words.  On each turn with a waiting word, the buffer
+    takes it (uready) and streams its three fragments.  On tdata, ``hdr
+    $n$'' is a header with channel identifier $n$ (UART $n-1$), ``ts''
+    the timestamp and ``data'' the data.  The trailer is EOP, the count
+    $n=3$, and a zero fragment with tlast.  Turn 2 (UART 2, no data)
+    leaves a gap in the stream.  The third word fills the packet, so the
+    trailer follows at once.}
+\end{figure}
+
+{\bf RX buffer:} The RX buffer streams UART data in round-robin
+fashion, following a turn counter that cycles through each channel.
+Each turn lasts for three clock cycles, so that three 64-bit fragments
+(header, timestamp, and payload) can be streamed per turn, together forming one 192-bit
+PACMAN word per payload received.  The RX buffer is an FSM with the
+following states:
+\begin{itemize}
+  \item {\bf IDLE:}  waiting for arrival of valid data.\\
+     $\Rightarrow$ On arrival of valid data, move to {\bf STREAM} state.
+
+  \item {\bf WAIT\_STATE:} a complete turn sweep is done, wait for new data or timeout\\
+     $\Rightarrow$ On arrival of valid data, move to {\bf STREAM} state\\
+     $\Rightarrow$ If configurable timeout occurs, move to {\bf TRAILER} state
+
+  \item {\bf STREAM:} turn-based round-robin streaming of data to FIFO. Each RX
+     channel is assigned one turn which lasts long enough to stream
+     three 64-bit fragments when valid data is available and the
+     stream is not busy.\\
+     $\Rightarrow$ If the number of words sent reaches a threshold, move to
+     {\bf TRAILER} state.  The next packet resumes the sweep at the
+     channel whose turn was cut short, so that busy low channels cannot
+     starve the higher ones.\\
+     $\Rightarrow$ After a complete turn sweep, move to {\bf WAIT\_STATE}
+
+  \item {\bf TRAILER:} stream trailer word.
+     At the end of the packet, send three 64-bit fragments to write a
+     192-bit trailer reporting the number of 192-bit words streamed
+     (not including the TRAILER), and set LAST bit on the final
+     fragment of the trailer.\\
+     $\Rightarrow$ Return to {\bf IDLE} state after TRAILER is streamed.
+\end{itemize}
+A timing diagram of the RX buffer in action is presented in
+Fig.~\ref{fig:rx-stream}.  The arrival of valid data on UART channels
+0, 1, and 3 moves the FSM from IDLE to STREAM state.  During {\tt turn}
+0, the payload and timestamp for UART channel 0 is selected at the
+MUX. During {\tt turn} 1, the payload and timestamp for UART channel 1 is
+selected at the MUX, while the header, timestamp, and payload for UART channel 0
+are streamed out, during {\tt fragment} 0,1 and 2.  Due to pipeline
+delays, each fragment arrives in {\tt tdata} two cycles later.  This
+process continues, skipping channel 2, which has no valid data, until
+channel 3 is streamed.
+
+For this simulation, the maximum number of words per packet is set to
+three, so the FSM moves to TRAILER once the third word has been
+streamed, and then streams the trailer word (an ASCII L character and
+the number of words (3) not counting the trailer, plus padding).  The
+last fragment of the trailer is marked with {\tt tlast}, marking the
+end of the DMA packet, and the FSM returns to the IDLE state.  The
+size of the DMA packet is configurable based on a maximum number of
+words (three in the scenario above) and a timeout in units of 256
+clock cycles, counted from the start of the packet.  In both cases, a
+zero is no condition (no timeout / no maximum).  The timeout is not
+checked while in stream state, so a
+timeout of one (default setting) will send data from all channels with
+valid data once valid data from at least one channel is available.
+
+Besides the 40 UARTs, the RX buffer serves four additional channels
+for heartbeats, rollover, and trigger (or other) markers from the ATC.
 
 \begin{table}
-\caption{\label{tbl:rx-scope} All RX registers have leading bit 0 and next leading bit 1, and the next six bits define the channel.  That least significant bytes (XX below) further specifies the register.}
+\caption{\label{tbl:rx-scope} All RX registers have leading bit 0 and next leading bit 1, and the next six bits define the channel.  The least significant byte (XX below) further specifies the register.}
 \begin{center}
 \begin{tabular}{|lll|}
 \hline
 Channel      & $C$                   & RX Register Address       \\
 \hline
-UART 0-39    & 0{\rm x}04-0{\rm x}67 & 0{\rm x}40XX-0{\rm x}67XX \\
-Broadcast    & 0{\rm x}7B            & 0{\rm x}7BXX              \\
-In Common    & 0{\rm x}7F            & 0{\rm x}7FXX              \\
+UART 0-39    & 0{\rm x}00-0{\rm x}27 & 0{\rm x}40XX-0{\rm x}67XX \\
+Broadcast    & 0{\rm x}3B            & 0{\rm x}7BXX              \\
+In Common    & 0{\rm x}3F            & 0{\rm x}7FXX              \\
 \hline
 \end{tabular}
 \end{center}
 \end{table}
 
-Configuration and monitoring of the RX unit is performed over the
-AXI-LITE to REGBUS interface.  In a similar fashion as for the TX
-unit, the RX unit is assigned a range of scopes (from 0x4 to 0x7) so
-that the most significant byte of the address can be intepreted as:
-$${\rm 0b01}cc cccc$$
-where
-$$C \equiv 0{\rm b}cccccc$$ is the UART channel, taking values from 0 to 63.
-As for the TX unit, in addition to the 40 physical UART channels,
-assigned channels 0 to 39 (0x00 to 0x27), there are two notional
-channels: broadcast (0x3B) and in common (0x3F).  This is summarized
-in Table~\ref{tbl:rx-scope}.
+{\bf Registers:} In similar fashion to the TX unit, the registers of
+the RX unit are assigned a range of scopes (0x4 to 0x7).  Each 16-bit
+address within the RX unit scope is interpreted as:
+$${\rm 0b01}cc cccc rrrr rrrr$$
+where $C=0bcc cccc$ is the 6-bit channel index, and $R=0brrrr rrrr$ is
+the 8-bit register.  The 40 UART channels are assigned $C=0$ to
+$C=39=0x27$.  In-common registers (not channel-specific) are assigned
+to logical channel $C=0x3F$.  For convenience, register writes to
+broadcast channel $C=0x3B$ update every UART channel's register to the
+same value.  Broadcast reads are not supported. See
+Table~\ref{tbl:rx-scope} for a summary.
 
 \begin{table}
-\caption{\label{tbl:rx-reg} Registers managed by the RX unit}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register        & Address   & RWC & Per UART \\
-\hline
-UART\_STATUS      & 0x00  & RO  & Per UART   \\
-UART\_CONFIG      & 0x04  & RW  & Per UART   \\
-UART\_LOOK\_A     & 0x10  & RO  & Per UART   \\
-UART\_LOOK\_B     & 0x14  & RO  & Per UART   \\
-UART\_LOOK\_C     & 0x18  & RO  & Per UART   \\
-UART\_LOOK\_D     & 0x1C  & RO  & Per UART   \\
-UART\_STARTS      & 0x20  & RO  & Per UART   \\
-UART\_BEATS       & 0x24  & RO  & Per UART   \\
-UART\_UPDATES     & 0x28  & RO  & Per UART   \\
-UART\_LOST        & 0x2C  & RO  & Per UART   \\
-UART\_CHAN        & 0x50  & RO  & Per UART   \\
-BUFFER\_STATUS    & 0xA0  & RO  & In Common  \\
-BUFFER\_CONFIG    & 0xA4  & RW  & In Common  \\
-ZERO\_CNTS        & 0xA8  & CMD & In Common  \\
-FIFO\_CNT         & 0xB0  & RO  & In Common  \\
-FIFO\_MAX         & 0xB4  & RO  & In Common  \\
-HEARTBEAT\_CONFIG & 0xC0  & RW  & In Common  \\
-ROLLOVER\_CONFIG  & 0xC4  & RW  & In Common  \\
-\hline
-\end{tabular}
+  \caption{\label{tbl:rx-reg} UART registers of the RX unit.}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register          & $R$      & Access & Contents \\
+\midrule
+UART\_STATUS      & \hex{00} & RO & channel status (Table~\ref{tbl:rx-bit-fields}) \\
+UART\_CONFIG      & \hex{04} & RW & Table~\ref{tbl:rx-bit-fields}; default \hex{000A1104} \\
+UART\_CHAN        & \hex{08} & RW & channel identifier in the header (bits 15--0); default UART + 1 \\
+UART\_STARTS      & \hex{20} & RO & counter: start bits received \\
+UART\_BEATS       & \hex{24} & RO & counter: words taken by the RX buffer \\
+UART\_UPDATES     & \hex{28} & RO & counter: frames completed (good stop bit) \\
+UART\_LOST        & \hex{2C} & RO & counter: words lost (previous word not yet taken) \\
+UART\_FRAME\_ERR  & \hex{30} & RO & counter: framing errors (low stop bit) \\
+UART\_NOISE       & \hex{34} & RO & counter: sample points with dissenting samples \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
+\begin{table}[htbp]
+\caption{\label{tbl:rx-common} In-common registers of the RX unit.}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{llcL}
+\toprule
+Register          & $R$      & Access & Contents \\
+\midrule
+PATTERN\_LOWER    & \hex{80} & RW & test pattern word, bits 31--0 \\
+PATTERN\_UPPER    & \hex{84} & RW & test pattern word, bits 63--32 \\
+PATTERN\_DELAY    & \hex{88} & RW & idle bit periods between test frames \\
+PATTERN\_CONFIG   & \hex{8C} & RW & bits 7--0 PHASE, bits 11--8 MODE (1: on) \\
+PATTERN\_STATUS   & \hex{90} & RO & bit 0 start, bit 1 stop, bit 8 the pattern line \\
+PATTERN\_STARTS   & \hex{94} & RO & counter: test frames started \\
+PATTERN\_STOPS    & \hex{98} & RO & counter: test frames completed \\
+LOOK\_SELECT      & \hex{A0} & RW & the UART shown by LOOK\_LOWER and LOOK\_UPPER \\
+LOOK\_LOWER       & \hex{A4} & RO & that UART's last word, bits 31--0 \\
+LOOK\_UPPER       & \hex{A8} & RO & that UART's last word, bits 63--32 \\
+BUFFER\_STATUS    & \hex{B0} & RO & RX buffer status (Table~\ref{tbl:rx-bit-fields}) \\
+BUFFER\_CONFIG    & \hex{B4} & RW & Buffer config (see Table~\ref{tbl:rx-bit-fields}) default \hex{00000001} \\
+BUFFER\_ENABLES   & \hex{B8} & RW & enables heartbeat (LSB), rollover,  marker 2, marker 3. \\
+PACMAN            & \hex{BC} & RW & PACMAN identifier in the header (bits 7--0) \\
+HEARTBEAT\_CONFIG & \hex{C0} & RW & clock cycles between heartbeats; default \hex{3B9ACA00} \\
+ROLLOVER\_CONFIG  & \hex{C4} & RW & timestamp (bits 31--0) of the rollover word; default 1 \\
+WORD\_TYPE\_LUT   & \hex{C8} & RW & word type lookup table (default \hex{44444444}) \\
+HEADER\_A         & \hex{D0} & RW & header template for channel 40 \\
+HEADER\_B         & \hex{D4} & RW & header template for channel 41 \\
+HEADER\_C         & \hex{D8} & RW & header template for channel 42 \\
+HEADER\_D         & \hex{DC} & RW & header template for channel 43 \\
+EOP\_HEADER       & \hex{E0} & RW & header template for trailer \\
+FIFO\_CNT         & \hex{F0} & RO & words (64 bits) in the RX FIFO \\
+FIFO\_MAX         & \hex{F4} & RO & maximum of FIFO\_CNT since the last clear \\
+ZERO\_CNTS        & \hex{F8} & WO & clear all RX counters and FIFO\_MAX \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{table}
 
 \begin{table}
-\caption{\label{tbl:rx-bit-fields} Bit field descriptions for RX register}
-\begin{center}
-\begin{tabular}{|llll|}
-\hline
-Register & Field      & Bits & Mask       \\
-\hline
-UART\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-UART\_CONFIG  & RATIO      & 7-0   & {\tt 0}x{\tt 000000FF}  \\
-              & PHASE      & 11-8  & {\tt 0}x{\tt 00000F00}  \\
-              & MODE       & 13-12 & {\tt 0}x{\tt 00003000}  \\
-              & (Reserved) & 15-14 & {\tt 0}x{\tt 0000C000}  \\
-              & INPUT      & 17-16 & {\tt 0}x{\tt 00030000}  \\
-              & (Reserved) & 31-18 & {\tt 0}x{\tt FFFC0000}  \\
-\hline
-BUFFER\_STATUS  & (Expert)   & 31-0  & {\tt 0}x{\tt FFFFFFFF}  \\
-\hline
-BUFFER\_CONFIG  & TCYCLES    & 15-0  & {\tt 0}x{\tt 0000FFFF}  \\
-              & (Reserved) & 31-16 & {\tt 0}x{\tt FFFF0000}  \\
-\hline
-\end{tabular}
+\caption{\label{tbl:rx-bit-fields} Bit field descriptions for RX registers.  A pulse lasts one clock cycle.  START, UPDATE, LOST, FRAME\_ERR and NOISE are the events counted in UART\_STARTS, UART\_UPDATES, UART\_LOST, UART\_FRAME\_ERR and UART\_NOISE.}
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lllL}
+\toprule
+Register       & Field   & Bits   & Description \\
+\midrule
+UART\_CONFIG   & PHASE    & 7--0  & phase parameter for sample strobe \\
+               & PISO     & 8     & set input to PISO line \\
+               & LOOPBACK & 9     & set input to POSI (loopback) \\
+               & PATTERN  & 10    & set input to test pattern \\
+               & EMULATOR & 11    & set input to ASIC emulator \\
+               & MODE    & 13--12 & 0 off, 1 edge-detect, 2 fixed phase \\
+               & ACCEPT\_DISSENT & 14 & accept a start bit despite dissent \\
+               & RESERVED & 15     & \\
+               & PERIOD  & 23--16 & bit period, equal to CONFIG\_BAUD (wraps the edge-detect sample point) \\
+\midrule
+UART\_STATUS   & STATE   & 1--0   & 0 idle, 1 start bit, 2 data, 3 stop bit \\
+               & VALID   & 2      & a word is waiting for the RX buffer \\
+               & READY   & 3      & the RX buffer is ready to take the word \\
+               & START   & 4      & a start bit was sampled (pulse) \\
+               & UPDATE  & 5      & a frame completed, good stop bit (pulse) \\
+               & LOST    & 6      & a word was lost, previous one not taken (pulse) \\
+               & FRAME\_ERR & 7   & a framing error, low stop bit (pulse) \\
+               & NOISE   & 8      & dissenting samples at a sample point \\
+               & BAUD    & 9      & the BAUD strobe \\
+               & SAMPLE  & 10     & the sample point \\
+               & DISSENT & 11     & the three samples are not unanimous \\
+               & TAPS    & 14--12 & 3-bit shift register of the input, newest in bit 12 \\
+               & VOTE    & 15     & majority vote of the three samples \\
+               & PISO    & 16     & the PISO line \\
+               & LOOPBACK & 17    & the loopback line (POSI) \\
+               & PATTERN & 18     & the test pattern line \\
+               & EMULATOR & 19    & the emulator line \\
+               & EDGE    & 31--24 & edge phase of the last start bit in the bit period \\
+\midrule
+BUFFER\_CONFIG & TIMEOUT & 15--0  & packet timeout in 256 cycles (0: no timeout)\\
+               & MAX\_WORDS & 31--16 & words per packet before the trailer (0: none) \\
+\midrule
+BUFFER\_STATUS & STATE   & 2--0   & 0 idle, 1 wait, 2 stream, 3 trailer \\
+               & TVALID  & 3      & stream tvalid \\
+               & TREADY  & 4      & stream tready \\
+               & BUSY    & 5      & the stream writer is busy \\
+               & WRITE   & 6      & the stream writer writes a word \\
+               & LAST    & 7      & stream tlast \\
+               & TURN    & 13--8  & current turn (channel) \\
+               & FRAGMENT & 15--14 & current fragment \\
+\bottomrule
+\end{tabularx}
 \end{center}
 \end{table}
 
-The registers managed by the RX unit are presented in
-Table~\ref{tbl:rx-reg}, and bit field interpretations for some of the
-registers are provided in Table~\ref{tbl:rx-bit-fields}. The UART
-configuration (UART\_CONFIG) includes fields for a phase offset (in 10 ns
-ticks) and a clock divider (slow down factor) of the RX UART clock
-relative to the 100 ns clock sent directly to the ASICs.  Normal
-operation is MODE=1.  For MODE=0, the RX unit is squelched: updates
-from the UART receivers are ignored, the channel's output is set to
-zero, and its valid signal is deasserted.
-The RX input is configured by the INPUT parameter.  Normal operation
-is INPUT=0 which selects the UART inputs (PISO).  Setting INPUT=1
-selects the output of the RX unit for the corresponding channel,
-poviding a software loopback option.  Setting INPUT=2 fixes the input
-to 0, and INPUT=3 fixes the input to 1.
+The registers of the RX unit are listed in Tables~\ref{tbl:rx-reg} and~\ref{tbl:rx-common}, and bit
+fields in Table~\ref{tbl:rx-bit-fields}.  The configuration of each UART (via UART\_CONFIG) holds
+the PHASE, MODE, and PERIOD parameters, the input select bits, and the ACCEPT\_DISSENT flag.  If no
+input (or more than one input) is specified, the line is set high, disabling the UART.  The BAUD
+signal is provided by the ATC unit and configured there.
+
+The {\tt UART\_CONFIG} selects between the fixed-sample phase mode and the edge-detect mode.  In the
+fixed-sample phase mode, the {\tt PHASE} field places the sample strobe PHASE + 1 clock cycles after
+the start of the bit period (PHASE + 2 clock cycles after the baud strobe).  In the edge-detect
+mode, the sample strobe occurs PHASE + 2 clock cycles after the falling edge of the start bit (at
+the selected input) and once per baud period thereafter.  For normal operation, PERIOD should be set
+to the baud period, and PHASE should be less than the baud period $-$ 2.  Four input select bits
+choose the input (PISO, POSI loopback, test pattern, or emulator), one bit set at a time.  If no bit
+is set, or more than one, the line is held high, which effectively disables the UART.  A permissive
+flag (ACCEPT\_DISSENT) allows dissent to trigger a start bit.
 
 The RX buffer configuration register (BUFFER\_CONFIG) includes the
-TCYCLES field, which specifies the number of turn cycles included in
-each DMA packet, as described above.  The sync word behavior is
-configured by the number of clock cycles between heartbeats
-(HEARTBEAT\_CONFIG) and the timestamp at which a rollover is recorded
-(ROLLOVER\_CONFIG).  The UART status registers (USTATUS, one per UART)
-and RX buffer status (BSTATUS) interpretation is currently expert
-only, and not documented here.
+TIMEOUT and MAX\_WORDS fields, which control the end of packet
+determination as described above.
 
-The look registers (UART\_LOOK\_A through and UART\_LOOK\_D) contain the least
-significant to most significant 32-bit words (128 bits total) of the
-most recent packet received by each packet.  Several counts are
-maintained for each UART: the number of start bits received (UART\_STARTS),
-beats observed (UART\_BEATS), and successful receptions (UART\_UPDATES).  The
-number of lost packets (UART\_LOST), as indicated by the lost bit being
-asserted, are likewise counted.  The counts are cleared upon reset and
-by writing the zero counts (ZERO\_CNTS) register.  The current number
-of words (FIFO\_CNT) in the RX FIFO is available, as is the maximum number
-of words (FIFO\_MAX) since the last reset of zero counts command.
+A look register is provided to support reading the latest data
+received by each UART channel independently of DMA.  To reduce FPGA
+usage, access is via a second output channel of the same MUX used by
+the RX buffer.  The look registers (LOOK\_LOWER and LOOK\_UPPER)
+report the most recent 64-bit payload (lower and upper bits) of the
+UART channel selected via LOOK\_SELECT.
 
-\newpage
-\subsection{Timing Unit}
+Several counts are maintained for each UART: the number of start bits
+received (UART\_STARTS), beats observed (UART\_BEATS), and successful
+receptions (UART\_UPDATES).  The number of lost packets (UART\_LOST),
+as indicated by the lost bit being asserted, is likewise counted, as are
+framing errors (UART\_FRAME\_ERR) and noisy samples (UART\_NOISE).
+The 16-bit counts saturate at 0xFFFF and are cleared upon reset and by
+writing the zero counts (ZERO\_CNTS) register.  The current number of
+words (FIFO\_CNT) in the RX FIFO is available, as is the maximum number of words (FIFO\_MAX)
+since the last reset or zero counts command.
 
-The timing unit is reponsible for the 10 MHz clock (UCLK) sent to the
-ASICs and producing a timestamp, synchronous with UCLK, which is added
-to the incoming data.  The timing unit also handles timing control
-signals sent to the ASICs, such as SYNC, RESET, and TRIG signals.  A
-fully featured Timing Unit is available in the latest firmware, but we
-expect at least one round of substantial revisions before this design
-stabalizes, and so we will not document this unit further for this
-version.
+The RX unit dynamically determines the packet type from bits 1--0 of
+each ASIC payload (the first two bits received).  The behavior is specified by the
+WORD\_TYPE\_LUT, which includes 4 bytes for the desired output
+for 00, 01, 10, and 11 (bits 7--0 for 00, \ldots, bits 31--24 for 11).  The current default is 0x44444444 which sets all
+ASIC packets to DATA type (0x44), but this feature can be used to sort
+packets into CONFIG and DATA types.
 
-\subsection{ADC Unit}
-The ADC unit is responsible for operating the on-board
-high-performance ADC.  A fully featured Timing Unit is available in
-the latest firmware, but we expect at least one round of substantial
-revisions before this design stabalizes, and so we will not document
-this unit further for this version.
+\subsection{Logic Analyzer and ADC Units}
+A fully functional logic analyzer and single-differential-channel
+digital oscilloscope are implemented with the 3.6 firmware, but the
+documentation is still under development.
+
 
 %\subsection{Vivado Design and Flow}
 
+
+\newpage
 \section{PACMAN Server}
 \subsection{DAQ Interface}
 
@@ -1050,6 +1583,49 @@ addresses allows for the most consistent support across hardware
 versions.  Direct (non-virtual) interface to the AXI LITE address
 space is provided at upper region of the address space, as well as
 direct access to the I2C bus.
+
+Each PACMAN message consists of a 24-byte header
+(Table~\ref{tbl:pacman_header_fields} and
+Fig.~\ref{fig:pacman_header_layout}) followed by N bytes:  24-byte
+PACMAN words, or the text of a string reply.
+
+\begin{table}[htbp]
+\centering\small
+\begin{tabular}{|lllll|p{6.2cm}|}
+\hline
+Field          & Symbol & Bytes & Bits & Notes \\
+\hline
+Message Type   & M      & 1 & 8  & See Table~\ref{tbl:pacman_msg_types}\\
+PACMAN ID      & P      & 1 & 8  & Default: 0\\
+Major Version  & A      & 1 & 8  & 1 \\
+Minor Version  & B      & 1 & 8  & 1 \\
+Length         & N      & 4 & 32 & bytes following header \\
+Timestamp      & T      & 8 & 64 & time at message creation \\
+Sequence       & S      & 4 & 32 & 0 or message count \\
+Session        & E      & 4 & 32 & 0 or random non-zero value for each new session \\
+\hline
+\end{tabular}
+\caption{Fields of the PACMAN message header (24 bytes, 192 bits), by
+  byte position.  Multi-byte fields are little-endian.  The notes
+  describe the 3.6.3 software.}
+\label{tbl:pacman_header_fields}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\begin{tabular}{|ll|p{11cm}|}
+\hline
+Message Type & Char & Use \\
+\hline
+REQUEST & `?' & request to the command server:  PACMAN words \\
+REPLY   & `!' & reply from the command server:  one word per request word \\
+DATA    & `D' & from the data server:  PACMAN words received by the RX unit \\
+STRING  & `S' & high-level command to the command server, or its reply, as text \\
+\hline
+\end{tabular}
+\caption{PACMAN message types (field M of the message header).}
+\label{tbl:pacman_msg_types}
+\end{table}
 
 \begin{table}[htbp]
 \centering
@@ -1079,7 +1655,7 @@ CFG   & `C' & PACMAN ID      & P & 1 & 8  & Optional for TX \\
 \hline
 SYNC  & `S' & PACMAN ID      & P & 1 & 8  & \\
 ~     &     & Sync Type      & S & 1 & 8  & \\
-~     &     & Clock Sourc    & L & 1 & 8  & \\
+~     &     & Clock Source   & L & 1 & 8  & \\
 ~     &     & Timestamp      & T & 8 & 64 & \\
 ~     &     & Status         & U & 4 & 32 & \\
 %\hline
@@ -1094,7 +1670,7 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
 ~     &     & Error Code     & O & 4 & 32 & \\
 \hline
 \end{tabular}
-\caption{Constitutient fields of PACMAN words by word type (with
+\caption{Constituent fields of PACMAN words by word type (with
   associated character).  Each word is 24 bytes (192 bits) but padding
   is not listed here.  The size in bytes (and bits) and the single
   letter symbol used for each active field is listed.}
@@ -1144,6 +1720,36 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
 }
 
 
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+    \def\yHDR{0.0}
+    \node at (8,\yHDR - 0.4) {\large Header};
+    \pacmanWordRect{\yHDR}
+    \pacmanByteText{\yHDR}{0}{M}    % message type
+    \pacmanByteText{\yHDR}{1}{P}    % pacman ID
+    \pacmanByteText{\yHDR}{2}{A}    % major version
+    \pacmanByteText{\yHDR}{3}{B}    % minor version
+    \pacmanByteText{\yHDR}{4}{N}    % length (bytes)
+    \pacmanByteText{\yHDR}{8}{T}    % timestamp
+    \pacmanByteText{\yHDR}{16}{S}   % sequence
+    \pacmanByteText{\yHDR}{20}{E}   % session
+    \pacmanFieldLow{\yHDR}{1}
+    \pacmanFieldLow{\yHDR}{2}
+    \pacmanFieldLow{\yHDR}{3}
+    \pacmanFieldLow{\yHDR}{4}
+    \pacmanFieldLow{\yHDR}{8}
+    \pacmanFieldLow{\yHDR}{16}
+    \pacmanFieldLow{\yHDR}{20}
+  \end{tikzpicture}
+  \caption{Layout of the PACMAN message header, showing field
+    locations and sizes, labeled by the single character symbol from
+    Table~\ref{tbl:pacman_header_fields}.  The space between each pair
+    of lines represents one byte, and the header is 24 bytes wide
+    (192 bits), with the least significant byte to the left.}
+\label{fig:pacman_header_layout}
+\end{figure}
 
 \begin{figure}[htbp]
   \centering
@@ -1275,7 +1881,7 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
     locations and sizes, labeled by the single character symbol from
     Table~ \ref{tbl:pacman_word_fields}.  The space between each pair
     of lines represents one byte, and each word is 24 bytes wide
-    (192-bits).  The least significant bit is to the left, the the
+    (192-bits).  The least significant bit is to the left, the
     least significant byte is a character field used to indicate the
     word type.}
 \label{fig:pacman_word_layouts}
@@ -1288,8 +1894,7 @@ ERR   & `E' & PACMAN ID      & P & 1 & 8  & \\
 \textbf{Command} & \textbf{Description} \\
 \hline
 \texttt{ping}                              & Reply pong \\
-\texttt{report\_version\_info}             & Report firmware version and related info \\
-\texttt{report\_power}                     & Report voltage and current info  \\
+\texttt{report\_version\_details}          & Report firmware version and related info \\
 \texttt{read\_pacman\_id}                  & Reply with current PACMAN ID \\
 \hline
 \texttt{set\_pacman\_id id=<id>}           & Set PACMAN ID to \texttt{<id>} \\
@@ -1317,6 +1922,12 @@ and \texttt{enable\_tile} activates individual tiles.}
 \end{table}
 
 \newpage
+\section{Developer Workflows}
+
+
+
+
+\newpage
 \section{Quality Assurance and Quality Control}
 
 The PACMAN card quality assurance and quality control (QA/QC) regimen
@@ -1338,7 +1949,7 @@ relies on several complementary techniques:
   hardware, programmable logic, or software.
 
 \item {\bf Design Review:} The PACMAN design team includes a lead
-  engineer, and a consulting engineer, and a principile investigator.
+  engineer, and a consulting engineer, and a principal investigator.
   All three understand the board down to the last net list.  The
   PACMAN design is also periodically subjected to independent review.
 
@@ -1395,8 +2006,8 @@ hardware checkout section.
 \begin{itemize}
 \item Successful system BOOT, visible via UART.
 \item Successful remote login via ethernet.
-\item Successful transfer of psuedo-random data via ethernet (scp) and the UART terminal (lrzsz).
-\item Repeated read and write of psuedo-random numbers to the SD card.
+\item Successful transfer of pseudo-random data via ethernet (scp) and the UART terminal (lrzsz).
+\item Repeated read and write of pseudo-random numbers to the SD card.
 \end{itemize}
 
 Some of the tests described in this section require configuring the
@@ -1425,7 +2036,7 @@ requirements which require quantitative verifications:
  \item Limits of digital I/O (clock speed, long cables) (TBD)
 \end{itemize}
 
-\section{Hardware Checkout Proceedure}
+\section{Hardware Checkout Procedure}
 
 Caveats: No allowed tolerances have been provided yet, because we have
 only tested a few boards.
@@ -1466,7 +2077,7 @@ Using a DMM, verify the supply of 3.3 V (nominal) at TP3 (D3V3) relative to TP4 
 
 Using a DMM, verify the supply of 3.0 V (nominal) at TP13 (A3V0) relative to TP14 (GND).
 
-\subsection{TENZ Module and Linux System Checks}
+\subsection{TRENZ Module and Linux System Checks}
 
 With a TRENZ module installed on the board, insert an SD card with the
 latest hardware checkout firmware, the ethernet cable connected to the
@@ -1475,8 +2086,8 @@ network, and power the board.
 The local network may require customizations to the ROOT filesystem in
 order to bring up the ethernet connection.  Before attempting to bring
 up the network on a headless PACMAN card (no USB JTAG/UART header has
-been installed) consider debuging the network configuration on a
-PACMAN equipped with a USB JTA/UART header or a Trenz Module ...  Once
+been installed) consider debugging the network configuration on a
+PACMAN equipped with a USB JTAG/UART header or a Trenz Module ...  Once
 the network is brought up reliably, you can boot a PACMAN with no
 terminal and connect over ethernet.
 
@@ -1494,7 +2105,7 @@ export	gpio906  gpio913  gpio918  gpio919  gpiochip906  unexport
 
 \subsection{Linux-based Hardware Checkout Application}
 
-The PACMAN hardware demonstration firmware includes a menu interface to the Linux drivers:  pacman\_menu.  It is available from the command line as:
+The PACMAN Zipline firmware includes a menu interface to the Linux drivers:  pacman\_menu.  It is available from the command line as:
 \begin{lstlisting}[language=sh,frame=leftline]
 root@Trenz:~# pacman_menu
 pacman_menu:  PACMAN Linux driver access via menu, for diagnostics and hardware checkout.
@@ -1512,9 +2123,9 @@ MAIN MENU:  choose an option:
 (4) power menu (5) RX/TX menu (6) timing menu (7) ADC menu
 \end{lstlisting}
 The user selects menu options by typing the number for the option
-followed by enter.  The numbers and arrangement of the menu's will
+followed by enter.  The numbers and arrangement of the menus will
 vary with firmware version as we further develop the tools.  This
-documentation is based on hardware demonstration firmware version 3.2.
+documentation is based on Zipline firmware version 3.6.
 In the future, we will support a turn-key hardware checkout routine as
 a menu option.  However, here we document each individual test
 one-by-one.
@@ -1585,7 +2196,7 @@ The user should verify that:
 \item (The RTD Probe feature can be tested here as well by connecting a resistor at J17)
 \end{itemize}
 
-\subsubsection{VDDD and VDDDA}
+\subsubsection{VDDD and VDDA}
 
 The ``write IV curves to file'' feature of the Power submenu steps
 through several different DAC settings and steps through the monitored
@@ -1671,7 +2282,7 @@ record the waveforms:
 \item (the MUX can be adjusted to provide a 100 Ohm resistance, or open
  circuit, between the two SMA connectors, which can be verified with a
  DMM.)
-\item (the TTL pulses can be fed into the LEMO connectors, which are counted by the timing unit, with counts available from the timing sub-meno.)
+\item (the TTL pulses can be fed into the LEMO connectors, which are counted by the timing unit, with counts available from the timing sub-menu.)
 \end{itemize}
 
 \appendix
@@ -1713,7 +2324,7 @@ initial switching voltage requirement must provide at least 42 W at
 $3~\rm V$.
 
 The PACMAN power is provided by a single nominal 48~V 2~A DC input.
-The power connection is the four position terminal connector (Phenoix
+The power connection is the four position terminal connector (Phoenix
 Contact P/N 5444660).  The inner two pins provide power and the outer
 two are for sense: \captionof{table}{Input Power Connections}
 \begin{tabular}{ll}
@@ -1763,7 +2374,7 @@ The noise injected into the pixel tile from the controller is less than $1~\rm m
 
 A single PACMAN card drive up to ten pixel tile cards through a single
 flange card.  The interface to the eight-tile flange card is through a
-6 row by 50 pin high-desnity SAMTEC connector {\tt
+6 row by 50 pin high-density SAMTEC connector {\tt
   SEAF-50-01-L-06-1-RA-K-TR} on the PACMAN card.
 
 The PACMAN card shall provide a footprint for an optional 2x17
