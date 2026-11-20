@@ -104,9 +104,10 @@ hardware checkout section.
 
 Some of the tests described in this section require configuring the
 PACMAN card in ways that are not appropriate for a card installed in
-the production system.  For this reason, the PACMAN card includes an
-expert mode enable two pin jumper.  When a PACMAN card is installed in
-the production system, this jumper is removed, and the software
+the production system or connected to ASICs.  For this reason, the
+PACMAN card includes a two pin ASIC protection jumper (J5).  When a
+PACMAN card is installed in the production system, or connected to
+ASICs at a test stand, this jumper is installed, and the software
 refuses to provide inappropriate test configurations.
 
 \section{Requirement Verification}
