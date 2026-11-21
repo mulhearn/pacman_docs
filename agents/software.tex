@@ -16,7 +16,7 @@
 \newcommand{\f}[1]{\texttt{#1}}
 \newcolumntype{L}{>{\raggedright\arraybackslash}X}
 
-\title{PACMAN Software 3.6.5\\[2pt]
+\title{PACMAN Software 3.6.4\\[2pt]
   \large DAQ interface, drivers, servers and applications}
 \author{Draft maintained by the PACMAN agents (augie); reference for the TRM}
 \date{2026-11-20 (updated with the TRM)}
@@ -38,13 +38,13 @@ source for the PACMAN Software section of the TRM.  It follows the outline of th
   (Section~\ref{sec:servers});
 \item the PACMAN applications (Section~\ref{sec:apps}).
 \end{enumerate}
-The software described is 3.6.5 (not yet released), as in the TRM:  \f{pacman-software} branch
-\f{working-on-v3.6.4-zipline-2023.2} at \f{54fee11} (3.6.4, identical in function to the 3.6.3
-release) with the fixes queued for 3.6.5 (Section~\ref{sec:open}), with firmware 3.6.0.  The text
+The software described is 3.6.4 (not yet released), as in the TRM:  \f{pacman-software} branch
+\f{working-on-v3.6.4-zipline-2023.2} (at \f{54fee11} only the version bump, identical in function to
+the 3.6.3 release) with the fixes queued for 3.6.4 (Section~\ref{sec:open}), with firmware 3.6.0.  The text
 assumes those fixes:  each one matches this text and the TRM, or both are updated with it.
 Paths are relative to \f{petalinux/pkg/pacman-apps/files/} unless they start with \f{apps/} (the
 bare-metal applications at the top of the repository).  The firmware registers named here are
-described in \f{firmware.tex}.  The differences from 3.6.4 are listed in Section~\ref{sec:open}.
+described in \f{firmware.tex}.  The differences from 3.6.3 are listed in Section~\ref{sec:open}.
 
 \section{DAQ interface}\label{sec:daq}
 
@@ -452,7 +452,7 @@ Script & Use \\
 \f{pacman\_boot.sh} & end of boot:  records the MAC and IP address in \f{last-boot.txt} on the SD
   card's boot partition \\
 \f{pacman\_gpio\_init.sh} & PS GPIO (MIO) pins to their initial states \\
-\f{pacman\_lnxcheck.sh} & checkout of the Trenz module under Linux:  CPU and memory, XADC, Ethernet,
+\f{pacman\_lnxcheck} & checkout of the Trenz module under Linux:  CPU and memory, XADC, Ethernet,
   QSPI flash, eMMC, microSD \\
 \f{pacman\_util.py} & standalone Python client of the servers:  register reads and writes, ASIC
   words, STRING commands, data and echo dumps \\
@@ -469,9 +469,9 @@ are:  \f{apps/menu} (the menu, on the common drivers), \f{apps/fwcheck}, \f{apps
 \f{apps/jtag\_boot} (boot over JTAG, also from TFTP) and \f{apps/pacman\_fsbl} (the first-stage
 boot loader for the PetaLinux images).  The workflows are in \f{docs/flow.txt}.
 
-\section{Changes from 3.6.4}\label{sec:open}
+\section{Changes from 3.6.3}\label{sec:open}
 
-The text describes 3.6.5 with these fixes (queued, found while writing the TRM).  In 3.6.4:
+The text describes 3.6.4 with these fixes (queued, found while writing the TRM).  In 3.6.3:
 \begin{itemize}
 \item The hardware region ends at \hex{0000FFFE}:  \hex{0000FFFF} itself is not decoded.
 \item The STRING command \f{send\_sync\_timestamp} fires poke D (the full reset);
@@ -485,7 +485,7 @@ The text describes 3.6.5 with these fixes (queued, found while writing the TRM).
 \item \f{make simulated-pacman} fails to link \f{pacman\_dataserver} (\f{pacman\_simulated.cc} lacks
   \f{pacman\_rx\_incomplete\_packets}).
 \end{itemize}
-Other facts, unchanged in 3.6.5:  the region \hex{00300000}--\hex{0030FFFF} (timing endpoint
+Other facts, unchanged in 3.6.4:  the region \hex{00300000}--\hex{0030FFFF} (timing endpoint
 registers, today a copy of the hardware region) is decoded but not documented.  The command server
 prints every TX packet and register access (to \f{/dev/null} when started by
 \f{pacman\_server.sh}).  \f{hwutil}, \f{zmq\_test} and \f{zmq\_loopback} have sources but are
