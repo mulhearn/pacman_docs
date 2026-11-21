@@ -15,6 +15,7 @@
 \usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc}
 \lstset{basicstyle=\ttfamily,columns=fullflexible}
 \usepackage{array}
+\usepackage{longtable}
 \newcommand{\hex}[1]{\texttt{0x#1}}
 \setlength{\emergencystretch}{2em}
 
@@ -452,8 +453,9 @@ basic operation.  For conceptual economy, we use the same valid and
 ready handshake elsewhere in the design, even when we do not implement
 an AXI interface.  The design uses one custom interface: the register
 bus (REGBUS).  Each unit-level module is a secondary on the REGBUS,
-and is guaranteed to respond on the clock cycle immediately following
-a read or write request from the REGBUS primary.  The PS drivers
+and responds on the clock cycle immediately following a read or write
+request from the REGBUS primary, except that the RX and TX units add a
+register stage for timing and acknowledge reads one cycle later.  The PS drivers
 access the REGBUS interface via AXI-Lite.
 
 \subsection{Clocks}
@@ -619,8 +621,10 @@ buffers, the bus implementation also requires a multiplexer {\tt
 secondaries.
 
 Within the same clock domain, REGBUS requests
-are always acknowledged on the next clock cycle, as shown in
-Figs.~\ref{fig:single-write} and \ref{fig:single-read}.  However, a
+are acknowledged on the next clock cycle, as shown in
+Figs.~\ref{fig:single-write} and \ref{fig:single-read}, except reads
+of the RX and TX units, which add a register stage for timing and
+acknowledge one cycle later.  In addition, a
 CDC stage in the register bus {\tt regbus\_cdc} introduces
 synchronization delays, and so the acknowledgement from units in the
 {\tt sys\_clk} domain is not seen in the {\tt axi\_clk} domain until
@@ -1754,7 +1758,7 @@ cycle is needed.
 
 The PACMAN vertical integration stack is shown in Fig.~\ref{fig:pacman-stack}.  The hardware and
 firmware were described in Sections~\ref{sec:hardware} and \ref{sec:firmware}.  This documentation
-describes the PACMAN software, based on the 3.6.5 version (not yet released).  The latest PACMAN
+describes the PACMAN software, based on the 3.6.4 version (not yet released).  The latest PACMAN
 software is available as a GitHub repository:
 \begin{center} \url{https://github.com/mulhearn/pacman-software/tree/zipline-2023.2} \end{center}
 Paths in this section are relative to \texttt{petalinux/pkg/pacman-apps/files/} unless they start
@@ -2125,7 +2129,7 @@ their replies.  The DATA and CFG word types contain ASIC packets as their payloa
 delivered and received by the PACMAN to and from the ASICs as is.  The PACMAN is largely agnostic
 about the details.  The latest firmware does include a lookup table that allows the PACMAN to
 discern whether a packet is a data or a configuration packet, so that its PACMAN message word type
-can be set to DATA or CFG as appropriate.  As of 3.6.5, all DATA and CFG words are sent to the same
+can be set to DATA or CFG as appropriate.  As of 3.6.4, all DATA and CFG words are sent to the same
 ZMQ PUB socket, but in the future, CFG words could be sent to a dedicated configuration-only stream.
 
 \begin{table}
@@ -2363,7 +2367,7 @@ Application & Role \\
 \hline
 \texttt{pacman\_server.sh}  & starts, stops or restarts the two servers (also at boot) \\
 \texttt{pacman\_util.py}    & Python client of the servers:  register reads and writes, ASIC words, STRING commands, data and echo dumps \\
-\texttt{pacman\_lnxcheck.sh} & checkout of the Trenz module under Linux (CPU, memory, Ethernet, flash, eMMC, microSD) \\
+\texttt{pacman\_lnxcheck} & checkout of the Trenz module under Linux (CPU, memory, Ethernet, flash, eMMC, microSD) \\
 \texttt{power\_up\_tile.sh}   & tile power through the command server (with \texttt{power\_down.sh} and
   \texttt{report\_power.sh}) \\
 \end{tabular}
@@ -2502,7 +2506,7 @@ relies on several complementary techniques:
 
 \item {\bf Design Review:} The PACMAN design team includes a lead
   engineer, a consulting engineer, and a principal investigator.
-  All three understand the board down to the last net list.  The
+  All three understand the board down to the last netlist.  The
   PACMAN design is also periodically subjected to independent review.
 
 \item {\bf Prototype Systems:} The most effective form of quality
@@ -2512,113 +2516,72 @@ relies on several complementary techniques:
 
 \end{itemize}
 
-\subsection{Feature Verification Overview}
+\subsection{Firmware Validation}
 
-Here we list design features of the PACMAN card that are tested during
-hardware verification, in most cases by a loopback mechanism.
-Specific details on performing the relevant tests are discussed in the
-hardware checkout section.
-\begin{itemize}
-\item The LEDs are tested with blink patterns.
+The PACMAN design rules insist that every custom RTL module in the design has a test bench
+module which tests the core features of the module, at least to the level of the initial hardware
+checkout.  The test benches use ASCII output.  Every module is simulated with GHDL before being used
+in a Vivado project.  The test benches for the top-level units (e.g.\ RX, TX, ATC) are typically more
+complicated, and test integration.  An example running the test benches for the tx unit:
+\begin{lstlisting}[frame=leftline]
+cd ghdl/tx
+make
+make run-testbenches
+make run-unit-testbench
+cd ../..
+\end{lstlisting}
+The module testbenches are quite comprehensible, especially while editing module code, but they
+perform no automated checks.  We have complementary agent test benches, which are much more thorough
+and automated.  The firmware requirements are presented in Appendix~\ref{sec:requirements}.  For each requirement,
+an AI agent devises specific tests to validate the requirement in simulation and writes the test
+bench.  The entire suite is run through a Makefile:
+\begin{lstlisting}[frame=leftline]
+cd ghdl/agents
+make check
+cd ../..
+\end{lstlisting}
+At present this runs about 15\,000 checks of 82 requirements (in about 25\,s), making this a strong complement
+to more limited human testing.
 
-\item The provision of tile voltages VDDD and VDDA is verified by
-  onboard current and voltage monitoring ADCs.
+Once the firmware is installed on a device, the 50 requirements marked sim+hw are also checked in the installed
+firmware, with \texttt{pacman\_fwcheck} (J5 removed, tile power and every tile off):
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~#  /etc/init.d/pacman_server stop
+root@Trenz:~#  pacman_fwcheck
+root@Trenz:~#  /etc/init.d/pacman_server start
+\end{lstlisting}
 
-\item The POSI and PISO (Digital I/O to Tiles) signals are tested via
-  loopback using both test patterns and pseudorandom numbers.
 
-\item The onboard high-performance ADC is tested by connecting both
-  the positive and negative terminals to independently controlled DAC
-  outputs.
+\subsection{Software Validation}
 
-\item The CLK, RESETN/SYNC/TRIG signals (Digital I/O to Tiles) are
-  tested by loopback to the onboard ADC (DONE) through the ASIC
-  Monitoring Channels.  In addition to these signals, this therefore
-  tests MUX and the Analog Monitoring Signals.
+This documentation is not yet ready.
 
-\item The CLK, RESETN/SYNC/TRIG signals (Digital I/O to Tiles) are
-  tested by loopback to PISO channels (Not yet implemented, test above
-  suffices).
+\subsection{Hardware Checkout Procedure}
 
-\item The Front-Panel SMA connectors and MUX are checked by leaving
-  them open or connecting a resistor in software and confirming the
-  resistance with a DMM.
-
-\item The Front-Panel LEMO connectors are checked by driving them with
-  external TTL signals and checking counters in the software.
-
-\end{itemize}
-
-The PACMAN card hosts a Linux system, so a broad spectrum of test
-software is immediately available to us.  Here we list what we
-consider to be the most important tests of the Linux host.
-Specific details on performing the relevant tests are discussed in the
-hardware checkout section.
-
-\begin{itemize}
-\item Successful system boot, visible via UART.
-\item Successful remote login via Ethernet.
-\item Successful transfer of pseudo-random data via Ethernet (scp) and the UART terminal (lrzsz).
-\item Repeated read and write of pseudo-random numbers to the SD card.
-\end{itemize}
-
-Some of the tests described in this section require configuring the
-PACMAN card in ways that are not appropriate for a card installed in
-the production system.  For this reason, the PACMAN card includes an
-ASIC protection jumper (J5).  It is installed whenever the card is in
-the production system or connected to ASICs, and the test software
-then refuses test configurations that are not appropriate
-(\texttt{pacman\_hwcheck} runs only its read-only checks).
-
-\subsection{Requirement Verification}
-
-In addition to feature operation, the PACMAN has several performance
-requirements which require quantitative verifications:
-
-\begin{itemize}
- \item The provision of voltage and power across the required ranges
-   is tested by applying the appropriate load resistance to VDDD and VDDA.
- \item The common mode rejection feature of the DC voltage supply is
-   tested by injecting larger than expected common mode noise at the
-   input and measuring the provided DC voltage (This test will be performed on a subset of the PACMAN cards, to validate the design.)
- \item The bit error rate is measured during loopback testing of the digital I/O systems.
- \item The high-frequency noise rejection is tested by injecting a
-   high-frequency signal at the input and measuring the signals after
-   filtering. (This test will be performed on a subset of the PACMAN cards, to validate the design)
- \item Temperature dependence (TBD)
- \item Limits of digital I/O (clock speed, long cables) (TBD)
-\end{itemize}
-
-\section{Hardware Checkout Procedure}
-
-Caveats: No allowed tolerances have been provided yet, because we have
-only tested a few boards.
-
-\subsection{Bare Board}
+\subsubsection{Bare Board}
 
 \begin{center}
 \begin{tabular}{cc}
 \includegraphics[height=0.26\textwidth]{photos/bare_one_led.jpeg} &
 \includegraphics[height=0.26\textwidth]{photos/bare_two_led.jpeg} \\
-Board Power Only & Tile Power Enabled (jumper)
-
+Board Power Only & Tile Power Enabled (J1)
 \end{tabular}
 \end{center}
 
-The hardware checkout begins with a bare board (no TRENZ module
-installed).  The $3.3\rm V$ digital power (used by PACMAN) is on as
+\noindent
+The hardware checkout begins with a bare board (no Trenz module
+installed).  The 3.3\,V digital power (used by PACMAN) is on as
 soon as the board is powered at the DC supply input.  The board also
 includes a jumper (J1, ``TILE POWER ENABLE OVERRIDE JUMPER'') which allows
 the 3.0\,V tile power (T3V0) to be validated before installing any module.
 
 The current should be measured and compared to the nominal expected
-value for the applied voltage, in the range of positive $32~\rm V$ to
-positive $48~\rm V$:
+value for the applied voltage, in the range 32 to 48\,V:
 \begin{center}
 \begin{tabular}{|l|l|l|}
 \hline
 Voltage (V) & Current (mA)  &  Current (mA) \\
-            & (No Jumper)   & (Analog Power Enabled) \\
+            & (J1 out)      & (J1 installed) \\
 48          & 66            & 100 \\
 40          & 77            & 113 \\
 36          & 91            & 131 \\
@@ -2626,9 +2589,116 @@ Voltage (V) & Current (mA)  &  Current (mA) \\
 \end{tabular}
 \end{center}
 
-Using a DMM, verify the supply of 3.3 V (nominal) at TP3 (D3V3) relative to TP4 (GND).
+Using a DMM, verify the supply of 3.3\,V (nominal) at TP3 (D3V3) relative to TP4 (GND).
 
-Using a DMM, verify the supply of 3.0 V (nominal) at TP13 (A3V0) relative to TP14 (GND).
+Using a DMM, verify the supply of 3.0\,V (nominal) at TP13 (T3V0) relative to TP14 (GND).
+
+\subsubsection{Linux Checkout}
+
+After the bare board passes, install the Trenz module and boot the release.  The core Linux systems can be checked
+using the PACMAN Linux checkout application:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~#  /etc/init.d/pacman_server stop
+root@Trenz:~#  pacman_lnxcheck
+root@Trenz:~#  /etc/init.d/pacman_server start
+\end{lstlisting}
+
+
+\subsubsection{PACMAN Hardware}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1cm, y=0.5cm, font=\footnotesize,
+    wire/.style={thick, rounded corners=2pt, preaction={draw=white, line width=3pt}}]
+  % the 2x17 tile header of the breakout test board, as installed (the photo):  P on the left, N on the right, rows
+  % from the bottom.  Silkscreen names, TRM names in parentheses (In = POSI_n, On = PISO_n:  the tile's view).
+  % (A) loopback wiring:  each POSI pair to its PISO pair
+  \foreach \k/\c in {3/orange, 2/green!60!black, 1/red, 0/blue}{
+    \pgfmathsetmacro{\y}{2*(3-\k)}
+    \draw[wire, \c] (0,\y) -- (-0.4,\y) -- (-0.4,\y+1) -- (0,\y+1);
+    \draw[wire, \c] (0.5,\y) -- (0.9,\y) -- (0.9,\y+1) -- (0.5,\y+1);
+  }
+  % (A) the tile supplies (two pins each), each into its load R_X to its ground, over the top of the header
+  \draw[wire, black!70] (0,14) -- (-0.55,14) -- (-0.55,17.8) -- (1.05,17.8) -- (1.05,14) -- (0.5,14);
+  \draw[wire, black!70] (0,13) -- (-0.55,13) -- (-0.55,14);
+  \draw[wire, black!70] (0.5,13) -- (1.05,13) -- (1.05,14);
+  \draw[wire, black!70] (0,12) -- (-0.85,12) -- (-0.85,19.8) -- (1.35,19.8) -- (1.35,12) -- (0.5,12);
+  \draw[wire, black!70] (0,11) -- (-0.85,11) -- (-0.85,12);
+  \draw[wire, black!70] (0.5,11) -- (1.35,11) -- (1.35,12);
+  \foreach \y/\r in {17.8/A, 19.8/D}{
+    % a zigzag resistor in the middle of the top run
+    \fill[white] (-0.28,\y-0.3) rectangle (0.78,\y+0.3);
+    \draw[thick, black!70, line join=round] (-0.28,\y)
+      \foreach \t in {0,...,6}{ -- ({-0.28+(\t+0.5)*1.06/7},{\y+0.25*(1-2*mod(\t,2))}) } -- (0.78,\y);
+    \node[font=\footnotesize, black!80] at (0.25,\y+0.95) {$R_\r$};
+  }
+  % (B) ATC wiring:  Syn (G) to O0 (PISO_0), Trg (H) to O1 (PISO_1), Clk to the analog monitor pair (TstP, TstN)
+  \begin{scope}[shift={(8.9,0)}]
+    \draw[wire, teal] (0,9) -- (-0.45,9) -- (-0.45,5) -- (0,5);
+    \draw[wire, teal] (0.5,9) -- (0.95,9) -- (0.95,5) -- (0.5,5);
+    \draw[wire, violet] (0,10) -- (-0.75,10) -- (-0.75,7) -- (0,7);
+    \draw[wire, violet] (0.5,10) -- (1.25,10) -- (1.25,7) -- (0.5,7);
+    \draw[wire, orange] (0,8) -- (-1.1,8) -- (-1.1,15) -- (0,15);
+    \draw[wire, orange] (0.5,8) -- (1.55,8) -- (1.55,17.6) -- (-0.6,17.6) -- (-0.6,16) -- (0,16);
+  \end{scope}
+  \foreach \card/\xo/\name in {A/0/Loopback wiring, B/8.9/ATC wiring}{
+    \begin{scope}[shift={(\xo,0)}]
+      \draw[thick, rounded corners=2pt] (-0.3,-0.8) rectangle (0.8,16.8);
+      \foreach \l/\r [count=\i from 0] in {
+          I3P/I3N (POSI\_3), O3P/O3N (PISO\_3), I2P/I2N (POSI\_2), O2P/O2N (PISO\_2), I1P/I1N (POSI\_1),
+          O1P/O1N (PISO\_1), I0P/I0N (POSI\_0), O0P/O0N (PISO\_0), ClkP/ClkN (CLK), TrgP/TrgN (H), SynP/SynN (G),
+          VDDD/GND, VDDD/GND, VDDA/GND, VDDA/GND, TstP/GND (TEST\_P), TstN/GND (TEST\_N)}{
+        \fill (0,\i) circle (2.5pt);
+        \fill (0.5,\i) circle (2.5pt);
+        \node[anchor=east] at (-1.4,\i) {\l};
+        \node[anchor=west] at (1.9,\i) {\r};
+      }
+      \node[font=\small] at (0.25,-2.2) {(\card) \name};
+    \end{scope}
+  }
+\end{tikzpicture}
+\caption{\label{fig:test-cards} A tile header of the breakout test board, wired (A) for loopback, (B) for the
+  ATC tests:  as installed (Fig.~\ref{fig:breakout}), P on the left, N on the right;  silkscreen names, with the
+  TRM names in parentheses (In is POSI\_n and On is PISO\_n, from the tile's point of view).  The loads, deduced
+  from the currents at 2.5\,V (515\,mA and 1.14\,A):  $R_A \approx 4.9\,\Omega$, $R_D \approx 2.2\,\Omega$.}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[height=0.82\textheight]{photos/pacman_breakout.jpg}
+\caption{\label{fig:breakout} The PACMAN 1v5 with the breakout test board installed on its tile connector.}
+\end{figure}
+
+The hardware checkout relies on a custom-designed test board, the breakout test board (silkscreen ``PACMAN V5
+BREAKOUT TEST BOARD'', Fig.~\ref{fig:breakout}), that plugs into the PACMAN 400-pin connector and breaks out each
+tile into a 2$\times$17 header.  Each breakout test board has its headers wired for either the loopback or the ATC
+tests, as shown in Fig.~\ref{fig:test-cards}, and the two are swapped between runs.
+
+The PACMAN-specific hardware is checked with \texttt{pacman\_hwcheck}, with the ASIC protection jumper (J5)
+removed, no ASICs connected, and the PACMAN servers stopped.  The tests are chosen on the command line, and each
+board gets its own run, with \texttt{-{}-tile\_mask} set to the tiles that carry it (bit $t$ for tile $t+1$;  the
+default \hex{3ff} is all ten tiles).  With the loopback board installed (tile supplies into their loads, and the
+UART loopback):
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~#  /etc/init.d/pacman_server stop
+root@Trenz:~#  pacman_hwcheck --read_only --power --loopback --adc --i2c_stress
+\end{lstlisting}
+With the ATC board installed in its place (each tile's G and H looped to its PISO\_0 and PISO\_1, its CLK
+to its analog monitor pair), and a 1\,kHz TTL signal on both LEMO inputs:
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~#  pacman_hwcheck --atc_outputs --ana_mon --lemo_inputs
+\end{lstlisting}
+Then the checks that need the operator:  the LEDs blink in turn, and the MUX places R28 across the SMA jacks
+(J1001, J14) for a DMM reading (100\,$\Omega$, nominal).  The operator records what was seen:  the verdict covers
+only what the program itself checks.
+\begin{lstlisting}[frame=leftline]
+root@Trenz:~#  pacman_hwcheck --blink --sma
+root@Trenz:~#  /etc/init.d/pacman_server start
+\end{lstlisting}
+Each run ends with a \texttt{VERDICT} line (\texttt{PASS}, \texttt{FAIL}, or \texttt{INCOMPLETE} when something was
+skipped), and \texttt{pacman\_hwcheck -{}-help} lists the tests and options.  With J5 installed, only
+\texttt{-{}-read\_only} runs:  install J5 again once the checkout is done, before the card goes into a production
+system or is connected to ASICs.
 
 \appendix
 
@@ -2735,6 +2805,16 @@ Tile & TILE\_EN & SYNC & TRIG & UART & PISO & POSI & UART & PISO & POSI \\
 \end{table}
 
 \clearpage
+
+\newpage
+\section{Firmware Requirements}\label{sec:requirements}
+
+Table~\ref{tbl:requirements} lists the firmware requirements (\texttt{pacman-firmware/docs/requirements.txt}).
+Level 1 (e.g.\ RX-1, in italics) states what a unit promises;  level 2 (e.g.\ RX-1.1) is a testable statement,
+checked in simulation by the agent test benches (\texttt{make check} in \texttt{ghdl/agents}).  Those marked
+sim+hw are also checked in the installed firmware by \texttt{pacman\_fwcheck}.
+
+\input{firmware_requirements.tex}
 
 \section{PACMAN Version History}
 
